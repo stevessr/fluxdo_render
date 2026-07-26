@@ -77,6 +77,7 @@ class FluxdoRender extends StatefulWidget {
     this.chunkIndex = 0,
     this.trimTopMargin = false,
     this.trimBottomMargin = false,
+    this.stretchBlocks = true,
   });
 
   /// Discourse cooked HTML 内容。
@@ -241,6 +242,16 @@ class FluxdoRender extends StatefulWidget {
   final bool trimTopMargin;
   final bool trimBottomMargin;
 
+  /// 块级子项是否横向拉伸占满可用宽度(默认 true,正文语义:代码块/引用卡/
+  /// 分割线都该占满栏宽)。
+  ///
+  /// 传 false 时改为按内容收缩(`CrossAxisAlignment.start`),整棵渲染树的宽度
+  /// = 最宽子项的自然宽度。聊天气泡这类「按内容自适应宽度」的容器要用它 ——
+  /// 外层再包 [IntrinsicWidth] 是行不通的:图片/iframe 等 builder 内部有
+  /// LayoutBuilder,不支持 dry layout / 内在尺寸,一问就抛异常导致整条消息
+  /// 布局失败(肉眼不可见)。
+  final bool stretchBlocks;
+
   @override
   State<FluxdoRender> createState() => _FluxdoRenderState();
 }
@@ -359,7 +370,8 @@ class _FluxdoRenderState extends State<FluxdoRender> {
       old.screenshotMode != widget.screenshotMode ||
       old.chunkIndex != widget.chunkIndex ||
       old.trimTopMargin != widget.trimTopMargin ||
-      old.trimBottomMargin != widget.trimBottomMargin;
+      old.trimBottomMargin != widget.trimBottomMargin ||
+      old.stretchBlocks != widget.stretchBlocks;
 
   @override
   void reassemble() {
@@ -473,7 +485,9 @@ class _FluxdoRenderState extends State<FluxdoRender> {
           docOrders: _docOrders,
         );
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: widget.stretchBlocks
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.start,
       children: [
         for (int i = 0; i < _nodes.length; i++)
           factory.build(

@@ -140,6 +140,15 @@ class ParagraphLayoutCache {
     double minWidth,
     double maxWidth,
   ) {
+    // 无界宽兜底:IntrinsicWidth/IntrinsicHeight 会以 infinity 询问内在尺寸,
+    // 未约束的 Row / 横向 Scrollable 里布局也会给到无穷 maxWidth。此时退化成
+    // 段落自身的内在宽度(语义 = 「有多宽排多宽」)。不兜底的话下面的宽度桶
+    // `(inf * 2).round()` 会抛 "Unsupported operation: Infinity or NaN toInt",
+    // 整棵内容子树布局失败 —— 表现就是正文一个像素都画不出来。
+    if (!maxWidth.isFinite) {
+      final natural = intrinsics(flat, env).maxIntrinsicWidth;
+      maxWidth = natural < minWidth ? minWidth : natural;
+    }
     final tight = minWidth == maxWidth;
     final key = _LayoutKey(flat, env, (maxWidth * 2).round(), tight);
     final existing = _entries.remove(key);
@@ -444,6 +453,8 @@ class RenderCachedParagraph extends RenderBox
   double computeMaxIntrinsicHeight(double width) =>
       _heightAtWidth(width);
 
+  // 注:IntrinsicWidth/IntrinsicHeight 会以 infinity 询问内在高度,无界宽由
+  // ParagraphLayoutCache.obtain 统一兜底(退化成段落自身的内在宽度)。
   double _heightAtWidth(double width) =>
       ParagraphLayoutCache.obtain(_result, _env, 0, width).size.height;
 
