@@ -27,7 +27,6 @@ import '../../selection/projection.dart';
 import '../model/editable_text_content.dart'
     show EditableTextContent, MarkKind, MarkSpan;
 import '../model/editor_state.dart';
-import '../model/inline_spin.dart' show scanInlineSyntax;
 
 class EditableParagraph extends StatefulWidget {
   const EditableParagraph({
@@ -37,7 +36,6 @@ class EditableParagraph extends StatefulWidget {
     required this.baseStyle,
     this.composing = TextRange.empty,
     this.revealMarkdownAt,
-    this.syntaxHighlight = false,
     this.listMarkerOrdinal = 1,
     this.imageContentBuilder,
     this.emojiImageBuilder,
@@ -65,11 +63,6 @@ class EditableParagraph extends StatefulWidget {
   /// 定界符显形位置(内容偏移):光标命中的 mark 两端渲染淡色字面
   /// 定界符(`**`/`[u]` 等,零逻辑宽投影)。null = 只渲染格式不显形。
   final int? revealMarkdownAt;
-
-  /// ir 字面语法着色:块内完整字面标记对(`*x*` 等物化产物)内容段按
-  /// 语法上样式、定界符段淡色(Vditor「符号可见 + 格式保持」)。
-  /// 纯展示,坐标零改动。wysiwyg 恒 false。
-  final bool syntaxHighlight;
 
   /// 有序列表项显示序号(派生渲染态,FluxdoEditor 按连续 run 扫描计算)。
   final int listMarkerOrdinal;
@@ -99,7 +92,6 @@ class _EditableParagraphState extends State<EditableParagraph> {
         editingLinkColor: _linkColor,
         editingDelimiterColor: _delimiterColor,
         revealMarkdownAt: widget.revealMarkdownAt,
-        syntaxHighlight: widget.syntaxHighlight,
       ),
       _effectiveStyle,
       // 行内图片原子(裸图):走宿主图片管线(upload 解析/解码上限),
@@ -152,7 +144,6 @@ class _EditableParagraphState extends State<EditableParagraph> {
         oldWidget.block.kind != widget.block.kind ||
         oldWidget.block.headingLevel != widget.block.headingLevel ||
         oldWidget.baseStyle != widget.baseStyle ||
-        oldWidget.syntaxHighlight != widget.syntaxHighlight ||
         revealChanged) {
       _disposeResult();
     }
@@ -257,19 +248,9 @@ class _EditableParagraphState extends State<EditableParagraph> {
 
     // 行内剧透编辑态标识:底纹 + 虚线框(阅读端是粒子遮罩;编辑态要
     // "看得出是剧透"而非"遮住"——对齐官方 blurred decoration 意图)。
-    // 物化字面态(光标驻留,mark 已摘除)从语法扫描补:`[spoiler]x[/…]`
-    // 字面的**内容段**同样上框 —— 否则光标一进内容样式全消失,出来
-    // 又回来(闪变)。框只罩内容不罩标签字面(样式只属于内容)。
     final spoilerSpans = [
       for (final m in block.content.marks)
         if (m.kind == MarkKind.spoilerInline) TextRange(start: m.start, end: m.end),
-      if (widget.syntaxHighlight)
-        for (final h in scanInlineSyntax(block.content))
-          if (h.kind == MarkKind.spoilerInline)
-            TextRange(
-              start: h.start + h.openLen,
-              end: h.start + h.openLen + h.contentLen,
-            ),
     ];
     if (spoilerSpans.isNotEmpty) {
       final scheme = Theme.of(context).colorScheme;
@@ -451,10 +432,7 @@ class _SpoilerDecorPainter extends CustomPainter {
 
     for (final r in ranges) {
       final rs = proj.renderOffsetForContent(r.start);
-      // 右界用末端语义:光标口径的延迟归属会跳过 mark.end 处的零内容
-      // entry(显形虚拟定界符/codePad),把紧随其后的 `[/spoiler]` 字面
-      // 一并框进装饰 —— 开定界符在框外、闭定界符在框内,不对称。
-      final re = proj.renderEndForContent(r.end);
+      final re = proj.renderOffsetForContent(r.end);
       if (rs >= re) continue;
       final boxes = p.getBoxesForSelection(
         TextSelection(baseOffset: rs, extentOffset: re),

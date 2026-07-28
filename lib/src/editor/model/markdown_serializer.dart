@@ -207,10 +207,6 @@ String _serializeListRun(List<TextBlock> run) {
 /// **单一真相**:编辑态显形(EditableTextContent.toInlines 的
 /// revealMarkdownAt)的定界符排列也用这份序 —— 显形展示与序列化产物
 /// 的嵌套形态一致,不维护第二份。
-///
-/// **只对硬约束 kind 是权威**:同区间的普通样式 mark(strong/em/HTML
-/// 标签系)之间嵌套方向语义等价,序列化尊重 marks 列表序(见
-/// [compareSameSpanMarkOpen])—— 本表对它们只是无列表序可依时的兜底。
 const List<MarkKind> kMarkNestingOrder = [
   MarkKind.spoilerInline,
   // size 包在颜色外层(与 toInlines._wrapPiece 的包裹顺序一致:先套色
@@ -233,39 +229,6 @@ const List<MarkKind> kMarkNestingOrder = [
   MarkKind.monospaceStyle,
   MarkKind.inlineCode,
 ];
-
-/// 嵌套方向有 cook 实测硬约束的 kind(两两之间必须按 [kMarkNestingOrder]
-/// 包裹,写反会被 BBCode/onebox 解析切碎)。普通样式标记不在此列 ——
-/// `<small>~~x~~</small>` 与 `~~<small>x</small>~~` cook 都认,方向属于
-/// 内容本身,必须往返保序。
-const Set<MarkKind> _kHardConstrainedKinds = {
-  MarkKind.spoilerInline,
-  MarkKind.size,
-  MarkKind.bgColor,
-  MarkKind.textColor,
-  MarkKind.link,
-};
-
-/// 同区间(start/end 都相同)mark 的**开启**定序,外层在前。
-///
-/// 背景(真实翻车):`<small>~~旧称~~</small>` 经 parser 摊平成同区间的
-/// smallStyle+lineThrough 两个 mark,DOM 嵌套序只剩 marks **列表序**
-/// (parser 摊平时外层先入表)在承载。序列化若一律按 [kMarkNestingOrder]
-/// 重排,会写出 `~~<small>旧称</small>~~` —— 结构翻转,宿主门禁二次
-/// cook 对比不等价,整帖被降级源码模式。
-///
-/// 规则:任一方是硬约束 kind 时按 [kMarkNestingOrder](包裹方向是解析
-/// 正确性/既有 raw 约定问题,列表序不越权);两个普通样式 mark 之间才
-/// 尊重列表序(aIndex/bIndex = 在 marks 列表里的下标)。
-int compareSameSpanMarkOpen(MarkSpan a, int aIndex, MarkSpan b, int bIndex) {
-  if (_kHardConstrainedKinds.contains(a.kind) ||
-      _kHardConstrainedKinds.contains(b.kind)) {
-    return kMarkNestingOrder
-        .indexOf(a.kind)
-        .compareTo(kMarkNestingOrder.indexOf(b.kind));
-  }
-  return aIndex.compareTo(bIndex);
-}
 
 /// HTML 样式标签名(小写):`<tag>…</tag>`。
 String? _htmlTagNameFor(MarkKind kind) => switch (kind) {
@@ -420,29 +383,14 @@ String _inlineToMarkdown(EditableTextContent content) {
     }
   }
 
-  // marks 列表下标(同区间定序用:parser 摊平时外层先入表,列表序即
-  // 原 DOM 嵌套方向)。MarkSpan 值相等,重复键取首次出现。
-  final markListIndex = <MarkSpan, int>{};
-  for (var i = 0; i < content.marks.length; i++) {
-    markListIndex.putIfAbsent(content.marks[i], () => i);
-  }
-
   void emitOpens(int offset) {
     final toOpen = opens[offset];
     if (toOpen == null) return;
-    // 定序:同区间 mark 尊重列表序(承载原 DOM 嵌套方向,详见
-    // compareSameSpanMarkOpen);区间不同(同起不同止)仍按固定嵌套序
-    // (spoiler/link 最外)。
+    // 固定序开启(spoiler/link 最外)
     final sorted = [...toOpen]
-      ..sort((a, b) {
-        if (a.end == b.end) {
-          return compareSameSpanMarkOpen(
-              a, markListIndex[a] ?? 0, b, markListIndex[b] ?? 0);
-        }
-        return kMarkNestingOrder
-            .indexOf(a.kind)
-            .compareTo(kMarkNestingOrder.indexOf(b.kind));
-      });
+      ..sort((a, b) =>
+          kMarkNestingOrder.indexOf(a.kind)
+              .compareTo(kMarkNestingOrder.indexOf(b.kind)));
     for (final m in sorted) {
       if (!bareLinks.contains(m)) {
         buf.write(_openTag(m, htmlEmphasis: htmlEmphasis));

@@ -32,7 +32,6 @@ import '../../node/node.dart';
 import 'editable_text_content.dart';
 import 'editor_block.dart';
 import 'inline_markdown_parser.dart';
-import 'inline_spin.dart';
 import 'markdown_serializer.dart';
 
 export 'editor_block.dart';
@@ -93,22 +92,6 @@ class EditorSelection {
 
   @override
   String toString() => 'EditorSelection($base → $extent)';
-}
-
-/// 编辑器工作模式。
-///
-/// 两者共享同一份文档模型/序列化/输入规则,只在**格式边界的交互语义**
-/// 上分叉(显形、mark 末端二态停位、退格物化)。
-enum EditorMode {
-  /// 所见即所得(默认):任何时候不显形字面定界符;mark 末端无内/外
-  /// 二态停位(左右键直接过界);退格恒删字符 / mark 自然收缩,
-  /// 不把 mark 物化为字面定界符。
-  wysiwyg,
-
-  /// 即时渲染(instant render):光标进入行内 mark 范围时两端显形淡色
-  /// 字面定界符;mark 末端有内/外二态停位;外侧(及非 inclusive mark
-  /// 末端)退格把 mark 物化为字面定界符。
-  ir,
 }
 
 /// 历史快照(undo 单元)。
@@ -180,53 +163,6 @@ class EditorState extends ChangeNotifier {
   /// 当前块内的 composing 区间(编辑文本坐标),empty = 无。
   TextRange _composing = TextRange.empty;
   TextRange get composing => _composing;
-
-  /// 编辑器工作模式(见 [EditorMode];宿主偏好,默认所见即所得)。
-  ///
-  /// 切换即时生效:显形由视图层按模式派生,下一帧自然折叠/展开;ir
-  /// 物化态字面由光标移动收口折叠。离开 ir 时全文档收口一次(守卫关)
-  /// —— wysiwyg 下收口路径永不再跑,滞留的物化字面会被当普通文本
-  /// 序列化(转义毁格式)。
-  EditorMode _mode = EditorMode.wysiwyg;
-  EditorMode get mode => _mode;
-  set mode(EditorMode value) {
-    if (_mode == value) return;
-    final leavingIr = _mode == EditorMode.ir;
-    _mode = value;
-    if (leavingIr) _foldAllLiterals();
-    notifyListeners();
-  }
-
-  /// 全文档字面收口(守卫关,含光标驻留的):离开 ir 模式时调用。
-  /// 语义保持变换,不进 undo。
-  void _foldAllLiterals() {
-    if (hasComposing) return;
-    for (var i = 0; i < _blocks.length; i++) {
-      final block = _blocks[i];
-      if (block is! TextBlock) continue;
-      if (!hasInlineDelimiterChar(block.content.text)) continue;
-      final sel = _selection;
-      final inBlock =
-          sel != null && sel.isCollapsed && sel.extent.blockId == block.id;
-      final spun = spinInlineMarks(
-        block.content,
-        caret: inBlock ? sel.extent.offset : 0,
-        guardAtCaret: false,
-      );
-      if (identical(spun.content, block.content)) continue;
-      final newBlocks = [..._blocks];
-      newBlocks[i] = block.copyWith(content: spun.content);
-      _commit(
-        newBlocks,
-        inBlock
-            ? EditorSelection.collapsed(
-                EditorPosition(blockId: block.id, offset: spun.caret))
-            : _selection,
-        groupWithPrevious: false,
-        recordHistory: false,
-      );
-    }
-  }
 
   bool get hasComposing => _composing.isValid && !_composing.isCollapsed;
 
@@ -388,220 +324,13 @@ class EditorState extends ChangeNotifier {
   // 选区/composing 更新(不产历史)
   // -----------------------------------------------------------------
 
-  void updateSelection(EditorSelection? selection, {bool deferIrReconcile = false}) {
-    if (_selection == selection) {
-      // 选区没变也要让延迟收口挂起(tapDown 同位重点击):否则 tapUp
-      // 的结算无事可做,光标所在 mark 永不物化 —— 显形符号点不进去、
-      // 改不了(「符号不可修改」)。常规调用(非 defer)维持零开销早退。
-      if (deferIrReconcile && selection != null && !_irReconcilePending) {
-        _irReconcilePending = true;
-        _pendingIrReconcileFrom = selection.extent.blockId;
-      }
-      return;
-    }
-    final prevBlockId = _selection?.extent.blockId;
+  void updateSelection(EditorSelection? selection) {
+    if (_selection == selection) return;
     _selection = selection == null ? null : _clampSelection(selection);
-    // 选区跳走 = composition/pending/连续编辑 语境失效。
+    // 选区跳走 = composition/pending 语境失效。
     _composing = TextRange.empty;
     _clearPending();
-    _lastEditPos = null;
-    // ir 大一统:光标移动 = 展开态的唯一驱动。先收口(离开的字面折叠
-    // 回 mark),再进入(新位置落在 mark 簇内 → 物化为可编辑字面)。
-    //
-    // [deferIrReconcile]:手势按下路径用 —— 按下那一刻还分不清是点击
-    // 还是拖选起点,立即物化会让字面展开、文本回流,拖选锚点错位
-    // (Vditor:选择期间形态不变,物化只属于确认的光标事件)。视图层
-    // 在手势定性后调 [commitDeferredIrReconcile](单击)或什么都不做
-    // (拖成 range 选区,收口的 range 守卫本就不折不物化)。
-    if (deferIrReconcile) {
-      // 手势可能连发多次延迟更新(拖动逐帧),只记**第一次**的离开块:
-      // 展开字面只可能在手势起点前的驻留块,中途路过的块没发生物化。
-      if (!_irReconcilePending) {
-        _irReconcilePending = true;
-        _pendingIrReconcileFrom = prevBlockId;
-      }
-    } else {
-      _irReconcilePending = false;
-      _pendingIrReconcileFrom = null;
-      _reconcileLiteralsAfterCaretMove(prevBlockId);
-    }
     notifyListeners();
-  }
-
-  /// [updateSelection] 延迟收口挂起标志与„离开块"记录(defer 路径)。
-  bool _irReconcilePending = false;
-  String? _pendingIrReconcileFrom;
-
-  /// 手势定性为单击后补跑 ir 收口(折叠离开的字面 + 物化光标落点簇)。
-  /// 无挂起时 no-op —— 不能无条件重跑:折叠落点贴 mark 边界属正常驻留
-  /// 态(反振荡规则有意不物化),盲目重跑会把它错误展开。
-  void commitDeferredIrReconcile() {
-    if (!_irReconcilePending) return;
-    _irReconcilePending = false;
-    final from = _pendingIrReconcileFrom;
-    _pendingIrReconcileFrom = null;
-    _reconcileLiteralsAfterCaretMove(from);
-  }
-
-  /// 手势定性为拖选/长按(不是单击)时放弃延迟收口 —— 选择期间形态
-  /// 不变(不折叠不物化),Vditor 同款。
-  void cancelDeferredIrReconcile() {
-    _irReconcilePending = false;
-    _pendingIrReconcileFrom = null;
-  }
-
-  /// ir「进入物化/离开折叠」的光标移动收口(单点,覆盖点击/方向键/
-  /// 程序化跳转;编辑事务路径由各自的 _maybeSpin 覆盖):
-  ///
-  /// 1. **折叠**:光标离开的块与当前块跑 spin(caret 守卫开 —— 光标仍
-  ///    驻留的字面对保持展开),完整字面对折回 mark;
-  /// 2. **物化**:collapsed 光标落在可物化 mark 簇内 → 整簇展开为字面,
-  ///    光标映射到字面坐标 —— 字面区内一切是纯文本编辑,每个字符位置
-  ///    真实存在(「到不了最后一个字符」「删不了前面的符号」在此架构
-  ///    下不存在)。
-  ///
-  /// 两步都**不进 undo**(recordHistory: false):语义保持变换,方向键
-  /// 导航不产生历史步骤。range 选区期间两步都不做(选择中不动布局)。
-  void _reconcileLiteralsAfterCaretMove(String? prevBlockId) {
-    if (_mode != EditorMode.ir) return;
-    if (hasComposing) return; // IME 预编辑中不折不物化
-    final sel = _selection;
-    if (sel != null && !sel.isCollapsed) return;
-
-    // 1. 折叠(离开块 + 当前块;当前光标作守卫)
-    var foldedInCaretBlock = false;
-    final targets = <String>{
-      ?prevBlockId,
-      if (sel != null) sel.extent.blockId,
-    };
-    for (final id in targets) {
-      final i = indexOfBlock(id);
-      if (i < 0) continue;
-      final block = _blocks[i];
-      if (block is! TextBlock) continue;
-      if (!hasInlineDelimiterChar(block.content.text)) continue; // 快退
-      final inBlock = sel != null && sel.extent.blockId == id;
-      final spun = spinInlineMarks(
-        block.content,
-        caret: inBlock ? sel.extent.offset : 0,
-        guardAtCaret: inBlock,
-        // 移动收口用闭区间守卫:光标贴字面区边界也算驻留(防「折叠→
-        // 贴边→重物化」振荡;在字面区头/尾补定界符字符是正当编辑)。
-        guardInclusive: true,
-      );
-      if (identical(spun.content, block.content)) continue;
-      if (inBlock) foldedInCaretBlock = true;
-      final newBlocks = [..._blocks];
-      newBlocks[i] = block.copyWith(content: spun.content);
-      _commit(
-        newBlocks,
-        inBlock
-            ? EditorSelection.collapsed(
-                EditorPosition(blockId: id, offset: spun.caret))
-            : _selection,
-        groupWithPrevious: false,
-        recordHistory: false,
-      );
-    }
-
-    // 2. 进入物化(折叠后按最新选区判定)。当前块刚发生过折叠时,光标
-    // 只**贴在** mark 端点(闭区间边界)不重物化 ——「移出字面区」的
-    // 折叠落点必贴刚折叠的 mark 边界,立即重物化会把光标弹回字面区,
-    // 方向键永远出不去;严格内部(点击跳进另一个 mark)照常物化。
-    final cur = _selection;
-    if (cur == null || !cur.isCollapsed) return;
-    if (foldedInCaretBlock) {
-      final b = textBlockById(cur.extent.blockId);
-      final off = cur.extent.offset;
-      final strictlyInside = b != null &&
-          b.content.marks.any((m) =>
-              m.start < off &&
-              off < m.end &&
-              isRefoldableMark(b.content, m));
-      if (!strictlyInside) return;
-    }
-    materializeClusterAt(cur.extent.blockId, cur.extent.offset);
-  }
-
-  /// 光标落点处的可物化 mark **连通簇**整体物化为字面(进入编辑态)。
-  ///
-  /// 簇 = 覆盖 [offset](闭区间)的可物化 mark 起步,按区间相交做传递
-  /// 闭包 —— 嵌套/相接的格式一起展开(只展开命中的那一个会让字面与
-  /// 相邻 mark 的定界符对不齐)。光标映射:物化插入点在光标前的推右移
-  /// (与 spin 物化阶段同语义)。不可物化 mark(link 含原子/inlineCode
-  /// 等)不展开,区间随插入平移。不进 undo。返回 true = 发生了物化。
-  bool materializeClusterAt(String blockId, int offset) {
-    if (_mode != EditorMode.ir) return false;
-    if (hasComposing) return false;
-    final i = indexOfBlock(blockId);
-    if (i < 0) return false;
-    final block = _blocks[i];
-    if (block is! TextBlock) return false;
-    final content = block.content;
-
-    // 连通簇:从覆盖光标的可物化 mark 起步,区间相交传递闭包。
-    final seeds = <MarkSpan>[
-      for (final m in content.marks)
-        if (m.start <= offset &&
-            offset <= m.end &&
-            isRefoldableMark(content, m))
-          m,
-    ];
-    if (seeds.isEmpty) return false;
-    final cluster = <MarkSpan>{...seeds};
-    var grew = true;
-    while (grew) {
-      grew = false;
-      for (final m in content.marks) {
-        if (cluster.contains(m) || !isRefoldableMark(content, m)) continue;
-        final touches = cluster.any((c) => m.start <= c.end && c.start <= m.end);
-        if (touches) {
-          cluster.add(m);
-          grew = true;
-        }
-      }
-    }
-
-    final materialized = materializeMarksToLiteral(
-      content,
-      cluster,
-      caret: offset,
-    );
-    // 整簇往返探针:单 mark 可折回(isRefoldableMark)不代表**组合字面**
-    // 可折回 —— 交错嵌套(em[0,3)+strong[1,3) → `*a**bc***`)重扫描时
-    // 贪婪顺序不同,折回会丢层。展开了折不回去 = 光标路过一次就毁格式,
-    // 这种簇不物化(保持 mark 态,投影显形兜底)。
-    final verify = spinInlineMarks(
-      materialized.content,
-      caret: 0,
-      guardAtCaret: false,
-    );
-    if (verify.content.text != content.text ||
-        !_sameMarkSet(verify.content.marks, content.marks)) {
-      return false;
-    }
-    final newBlocks = [..._blocks];
-    newBlocks[i] = block.copyWith(content: materialized.content);
-    _commit(
-      newBlocks,
-      EditorSelection.collapsed(
-        EditorPosition(blockId: blockId, offset: materialized.caret),
-      ),
-      groupWithPrevious: false,
-      recordHistory: false,
-    );
-    return true;
-  }
-
-  /// mark 多重集合等价(整簇往返探针用:折回顺序允许与原表不同,
-  /// 结构等价即可 —— 同区间嵌套对的列表序在往返中可能规范化)。
-  static bool _sameMarkSet(List<MarkSpan> a, List<MarkSpan> b) {
-    if (a.length != b.length) return false;
-    final rest = [...b];
-    for (final m in a) {
-      if (!rest.remove(m)) return false;
-    }
-    return true;
   }
 
   void updateComposing(TextRange range) {
@@ -651,60 +380,18 @@ class EditorState extends ChangeNotifier {
     EditorSelection? newSelection, {
     required bool groupWithPrevious,
     TextRange composing = TextRange.empty,
-    bool recordHistory = true,
   }) {
-    // recordHistory=false:语义保持变换(光标进入/离开触发的物化/折叠,
-    // 文档的**含义**没变只是表示形态变了)不进 undo —— 否则方向键导航
-    // 就会污染历史,undo 出一串「格式符时隐时现」的假步骤。
-    if (recordHistory) {
-      _recordHistory(groupWithPrevious: groupWithPrevious);
-    }
+    _recordHistory(groupWithPrevious: groupWithPrevious);
     _blocks = List.unmodifiable(_ensureTextBlock(newBlocks));
     _docRevision++;
     _selection = newSelection == null ? null : _clampSelection(newSelection);
     _composing = composing;
-    // 连续编辑追踪(ir 末端延伸豁免):编辑事务(recordHistory)后光标
-    // 位 = 编辑流末端;语义保持变换(物化/折叠,false)坐标已平移,清。
-    _lastEditPos = recordHistory && (_selection?.isCollapsed ?? false)
-        ? _selection!.extent
-        : null;
     notifyListeners();
   }
 
   // -----------------------------------------------------------------
   // 文本事务
   // -----------------------------------------------------------------
-
-  /// ir:插入点贴着**可物化 mark 的末端**时压制 inclusive 末端延伸。
-  ///
-  /// 但**连续编辑豁免**([_lastEditPos] 命中):光标停在这里是因为刚打完
-  /// 字(工具栏 pending 的第一个字符生成 mark 后,后续字符必须继续延伸,
-  /// 否则「点粗体只能打一个字」),编辑流没断就还在格式内;光标**移动**
-  /// 到边界(updateSelection 清 _lastEditPos)则是折叠 mark 的驻留态 ——
-  /// 视觉光标在 `[/spoiler]` 投影之后,打字必须落格式外(Vditor 语义)。
-  /// 不可物化 mark(inlineCode / 含原子 link 等)恒延伸 —— 没有物化
-  /// 入口,末端 inclusive 打字是唯一的「在格式尾继续写」路径。
-  bool _irSuppressEndExtension(
-      EditableTextContent c, String blockId, int offset) {
-    if (_mode != EditorMode.ir) return false;
-    final le = _lastEditPos;
-    if (le != null && le.blockId == blockId && le.offset == offset) {
-      return false; // 连续编辑:仍在格式内
-    }
-    return c.marks.any((m) =>
-        m.end == offset &&
-        EditableTextContent.isInclusiveMark(m) &&
-        isRefoldableMark(c, m));
-  }
-
-  /// 最近一次文本编辑事务后的光标位(连续编辑豁免判据)。任何**光标
-  /// 移动**(updateSelection)清空 —— 编辑流中断。
-  EditorPosition? _lastEditPos;
-
-  /// 连续编辑位(视图层光标渲染归属用):光标恰在 mark.end 且此值命中
-  /// = 刚在格式内打完字,caret 应画在闭定界符投影**之前**(格式内);
-  /// 否则按延迟归属画在定界符之后(格式外)。
-  EditorPosition? get lastEditPos => _lastEditPos;
 
   /// 折叠光标处插入文本(打字主路径;选区非折叠时先删)。
   void insertText(String inserted) {
@@ -719,19 +406,7 @@ class EditorState extends ChangeNotifier {
     if (i < 0) return;
     final block = _blocks[i];
     if (block is! TextBlock) return; // 岛上无文本插入
-    // 末端延伸(inclusive marks):粗体末尾继续打字 = 继续粗体。
-    // pending marks 命中锚点时用户意图已显式给出,不做隐式延伸。
-    // ir 物化态下光标所在区域是纯字面(无 mark),该参数天然不命中。
-    // 含定界符字符(`*`/`[`…)的插入不延伸:格式符是语法不是内容,吸进
-    // mark 会得到 em("123*") 这类假内容,spin 因内容含定界符折不回而
-    // 永远解不开 —— 归字面平面重解析(见 hasInlineDelimiterChar 文档)。
-    var content = block.content.insert(
-      pos.offset,
-      sanitized,
-      extendMarksAtEnd: !hasInlineDelimiterChar(sanitized) &&
-          !_irSuppressEndExtension(block.content, pos.blockId, pos.offset) &&
-          (_pendingMarks == null || _pendingAnchor != pos),
-    );
+    var content = block.content.insert(pos.offset, sanitized);
     // pending marks:命中锚点时对插入区间施加
     if (_pendingMarks != null && _pendingAnchor == pos) {
       content = content.applyExactMarks(
@@ -741,19 +416,13 @@ class EditorState extends ChangeNotifier {
       );
       _clearPending();
     }
-    // ir spin:整块重解析(imeReplace 同款,两条打字路径语义必须一致)。
-    // 已折叠 mark 与新字面能拼出新结构(em("1") 前后补 `*` → strong);
-    // 光标已在字面区外(如物化态闭定界符后)打普通字符 = 离开编辑点,
-    // 字面对折回 mark。无定界符文本被 spin 内部 O(n) 探针快退,零开销。
-    var caret = pos.offset + sanitized.length;
-    final spun = _maybeSpin(content, caret);
-    content = spun.content;
-    caret = spun.caret;
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(content: content);
     _commit(
       newBlocks,
-      EditorSelection.collapsed(pos.copyWith(offset: caret)),
+      EditorSelection.collapsed(
+        pos.copyWith(offset: pos.offset + sanitized.length),
+      ),
       groupWithPrevious: true,
     );
   }
@@ -886,40 +555,15 @@ class EditorState extends ChangeNotifier {
     final isTextChange = safeStart != safeEnd || replacement.isNotEmpty;
 
     if (!isTextChange) {
-      final prevBlockId = _selection?.extent.blockId;
-      final prevSel = _selection;
       _selection = _clampSelection(EditorSelection.collapsed(
         EditorPosition(blockId: blockId, offset: caretOffset),
       ));
-      // 平台驱动的光标移动(IME 方向键/点击回喂)同样中断连续编辑;
-      // 选区没实际变化(纯 composing 更新)不清。
-      if (_selection != prevSel) _lastEditPos = null;
       _composing = composing;
-      // ir 大一统:平台驱动的纯光标移动同样走「进入物化/离开折叠」
-      // 收口(IME 方向键/点击由平台回喂 setEditingState 的路径)。
-      // composing 活跃时 hasComposing 在收口内部挡住,不折不物化。
-      _reconcileLiteralsAfterCaretMove(prevBlockId);
       notifyListeners();
       return;
     }
 
-    // 末端延伸(inclusive marks;仅纯插入形态生效,replace 内部判定):
-    // 粗体末尾继续打字 = 继续粗体。pending 锚点命中时不隐式延伸(下方
-    // applyExactMarks 按用户显式意图整段重设)。含定界符字符的插入同样
-    // 不延伸:格式符是语法不是内容(与 insertText 同口径 —— 吸进 mark
-    // 会得到 em("123*") 假内容,spin 折不回,永远解不开)。
-    final pendingHit = _pendingMarks != null &&
-        _pendingAnchor != null &&
-        _pendingAnchor!.blockId == blockId &&
-        _pendingAnchor!.offset == safeStart;
-    var content = block.content.replace(
-      safeStart,
-      safeEnd,
-      replacement,
-      extendMarksAtEnd: !pendingHit &&
-          !hasInlineDelimiterChar(replacement) &&
-          !_irSuppressEndExtension(block.content, blockId, safeStart),
-    );
+    var content = block.content.replace(safeStart, safeEnd, replacement);
     // pending marks:替换起点命中锚点(打字第一个字符)时施加。
     // composing 进行中保留 pending(候选切换会反复 replace 同区间)。
     final anchor = _pendingAnchor;
@@ -937,24 +581,11 @@ class EditorState extends ChangeNotifier {
       if (!composingActive) _clearPending();
     }
     final newBlocks = [..._blocks];
-    // ir spin(移动端退格主通道:IME 退格不走 backspace(),文本变更全
-    // 从这里过):composing 无效/collapsed 时对落地后的内容整块扫描,
-    // 删出的完整字面对立即折叠。composing 活跃跳过 —— 预编辑文本是
-    // 临时的,折叠会撕坏候选窗口。折叠改写了文本时,调用方
-    // (EditorImeClient)的 reconcile 检查(文档 != 平台窗口)会兜底
-    // 强制回喂,无需额外通知。
-    final composingActive = composing.isValid && !composing.isCollapsed;
-    var caret = caretOffset;
-    if (!composingActive) {
-      final spun = _maybeSpin(content, caretOffset.clamp(0, content.length));
-      content = spun.content;
-      caret = spun.caret;
-    }
     newBlocks[i] = block.copyWith(content: content);
     _commit(
       newBlocks,
       EditorSelection.collapsed(
-        EditorPosition(blockId: blockId, offset: caret),
+        EditorPosition(blockId: blockId, offset: caretOffset),
       ),
       groupWithPrevious: true,
       composing: composing,
@@ -1006,14 +637,10 @@ class EditorState extends ChangeNotifier {
 
     if (fi == ti) {
       if (fromBlock is TextBlock) {
-        // ir spin:选区删除可能让两侧字面拼成完整对(`**bo|xx|ld**`
-        // 删中段),同一事务折叠。
-        final spun = _maybeSpin(
-          fromBlock.content.delete(from.offset, to.offset),
-          from.offset,
-        );
-        newBlocks.add(fromBlock.copyWith(content: spun.content));
-        caret = EditorPosition(blockId: fromBlock.id, offset: spun.caret);
+        newBlocks.add(fromBlock.copyWith(
+          content: fromBlock.content.delete(from.offset, to.offset),
+        ));
+        caret = EditorSelection.collapsed(from).extent;
       }
       // 单岛整选:直接不加(删除),光标落到邻近文本块(clamp 兜底)
       caret ??= from;
@@ -1035,14 +662,11 @@ class EditorState extends ChangeNotifier {
       }
 
       if (headBlock != null && tailContent != null) {
-        // 文-文:合并(首块 kind 胜出)。ir spin:首尾拼接处可能拼出
-        // 完整字面对,同一事务折叠。
-        final spun = _maybeSpin(
-          headContent!.concat(tailContent),
-          from.offset,
-        );
-        newBlocks.add(headBlock.copyWith(content: spun.content));
-        caret = EditorPosition(blockId: headBlock.id, offset: spun.caret);
+        // 文-文:合并(首块 kind 胜出)
+        newBlocks.add(headBlock.copyWith(
+          content: headContent!.concat(tailContent),
+        ));
+        caret = EditorPosition(blockId: headBlock.id, offset: from.offset);
       } else if (headBlock != null) {
         // 文-岛:首块残余保留,岛删除
         newBlocks.add(headBlock.copyWith(content: headContent!));
@@ -1119,38 +743,52 @@ class EditorState extends ChangeNotifier {
       mergeWithPrevious(pos.blockId);
       return;
     }
-    // ir 大一统:光标所在的物化字面区里退格就是删光标前的字符(格式符
-    // 也是字符,Vditor 语义);mark 边界不再有停位/物化特判 —— 光标在
-    // mark 内时进入收口已把它物化,这里看到的恒是普通文本。
+    // 闭端退格 = 拆标记:光标恰在某 mark.end(显形态,闭定界符紧贴
+    // 光标左边)时,第一次退格不删正文字符,而是把该 mark 物化为字面
+    // 定界符;物化后光标在闭定界符末尾,再退格走常规路径删字面字符,
+    // 行为连贯。开端(mark.start)不触发 —— 普通退格删前一字符、mark
+    // 区间自然收缩,现有行为已合理。
+    if (_tryMaterializeAtMarkEnd(block, pos)) return;
     // 找光标前一个 grapheme 的起点(原子 FFFC 恒 1)
     final before = block.content.text.substring(0, pos.offset);
     final lastCluster =
         before.characters.isEmpty ? '' : before.characters.last;
     final delStart = pos.offset - lastCluster.length;
-    // ir spin:删字可能拼出完整字面标记对(`**bold***` 删掉尾 `*`),
-    // 同一事务折叠(见 inline_spin.dart)。
-    final spun =
-        _maybeSpin(block.content.delete(delStart, pos.offset), delStart);
     final newBlocks = [..._blocks];
-    newBlocks[i] = block.copyWith(content: spun.content);
+    newBlocks[i] =
+        block.copyWith(content: block.content.delete(delStart, pos.offset));
     _commit(
       newBlocks,
-      EditorSelection.collapsed(pos.copyWith(offset: spun.caret)),
+      EditorSelection.collapsed(pos.copyWith(offset: delStart)),
       groupWithPrevious: true,
     );
   }
 
-  /// ir spin 门:仅 ir 模式对 [content] 整块「物化→重折叠」(见
-  /// inline_spin.dart);wysiwyg 原样返回。在既有事务 _commit 前对新
-  /// content 施加 = 同一 undo 步。
+  /// 闭端退格的物化判定:collapsed 光标恰在某 mark.end(显形判定
+  /// [EditableTextContent.revealableMarksAt] 对 end==caret 恒命中)时,
+  /// 取**最内层**的那个 mark 物化,返回 true(一次退格拆一层)。
   ///
-  /// 守卫统一闭区间(Vditor「移出才折叠」):编辑事务后光标必然贴在
-  /// 编辑点,字面对保持展开(打完 `*x*` 不立即折,内容由视图层语法
-  /// 着色出格式效果);真正的折叠只发生在光标移动收口
-  /// (_reconcileLiteralsAfterCaretMove)光标彻底离开字面区之后。
-  SpinResult _maybeSpin(EditableTextContent content, int caret) {
-    if (_mode != EditorMode.ir) return (content: content, caret: caret);
-    return spinInlineMarks(content, caret: caret, guardInclusive: true);
+  /// 最内层口径与显形定界符的闭合发射序(toInlines.appendDelimiters)
+  /// 同源:start 更大 = 更内层;同界按 [kMarkNestingOrder] 更靠后为内。
+  bool _tryMaterializeAtMarkEnd(TextBlock block, EditorPosition pos) {
+    MarkSpan? target;
+    for (final m in block.content.marks) {
+      if (m.end != pos.offset) continue;
+      // 定界符文案覆盖不了的 kind 不参与(物化会 no-op,退格必须照常删字)
+      if (markOpeningDelimiter(m).isEmpty && markClosingDelimiter(m).isEmpty) {
+        continue;
+      }
+      if (target == null ||
+          m.start > target.start ||
+          (m.start == target.start &&
+              kMarkNestingOrder.indexOf(m.kind) >
+                  kMarkNestingOrder.indexOf(target.kind))) {
+        target = m;
+      }
+    }
+    if (target == null) return false;
+    materializeMarkAt(block.id, target);
+    return true;
   }
 
   /// 光标后删一个 grapheme(Forward Delete;段尾对岛同样两段式)。
@@ -1185,14 +823,13 @@ class EditorState extends ChangeNotifier {
     final after = block.content.text.substring(pos.offset);
     final step = after.characters.isEmpty ? 0 : after.characters.first.length;
     if (step == 0) return;
-    // ir spin:同 backspace,前删也可能拼出完整字面对。
-    final spun = _maybeSpin(
-        block.content.delete(pos.offset, pos.offset + step), pos.offset);
     final newBlocks = [..._blocks];
-    newBlocks[i] = block.copyWith(content: spun.content);
+    newBlocks[i] = block.copyWith(
+      content: block.content.delete(pos.offset, pos.offset + step),
+    );
     _commit(
       newBlocks,
-      EditorSelection.collapsed(pos.copyWith(offset: spun.caret)),
+      EditorSelection.collapsed(pos),
       groupWithPrevious: true,
     );
   }
@@ -1475,7 +1112,7 @@ class EditorState extends ChangeNotifier {
   /// - **边界(本阶段不做)**:link 的 href 原位编辑走物化后的字面
   ///   `](href)` 修改;原子(图片/emoji/date chip)不参与物化 ——
   ///   它们没有"字面定界符"形态,序列化时整体重写。
-  void materializeMarkAt(String blockId, MarkSpan mark, {int? caretOffset}) {
+  void materializeMarkAt(String blockId, MarkSpan mark) {
     final i = indexOfBlock(blockId);
     if (i < 0) return;
     final block = _blocks[i];
@@ -1498,18 +1135,16 @@ class EditorState extends ChangeNotifier {
     );
     next = next.insert(mark.end, closing);
     next = next.insert(mark.start, opening);
-    // 光标:显式指定(如点击进入 link 字面 —— 落在点击处对应的字面
-    // 坐标)或默认闭定界符末尾(mark.end 退格物化的自然落点:再退格 =
-    // 删字面字符,行为连贯)。
-    final caret = caretOffset?.clamp(0, next.length) ??
-        mark.end + opening.length + closing.length;
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(content: next);
     _commit(
       newBlocks,
-      EditorSelection.collapsed(
-        EditorPosition(blockId: blockId, offset: caret),
-      ),
+      // 光标落在物化后的闭定界符末尾(mark.end 处退格触发的自然落点:
+      // 再退格 = 删字面字符,行为连贯)
+      EditorSelection.collapsed(EditorPosition(
+        blockId: blockId,
+        offset: mark.end + opening.length + closing.length,
+      )),
       groupWithPrevious: false,
     );
     sealHistory();
@@ -2290,8 +1925,6 @@ class EditorState extends ChangeNotifier {
     }
     block as TextBlock;
 
-    // ir 大一统:左右键是纯移动。光标落进 mark 簇由 updateSelection 的
-    // 收口物化(文字变字面,后续移动全是真实坐标);无二态停位特判。
     if (direction < 0) {
       if (pos.offset > 0) {
         final before = block.content.text.substring(0, pos.offset);
@@ -2330,21 +1963,12 @@ class EditorState extends ChangeNotifier {
             : EditorPosition(blockId: nextBlock.id, offset: 0);
       }
     }
-    if (next == null) {
-      // 走不动(段首/段尾)也要中断连续编辑态:光标在段尾 mark.end 时
-      // 画在闭定界符**内侧**(连续编辑归属),右键预期是「走出格式」——
-      // 清 _lastEditPos 让渲染归属翻到定界符外侧,下次打字落格式外。
-      if (_lastEditPos != null) {
-        _lastEditPos = null;
-        notifyListeners();
-      }
-      return;
-    }
-    if (extend) {
-      updateSelection(EditorSelection(base: sel.base, extent: next));
-      return;
-    }
-    updateSelection(EditorSelection.collapsed(next));
+    if (next == null) return;
+    updateSelection(
+      extend
+          ? EditorSelection(base: sel.base, extent: next)
+          : EditorSelection.collapsed(next),
+    );
   }
 
   /// [index] 前一个可停位置(前块尾;岛为其 offset 0)。

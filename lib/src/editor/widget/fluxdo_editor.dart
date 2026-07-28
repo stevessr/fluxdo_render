@@ -199,6 +199,7 @@ class FluxdoEditor extends StatefulWidget {
     required this.state,
     this.baseTextStyle,
     this.autofocus = false,
+    this.liveMarkdownPreview = true,
     this.focusNode,
     this.nodeFactory,
     this.markdownImporter,
@@ -225,6 +226,11 @@ class FluxdoEditor extends StatefulWidget {
   final TextStyle? baseTextStyle;
 
   final bool autofocus;
+
+  /// 定界符显形开关:光标(collapsed)进入行内 mark 范围时,该 mark
+  /// 两端展示淡色字面定界符(`**`/`[u]` 等,纯渲染投影零逻辑宽);
+  /// 光标离开即折叠回富文本。
+  final bool liveMarkdownPreview;
 
   /// 外部焦点节点(宿主监听焦点态做键盘/面板联动;null 内部自建)。
   final FocusNode? focusNode;
@@ -587,12 +593,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final base = _toEditorPosition(sel.base);
     final extent = _toEditorPosition(sel.extent);
     if (base == null || extent == null) return;
-    // 拖动期间延迟 ir 收口(端点交叉瞬间可能 collapsed,即时物化会
-    // 闪烁回流);_onHandleDragFinished 统一补收口。
-    widget.state.updateSelection(
-      EditorSelection(base: base, extent: extent),
-      deferIrReconcile: true,
-    );
+    widget.state.updateSelection(EditorSelection(base: base, extent: extent));
   }
 
   /// 帧后统一收敛手柄/动作条显隐(唯一真源:state.selection + 触摸来源)。
@@ -681,12 +682,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       if (editorPos != null && editorPos != widget.state.selection?.extent) {
         _caretAffinity = docPos.affinity;
         _verticalGoalX = null;
-        // 拖动逐帧 collapsed 更新:延迟收口(路过 mark 逐个展开/折回 =
-        // 闪烁),_onHandleDragFinished 对最终落点统一补物化。
-        widget.state.updateSelection(
-          EditorSelection.collapsed(editorPos),
-          deferIrReconcile: true,
-        );
+        widget.state.updateSelection(EditorSelection.collapsed(editorPos));
         HapticFeedback.selectionClick();
       }
       // 放大镜:X 跟拖拽点、Y 锁光标行(长按/双手柄同口径)
@@ -752,14 +748,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     _handleDragPoint = null;
     _stopAutoScroll();
     _magnifier?.hide();
-    // 拖动期间的延迟 ir 收口在此结算:collapsed 手柄落点补物化;
-    // 双手柄终态 range 时收口守卫 no-op(选择保持不展开)。
-    final before = widget.state.docRevision;
-    widget.state.commitDeferredIrReconcile();
-    _ime.syncFromState(
-      show: false,
-      force: widget.state.docRevision != before,
-    );
+    _ime.syncFromState(show: false);
     // 双手柄:按新选区重新定位显示动作条;collapsed 无区间几何,内部早退。
     _showContextBarForSelection();
   }
@@ -908,13 +897,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 拖完把焦点还给编辑器:落点即编辑位,实光标立即可见(失焦态
     // 光标不渲染),键盘按平台惯例自然弹出。
     if (!_focusNode.hasPrimaryFocus) _focusNode.requestFocus();
-    // 浮动拖动的延迟 ir 收口在此结算(落点补物化/离开折叠)。
-    final beforeRev = widget.state.docRevision;
-    widget.state.commitDeferredIrReconcile();
-    _ime.syncFromState(
-      show: false,
-      force: widget.state.docRevision != beforeRev,
-    );
+    _ime.syncFromState(show: false);
     setState(() {}); // 实光标恢复主题色
   }
 
@@ -931,12 +914,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       _caretAffinity = docPos.affinity;
       _verticalGoalX = null;
       final extendBase = _floatingExtendBase;
-      // 逐帧移动延迟 ir 收口(路过 mark 即时物化 = 闪烁),End 结算。
       widget.state.updateSelection(
         extendBase == null
             ? EditorSelection.collapsed(editorPos)
             : EditorSelection(base: extendBase, extent: editorPos),
-        deferIrReconcile: true,
       );
     }
   }
@@ -1311,21 +1292,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (widget.state.blocks[index] is IslandBlock) return null;
     final id = _renderIdOf(index);
     final proj = _controller.registry.logicalById(id)?.projection;
-    // ir 大一统后光标坐标全是真实文本坐标(mark 内 = 物化字面),
-    // 单一口径映射;投影显形只剩不可物化 mark 的只读兜底,其零宽
-    // 定界符由 renderOffsetForContent 的延迟归属自然跳过。
-    //
-    // 例外:光标 = 连续编辑位(刚打完字停在 mark.end)时用**末端归属**
-    // (renderEndForContent)—— 延迟归属会把 caret 排到显形闭定界符
-    // 投影之后(格式外),但此刻打字明明落格式内(末端延伸豁免),
-    // 光标画外面 = 所见与所得错位。末端归属画在闭定界符前,与输入
-    // 落点一致。
-    final atEditPos = widget.state.lastEditPos == pos;
-    final renderOffset = proj == null
-        ? pos.offset
-        : atEditPos
-            ? proj.renderEndForContent(pos.offset)
-            : proj.renderOffsetForContent(pos.offset);
+    final renderOffset = proj?.renderOffsetForContent(pos.offset) ?? pos.offset;
     return DocumentPosition(
       blockId: id,
       renderOffset: renderOffset,
@@ -1702,46 +1669,24 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   DateTime? _lastTapTime;
   Offset? _lastTapGlobal;
 
-  /// 本次按下已被专用路径消费(自管区/岛区/图原子整选/双击选词/无命中)
-  /// → 松手(tapUp)不再落光标。
-  bool _tapUpConsumed = false;
-
-  /// tap 序列进行中(down 已落光标,等 up 结算展开 / cancel 作废)。
-  /// 期间显形压住:down 落进 mark 不能当帧显形 —— 若随后长按/滚动
-  /// 接管,闪出的定界符又缩回去(闪烁),回流还让手势命中坐标漂移。
-  bool _tapPending = false;
-
   void _onTapDown(TapDownDetails details) {
-    _tapUpConsumed = false;
     // 点在表格网格等自管交互区:编辑器手势完全让路 —— 抢焦点/设选区/
     // 弹 IME 都不做(否则:选区兜底跳到邻块 + 编辑器光标与 cell
     // TextField 光标并存 = 双光标,焦点还来回闪)。
-    if (_hitsSelfManagedRegion(details.globalPosition)) {
-      _tapUpConsumed = true;
-      return;
-    }
+    if (_hitsSelfManagedRegion(details.globalPosition)) return;
     // 岛区域同样让路(整选由岛自己的 GestureDetector.onTap 负责):
     // onTapDown 在 down+deadline 就 fire、不等竞技场 —— 不让路的话
     // 长按岛时编辑器先把光标落到**邻段**(岛无 RenderParagraph,命中
     // 兜底到最近文本块),岛的 onTap 又不会跟着 fire(长按不是 tap),
     // 光标就错停邻段。单击岛此前没暴露只是因为岛 onTap 随后覆盖了中间态。
-    if (_hitsIslandRegion(details.globalPosition)) {
-      _tapUpConsumed = true;
-      return;
-    }
+    if (_hitsIslandRegion(details.globalPosition)) return;
     _wantCollapsedBar = false; // 新 tap:收 collapsed 粘贴条
     final hit = _hitAtGlobal(details.globalPosition);
     _focusNode.requestFocus();
-    if (hit == null) {
-      _tapUpConsumed = true;
-      return;
-    }
+    if (hit == null) return;
 
     // 图片原子探测(**先于落光标**,官方 NodeSelection 语义)
-    if (_trySelectImageAtomAt(hit.$1, details.globalPosition)) {
-      _tapUpConsumed = true;
-      return;
-    }
+    if (_trySelectImageAtomAt(hit.$1, details.globalPosition)) return;
 
     // 双击选词(触摸类连击;鼠标双击桌面惯例同样适用)
     final now = DateTime.now();
@@ -1752,83 +1697,38 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         (details.globalPosition - _lastTapGlobal!).distance < kDoubleTapSlop;
     _lastTapTime = now;
     _lastTapGlobal = details.globalPosition;
-    if (isDoubleTap &&
-        (_selectWordAtCaret() || _selectWordAtGlobal(details.globalPosition))) {
+    if (isDoubleTap && _selectWordAtGlobal(details.globalPosition)) {
       _touchSelection =
           details.kind == PointerDeviceKind.touch ||
           details.kind == PointerDeviceKind.stylus;
       _ime.syncFromState(show: false);
-      _tapUpConsumed = true;
       return;
     }
 
-    // 单击:**按下即落光标**(用户预期:点下去光标立刻出现在指位),
-    // 但「展开」两件事延迟到松手(Vditor:落下后才展开):
-    // - 物化(deferIrReconcile,tapUp 结算);
-    // - 显形(_tapPending 压住 revealMarkdownAt,tapUp 放开)。
-    // 长按/滚动随后接管(tapCancel)时光标留在按下位,形态不变。
+    // 触摸落光标 → collapsed 单手柄显示依据(鼠标/触控板点击不出手柄)
     _touchSelection =
         details.kind == PointerDeviceKind.touch ||
         details.kind == PointerDeviceKind.stylus;
     _verticalGoalX = null;
     _caretAffinity = hit.$2;
-    _tapPending = true;
     widget.state.sealHistory();
-    widget.state.updateSelection(
-      EditorSelection.collapsed(hit.$1),
-      deferIrReconcile: true,
-    );
+    widget.state.updateSelection(EditorSelection.collapsed(hit.$1));
     _ime.syncFromState();
-  }
-
-  /// tap 赢得竞技场且松手(确认单击)→ 结算展开:补跑延迟的 ir 收口
-  /// (物化落点 mark 簇/折叠离开的字面)+ 放开显形。这是 ir 展开唯一
-  /// 的指针触发点。
-  void _onTapUp(TapUpDetails details) {
-    final wasPending = _tapPending;
-    _tapPending = false;
-    if (_tapUpConsumed) {
-      _tapUpConsumed = false;
-      return;
-    }
-    if (!wasPending) return;
-    final before = widget.state.docRevision;
-    widget.state.commitDeferredIrReconcile();
-    if (widget.state.docRevision != before) {
-      // 物化改了文本:IME 窗口强制重喂,防平台侧 diff 错位。
-      _ime.syncFromState(show: false, force: true);
-    } else {
-      // 无文本变化也要重建一帧:放开 _tapPending 压住的显形。
-      setState(() {});
-    }
 
     // 可编辑原子(date chip)单击 → 请求编辑(对齐官方:chip 是节点,
     // 点击/工具栏弹 modal 改属性)。命中位置左右各探一格:tap 落点在
     // 原子字符两侧边界都算点中它。
     final onAtomTap = widget.onAtomTap;
     if (onAtomTap == null) return;
-    final sel = widget.state.selection;
-    if (sel == null || !sel.isCollapsed) return;
-    final block = widget.state.textBlockById(sel.extent.blockId);
+    final block = widget.state.textBlockById(hit.$1.blockId);
     if (block == null) return;
-    for (final off in [sel.extent.offset, sel.extent.offset - 1]) {
+    for (final off in [hit.$1.offset, hit.$1.offset - 1]) {
       if (off < 0) continue;
       final atom = block.content.atoms[off];
       if (atom is LocalDateRun) {
-        onAtomTap(sel.extent.blockId, off, atom);
+        onAtomTap(hit.$1.blockId, off, atom);
         return;
       }
-    }
-  }
-
-  /// tap 输给竞技场(长按/滚动/拖选接管)→ 不展开:光标留在按下位,
-  /// 延迟收口作废(形态零变化;后续手势自己驱动选区)。
-  void _onTapCancel() {
-    _tapUpConsumed = false;
-    if (_tapPending) {
-      _tapPending = false;
-      widget.state.cancelDeferredIrReconcile();
-      setState(() {});
     }
   }
 
@@ -1865,32 +1765,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     return false;
   }
 
-  /// 双击第二击:按**当前光标**(第一击落好的编辑坐标)选词,不再按
-  /// 屏幕坐标重命中。ir 下第一击的收口可能已物化/折叠改写文本(布局
-  /// 回流),同一屏幕点在新布局下命中的是**别的字符**(实测:折叠回流
-  /// 后第二击命中落到词外,选中首字旁的空格)。光标坐标是第一击就
-  /// 换算好的内容坐标,与回流无关。
-  bool _selectWordAtCaret() {
-    final sel = widget.state.selection;
-    if (sel == null || !sel.isCollapsed) return false;
-    final docPos = _toDocumentPosition(sel.extent, affinity: _caretAffinity);
-    if (docPos == null) return false;
-    final wb = _hitTester.wordBoundaryAt(docPos);
-    if (wb == null || wb.start >= wb.end) return false;
-    final base = _toEditorPosition(
-      DocumentPosition(blockId: docPos.blockId, renderOffset: wb.start),
-    );
-    final extent = _toEditorPosition(
-      DocumentPosition(blockId: docPos.blockId, renderOffset: wb.end),
-    );
-    if (base == null || extent == null) return false;
-    widget.state.sealHistory();
-    widget.state.updateSelection(EditorSelection(base: base, extent: extent));
-    return true;
-  }
-
   /// [global] 处按词边界选词。命中失败/空词返回 false。
-  bool _selectWordAtGlobal(Offset global) {    final docPos = _hitTester.positionAt(
+  bool _selectWordAtGlobal(Offset global) {
+    final docPos = _hitTester.positionAt(
       global,
       hitTestRoot: _rootKey.currentContext?.findRenderObject(),
     );
@@ -1952,12 +1829,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (_selectWordAtGlobal(global)) {
       HapticFeedback.selectionClick();
     } else if (editorPos != null) {
-      // 空白/空段:落光标(系统长按空白同款)。延迟收口:长按后还可能
-      // 直接拖成扩选,松手(_onLongPressEnd)终态 collapsed 才补物化。
-      widget.state.updateSelection(
-        EditorSelection.collapsed(editorPos),
-        deferIrReconcile: true,
-      );
+      // 空白/空段:落光标(系统长按空白同款)
+      widget.state.updateSelection(EditorSelection.collapsed(editorPos));
     }
     _touchSelection = true;
     _longPressing = true;
@@ -1973,11 +1846,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final extent = _toEditorPosition(docPos);
     final sel = widget.state.selection;
     if (extent == null || sel == null) return;
-    // 按住直接拖 = 扩选(字符粒度,base 不动;阅读端长按拖同语义)。
-    // 延迟收口:拖动路过 collapsed 瞬间不物化(闪烁),松手结算。
+    // 按住直接拖 = 扩选(字符粒度,base 不动;阅读端长按拖同语义)
     widget.state.updateSelection(
       EditorSelection(base: sel.base, extent: extent),
-      deferIrReconcile: true,
     );
     // 放大镜跟手
     final caret = _hitTester.editingCaretRectAt(
@@ -2000,18 +1871,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
     _longPressing = false;
     _magnifier?.hide();
-    // 长按序列的延迟 ir 收口结算:终态 collapsed(长按空白落光标)补
-    // 物化;终态 range(选词/拖扩)收口守卫 no-op,选择保持不展开。
-    final beforeRev = widget.state.docRevision;
-    widget.state.commitDeferredIrReconcile();
     // 长按落在空白/空段(collapsed)→ 松手配「粘贴 | 全选」动作条
     // (长按选词是 range,走 showRange 分支,与此无关)
     final sel = widget.state.selection;
     _wantCollapsedBar = sel != null && sel.isCollapsed;
-    _ime.syncFromState(
-      show: false,
-      force: widget.state.docRevision != beforeRev,
-    );
+    _ime.syncFromState(show: false);
     // end 无状态变化不触发 _onStateChanged → 帧后手动收敛一次
     // (动作条在 _longPressing 期间被压着,此刻弹出)
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2201,19 +2065,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (base == null) return;
     final extent = _positionAtGlobal(details.globalPosition);
     if (extent == null) return;
-    // 拖选中途选区可能瞬间 collapsed(拖回起点):延迟收口,拖选期间
-    // 绝不物化/折叠(形态不变);松手时若终态是 collapsed 再补收口。
-    widget.state.updateSelection(
-      EditorSelection(base: base, extent: extent),
-      deferIrReconcile: true,
-    );
+    widget.state.updateSelection(EditorSelection(base: base, extent: extent));
   }
 
   void _onPanEnd(DragEndDetails details) {
     _dragBase = null;
-    // 终态 collapsed(原地拖/拖回起点)= 等价单击 → 补收口;
-    // 终态 range → 收口内部的 range 守卫自然 no-op,形态保持。
-    widget.state.commitDeferredIrReconcile();
     _ime.syncFromState(show: false);
   }
 
@@ -2268,27 +2124,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         ? state.selection?.extent.blockId
         : null;
 
-    // 定界符显形位置(仅 ir 模式,见 [EditorMode]):**只跟随 collapsed
-    // 光标**(Vditor 语义)——选区一变 range 立即折叠,选择过程中不
-    // 显示任何格式符:
-    // - 高亮不会框进定界符(截图实锤:从 mark 首字开始选时 `[spoiler]`
-    //   被框了半截);
-    // - 折叠回流只发生在 range 出现的第一帧,选区端点是**内容坐标**,
-    //   回流后高亮仍指向同一字符不错位;此后整个选择过程布局稳定,
-    //   拖拽命中全程在同一布局上进行 —— 这才是丝滑的来源。
-    //   (曾用「range 存续期间冻结显形」防回流,方向反了:冻结让
-    //   定界符在选择全程杵在文字中间,起点在 mark 内时体验更差。)
-    // composing 期间同样不显形(IME 预编辑中 mark 边界随上屏抖动)。
-    // 手势进行中不显形(tap 按下未松/手柄/长按/浮动光标/鼠标拖选):
-    // 按下即落光标(光标要立刻可见),但展开=松手结算 —— 中途显形
-    // 会闪烁,定界符插入还让后续命中坐标漂移。
-    final gestureDragging = _tapPending ||
-        _handleDragging ||
-        _longPressing ||
-        _floatingCursor ||
-        _dragBase != null;
-    final revealSelection = widget.state.mode == EditorMode.ir &&
-            !gestureDragging &&
+    // 定界符显形位置:聚焦 + collapsed 选区才显形;composing 期间不显形
+    // (IME 预编辑中 mark 边界随每次上屏抖动,定界符忽隐忽现会打扰
+    // 输入;上屏后 composing 清空自然恢复)。
+    final revealSelection = widget.liveMarkdownPreview &&
             _focusNode.hasPrimaryFocus &&
             !state.hasComposing &&
             (state.selection?.isCollapsed ?? false)
@@ -2400,9 +2239,6 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             revealMarkdownAt: revealSelection?.extent.blockId == tb.id
                 ? revealSelection!.extent.offset
                 : null,
-            // ir 字面语法着色:物化字面/手打字面的内容段带格式、定界符
-            // 淡色(Vditor「符号可见 + 格式保持」)。
-            syntaxHighlight: widget.state.mode == EditorMode.ir,
             listMarkerOrdinal: ordinals[i],
             // 行内图片原子走岛同一图片管线(upload 解析/解码上限);
             // hover=click(可点选)。注意:builder 产物进 flatten 缓存
@@ -2546,10 +2382,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             TapGestureRecognizer:
                 GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
                   () => TapGestureRecognizer(debugOwner: this),
-                  (r) => r
-                    ..onTapDown = _onTapDown
-                    ..onTapUp = _onTapUp
-                    ..onTapCancel = _onTapCancel,
+                  (r) => r.onTapDown = _onTapDown,
                 ),
             PanGestureRecognizer:
                 GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
