@@ -668,11 +668,24 @@ class EditorState extends ChangeNotifier {
       if (!composingActive) _clearPending();
     }
     final newBlocks = [..._blocks];
+    // ir spin(移动端退格主通道:IME 退格不走 backspace(),文本变更全
+    // 从这里过):composing 无效/collapsed 时对落地后的内容整块扫描,
+    // 删出的完整字面对立即折叠。composing 活跃跳过 —— 预编辑文本是
+    // 临时的,折叠会撕坏候选窗口。折叠改写了文本时,调用方
+    // (EditorImeClient)的 reconcile 检查(文档 != 平台窗口)会兜底
+    // 强制回喂,无需额外通知。
+    final composingActive = composing.isValid && !composing.isCollapsed;
+    var caret = caretOffset;
+    if (!composingActive) {
+      final spun = _maybeSpin(content, caretOffset.clamp(0, content.length));
+      content = spun.content;
+      caret = spun.caret;
+    }
     newBlocks[i] = block.copyWith(content: content);
     _commit(
       newBlocks,
       EditorSelection.collapsed(
-        EditorPosition(blockId: blockId, offset: caretOffset),
+        EditorPosition(blockId: blockId, offset: caret),
       ),
       groupWithPrevious: true,
       composing: composing,
@@ -724,10 +737,14 @@ class EditorState extends ChangeNotifier {
 
     if (fi == ti) {
       if (fromBlock is TextBlock) {
-        newBlocks.add(fromBlock.copyWith(
-          content: fromBlock.content.delete(from.offset, to.offset),
-        ));
-        caret = EditorSelection.collapsed(from).extent;
+        // ir spin:选区删除可能让两侧字面拼成完整对(`**bo|xx|ld**`
+        // 删中段),同一事务折叠。
+        final spun = _maybeSpin(
+          fromBlock.content.delete(from.offset, to.offset),
+          from.offset,
+        );
+        newBlocks.add(fromBlock.copyWith(content: spun.content));
+        caret = EditorPosition(blockId: fromBlock.id, offset: spun.caret);
       }
       // 单岛整选:直接不加(删除),光标落到邻近文本块(clamp 兜底)
       caret ??= from;
@@ -749,11 +766,14 @@ class EditorState extends ChangeNotifier {
       }
 
       if (headBlock != null && tailContent != null) {
-        // 文-文:合并(首块 kind 胜出)
-        newBlocks.add(headBlock.copyWith(
-          content: headContent!.concat(tailContent),
-        ));
-        caret = EditorPosition(blockId: headBlock.id, offset: from.offset);
+        // 文-文:合并(首块 kind 胜出)。ir spin:首尾拼接处可能拼出
+        // 完整字面对,同一事务折叠。
+        final spun = _maybeSpin(
+          headContent!.concat(tailContent),
+          from.offset,
+        );
+        newBlocks.add(headBlock.copyWith(content: spun.content));
+        caret = EditorPosition(blockId: headBlock.id, offset: spun.caret);
       } else if (headBlock != null) {
         // 文-岛:首块残余保留,岛删除
         newBlocks.add(headBlock.copyWith(content: headContent!));
@@ -855,12 +875,15 @@ class EditorState extends ChangeNotifier {
     final lastCluster =
         before.characters.isEmpty ? '' : before.characters.last;
     final delStart = pos.offset - lastCluster.length;
+    // ir spin:删字可能拼出完整字面标记对(`**bold***` 删掉尾 `*`),
+    // 同一事务折叠(见 inline_spin.dart)。
+    final spun =
+        _maybeSpin(block.content.delete(delStart, pos.offset), delStart);
     final newBlocks = [..._blocks];
-    newBlocks[i] =
-        block.copyWith(content: block.content.delete(delStart, pos.offset));
+    newBlocks[i] = block.copyWith(content: spun.content);
     _commit(
       newBlocks,
-      EditorSelection.collapsed(pos.copyWith(offset: delStart)),
+      EditorSelection.collapsed(pos.copyWith(offset: spun.caret)),
       groupWithPrevious: true,
     );
   }
@@ -982,13 +1005,14 @@ class EditorState extends ChangeNotifier {
     final after = block.content.text.substring(pos.offset);
     final step = after.characters.isEmpty ? 0 : after.characters.first.length;
     if (step == 0) return;
+    // ir spin:同 backspace,前删也可能拼出完整字面对。
+    final spun = _maybeSpin(
+        block.content.delete(pos.offset, pos.offset + step), pos.offset);
     final newBlocks = [..._blocks];
-    newBlocks[i] = block.copyWith(
-      content: block.content.delete(pos.offset, pos.offset + step),
-    );
+    newBlocks[i] = block.copyWith(content: spun.content);
     _commit(
       newBlocks,
-      EditorSelection.collapsed(pos),
+      EditorSelection.collapsed(pos.copyWith(offset: spun.caret)),
       groupWithPrevious: true,
     );
   }

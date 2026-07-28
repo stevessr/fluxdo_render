@@ -306,5 +306,62 @@ void main() {
       expect(c.text, 'bold');
       expect(c.marks.single.kind, MarkKind.em);
     });
+
+    test('spec 链:复合退格 → 破坏态删成另一合法形态 → spin 折叠', () {
+      // `**bold**` 复合退格 → `**bold*`;删掉开定界符一个 `*` →
+      // `*bold*` 是完整 em 字面对,backspace 落地即被 spin 折叠,
+      // 不存在「语法合法但不渲染」的滞留态。
+      final s = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 4);
+      s.moveCaretHorizontal(1);
+      s.backspace(); // 复合物化 → '**bold*'
+      caretAt(s, 2);
+      s.backspace(); // 删一个开 `*` → '*bold*' → spin 折叠
+      final c = first(s).content;
+      expect(c.text, 'bold');
+      expect(c.marks.single.kind, MarkKind.em);
+      expect(s.selection!.extent.offset, 0,
+          reason: '删除点在开定界符后,折叠后落内容前');
+    });
+
+    test('deleteForward 删出完整对同样折叠', () {
+      // '**bo*ld**' 前删掉中间的 `*` → '**bold**' → spin 折叠 strong
+      final s = makeState(EditableTextContent(text: '**bo*ld**'));
+      caretAt(s, 4);
+      s.deleteForward();
+      final c = first(s).content;
+      expect(c.text, 'bold');
+      expect(c.marks.single.kind, MarkKind.strong);
+      expect(s.selection!.extent.offset, 2);
+    });
+
+    test('deleteSelection(单块)删出完整对同样折叠', () {
+      // '**bo xx ld**' 选中 ' xx ' 删除 → '**bold**' → 折叠
+      final s = makeState(EditableTextContent(text: '**bo xx ld**'));
+      s.updateSelection(const EditorSelection(
+        base: EditorPosition(blockId: 'e_0', offset: 4),
+        extent: EditorPosition(blockId: 'e_0', offset: 8),
+      ));
+      s.deleteSelection();
+      final c = first(s).content;
+      expect(c.text, 'bold');
+      expect(c.marks.single.kind, MarkKind.strong);
+      expect(s.selection!.extent.offset, 2);
+    });
+
+    test('undo 一步:spin 折叠随所在事务整体回滚', () {
+      final s = makeState(EditableTextContent(text: '**bold***'));
+      caretAt(s, 9);
+      s.sealHistory();
+      s.backspace(); // 删尾 `*` → '**bold**' → spin 折叠
+      expect(first(s).content.text, 'bold');
+      expect(first(s).content.marks.single.kind, MarkKind.strong);
+      s.undo();
+      expect(first(s).content.text, '**bold***', reason: '删字+折叠一步回滚');
+      expect(first(s).content.marks, isEmpty);
+    });
   });
 }

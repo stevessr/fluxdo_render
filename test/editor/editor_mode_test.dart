@@ -212,6 +212,63 @@ void main() {
     });
   });
 
+  group('wysiwyg 门控:spin 不触发', () {
+    test('退格删出完整字面对不折叠(ir 才折)', () {
+      // '**bold***' 删尾 `*` → '**bold**'
+      final s = makeState(
+        EditableTextContent(text: '**bold***'),
+        mode: EditorMode.wysiwyg,
+      );
+      caretAt(s, 9);
+      s.backspace();
+      expect(first(s).content.text, '**bold**', reason: 'wysiwyg 无 spin');
+      expect(first(s).content.marks, isEmpty);
+
+      final ir = makeState(
+        EditableTextContent(text: '**bold***'),
+        mode: EditorMode.ir,
+      );
+      caretAt(ir, 9);
+      ir.backspace();
+      expect(first(ir).content.text, 'bold', reason: 'ir 下同操作折叠');
+      expect(first(ir).content.marks.single.kind, MarkKind.strong);
+    });
+
+    test('deleteForward / deleteSelection 删出完整对同样不折叠', () {
+      final s = makeState(
+        EditableTextContent(text: '**bo*ld**'),
+        mode: EditorMode.wysiwyg,
+      );
+      caretAt(s, 4);
+      s.deleteForward();
+      expect(first(s).content.text, '**bold**');
+      expect(first(s).content.marks, isEmpty);
+
+      final s2 = makeState(
+        EditableTextContent(text: '**bo xx ld**'),
+        mode: EditorMode.wysiwyg,
+      );
+      s2.updateSelection(const EditorSelection(
+        base: EditorPosition(blockId: 'e_0', offset: 4),
+        extent: EditorPosition(blockId: 'e_0', offset: 8),
+      ));
+      s2.deleteSelection();
+      expect(first(s2).content.text, '**bold**');
+      expect(first(s2).content.marks, isEmpty);
+    });
+
+    test('imeReplace 删出完整对不折叠', () {
+      final s = makeState(
+        EditableTextContent(text: '**bold**x'),
+        mode: EditorMode.wysiwyg,
+      );
+      caretAt(s, 9);
+      s.imeReplace('e_0', 8, 9, '', caretOffset: 8);
+      expect(first(s).content.text, '**bold**');
+      expect(first(s).content.marks, isEmpty);
+    });
+  });
+
   group('ir 门控:既有语义保持(抽查,细粒度见 materialize_mark_test)', () {
     test('四步序列:内 → end内 → end外 → 下一字符;外侧退格物化', () {
       final s = makeState(

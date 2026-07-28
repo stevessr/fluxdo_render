@@ -392,10 +392,10 @@ void main() {
   });
 
   group('ir spin 经 IME 通道(移动端退格主通道)', () {
-    test('IME 退格删出完整对:光标驻留保持字面,失焦收口折叠', () {
-      // 文档 '**bold**x',IME 退格删掉尾 'x' → '**bold**' 是完整字面对。
-      // 闭区间守卫(Vditor「移出才折叠」):caret 贴在字面区边界(9)
-      // 仍驻留,imeReplace 落地不折;失焦(选区置空)收口才折叠。
+    test('IME 退格删出完整对 → spin 折叠 → reconcile 回喂平台', () {
+      // 文档 '**bold**x',IME 退格删掉尾 'x' → '**bold**' 是完整字面对,
+      // imeReplace 落地后 spin 折叠为 strong;文档('bold')与平台窗口
+      // ('**bold**')不一致 → reconcile 强制回喂,_lastSent 与文档一致。
       final (state, ime) = makeAttached(paragraphs: ['**bold**x'], caret: 9);
       state.mode = EditorMode.ir;
       ime.updateEditingValue(TextEditingValue(
@@ -403,14 +403,14 @@ void main() {
         selection: const TextSelection.collapsed(offset: 9),
         composing: TextRange.empty,
       ));
-      var c = (state.blocks[0] as TextBlock).content;
-      expect(c.text, '**bold**', reason: '光标驻留字面区,不立即折叠');
-      expect(c.marks, isEmpty);
-      // 失焦收口 → 折叠为 strong
-      state.updateSelection(null);
-      c = (state.blocks[0] as TextBlock).content;
+      final c = (state.blocks[0] as TextBlock).content;
       expect(c.text, 'bold');
       expect(c.marks.single.kind, MarkKind.strong);
+      expect(state.selection!.extent.offset, 4, reason: 'caret 重映射到内容尾');
+      // reconcile 已回喂:_lastSent = pad + 文档文本
+      expect(ime.debugLastSent.text, '${pad}bold');
+      expect(ime.debugLastSent.selection.extentOffset, 5,
+          reason: 'pad 后坐标 4+1');
     });
 
     test('composing 活跃时不 spin(预编辑文本是临时的)', () {
