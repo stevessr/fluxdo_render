@@ -1298,8 +1298,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 延迟归属会跳过零宽定界符 entry 画到 `]` 之后,和打字落点脱节。
     // 非 inclusive(inlineCode 的 codePad)保持外侧:代码尾打字本就
     // 退出代码。
+    // 边界二态:外侧停位(caretOutsideMarkEnd,右键显式走出格式)时
+    // 走 renderOffsetForContent 画在闭定界符之后。
     final block = widget.state.blocks[index];
     final atInclusiveMarkEnd = block is TextBlock &&
+        !widget.state.caretOutsideMarkEnd &&
         block.content.marks.any((m) =>
             m.end == pos.offset &&
             EditableTextContent.isInclusiveMark(m));

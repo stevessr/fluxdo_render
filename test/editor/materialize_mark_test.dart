@@ -124,17 +124,36 @@ void main() {
     });
   });
 
-  group('闭端退格触发(B2)', () {
-    test('caret == mark.end 退格 → 物化而非删字符', () {
+  group('闭端退格触发(B2)+ 边界二态', () {
+    // 语义更新(边界二态):inclusive mark.end 上的退格物化只在**外侧**
+    // 停位触发(caretAt 默认内侧,先右移一次切外侧);内侧退格 = 删格式
+    // 内最后一个字符,mark 自然收缩。
+    test('外侧停位退格 → 物化而非删字符', () {
       final s = makeState(EditableTextContent(
         text: 'bold',
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
       ));
       caretAt(s, 4);
+      s.moveCaretHorizontal(1); // 内侧 → 外侧(内容坐标不动)
+      expect(s.caretOutsideMarkEnd, isTrue);
+      expect(s.selection!.extent.offset, 4);
       s.backspace();
       expect(first(s).content.text, '**bold**');
       expect(first(s).content.marks, isEmpty);
       expect(s.selection!.extent.offset, 8);
+      expect(s.caretOutsideMarkEnd, isFalse, reason: '物化后复位内侧');
+    });
+
+    test('内侧停位退格 = 删最后一个字符,mark 收缩不物化', () {
+      final s = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 4); // updateSelection 默认内侧
+      s.backspace();
+      expect(first(s).content.text, 'bol');
+      expect(first(s).content.marks.single.end, 3, reason: 'mark 自然收缩');
+      expect(s.selection!.extent.offset, 3);
     });
 
     test('物化后第二次退格 = 删字面字符', () {
@@ -143,6 +162,7 @@ void main() {
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
       ));
       caretAt(s, 4);
+      s.moveCaretHorizontal(1);
       s.backspace();
       s.backspace();
       expect(first(s).content.text, '**bold*');
@@ -160,12 +180,26 @@ void main() {
       expect(first(s).content.marks.single.end, 3, reason: 'mark 自然收缩');
     });
 
+    test('非 inclusive mark(link)end 退格:无内侧停位,直接物化', () {
+      final s = makeState(EditableTextContent(
+        text: 'text',
+        marks: const [
+          MarkSpan(start: 0, end: 4, kind: MarkKind.link, attr: 'https://x'),
+        ],
+      ));
+      caretAt(s, 4); // link 不参与二态,视为外侧
+      s.backspace();
+      expect(first(s).content.text, '[text](https://x)');
+      expect(first(s).content.marks, isEmpty);
+    });
+
     test('undo:一次退格物化 = 一步回滚', () {
       final s = makeState(EditableTextContent(
         text: 'bold',
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
       ));
       caretAt(s, 4);
+      s.moveCaretHorizontal(1);
       s.backspace();
       s.undo();
       expect(first(s).content.text, 'bold');
@@ -184,6 +218,7 @@ void main() {
         ],
       ));
       caretAt(s, 3);
+      s.moveCaretHorizontal(1); // 切外侧
       s.backspace();
       final c = first(s).content;
       expect(c.text, '*abc*');
@@ -202,6 +237,7 @@ void main() {
         ],
       ));
       caretAt(s, 3);
+      s.moveCaretHorizontal(1); // 切外侧
       s.backspace();
       final c = first(s).content;
       expect(c.text, 'a**bc**');
@@ -229,6 +265,7 @@ void main() {
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
       ));
       caretAt(s, 4);
+      s.moveCaretHorizontal(1); // 边界二态:切外侧,退格才物化
       s.backspace(); // 物化 → '**bold**',caret 8
       s.backspace(); // '**bold*'
       s.backspace(); // '**bold'
@@ -251,6 +288,7 @@ void main() {
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
       ));
       caretAt(s, 4);
+      s.moveCaretHorizontal(1); // 边界二态:切外侧,退格才物化
       s.backspace(); // 物化 → '**bold**',caret 8
       // 删掉闭 `**` 再重打:退格两次到 '**bold',补 `**`
       s.backspace();

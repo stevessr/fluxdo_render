@@ -279,6 +279,130 @@ void main() {
     });
   });
 
+  group('mark 末端边界二态(内侧/外侧)', () {
+    EditorState makeState(EditableTextContent content) {
+      final s = EditorState(blocks: [TextBlock(id: 'e_0', content: content)]);
+      addTearDown(s.dispose);
+      return s;
+    }
+
+    void caretAt(EditorState s, int offset) {
+      s.updateSelection(EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: offset)));
+    }
+
+    test('右移序列:mark 内 → end 内侧 → end 外侧 → 下一字符;左移对称', () {
+      // 'bold tail',strong [0,4):3 → 4内 → 4外 → 5;5 → 4外 → 4内 → 3
+      final s = makeState(EditableTextContent(
+        text: 'bold tail',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 3);
+      s.moveCaretHorizontal(1);
+      expect(s.selection!.extent.offset, 4);
+      expect(s.caretOutsideMarkEnd, isFalse, reason: '先停内侧');
+      s.moveCaretHorizontal(1);
+      expect(s.selection!.extent.offset, 4, reason: '内容坐标不动');
+      expect(s.caretOutsideMarkEnd, isTrue, reason: '第二步切外侧');
+      s.moveCaretHorizontal(1);
+      expect(s.selection!.extent.offset, 5);
+      expect(s.caretOutsideMarkEnd, isFalse, reason: '离开 end 复位');
+      // 左移对称
+      s.moveCaretHorizontal(-1);
+      expect(s.selection!.extent.offset, 4);
+      expect(s.caretOutsideMarkEnd, isTrue, reason: '左移落 end 先停外侧');
+      s.moveCaretHorizontal(-1);
+      expect(s.selection!.extent.offset, 4, reason: '内容坐标不动');
+      expect(s.caretOutsideMarkEnd, isFalse, reason: '再一步切内侧');
+      s.moveCaretHorizontal(-1);
+      expect(s.selection!.extent.offset, 3);
+    });
+
+    test('内侧打字延伸格式;外侧打字不延伸(段末追加普通文本的出口)', () {
+      // 内侧
+      final sIn = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(sIn, 4);
+      sIn.insertText('X');
+      var c = (sIn.blocks.first as TextBlock).content;
+      expect(c.text, 'boldX');
+      expect(c.marks.single.end, 5, reason: '内侧打字延伸');
+
+      // 外侧(mark 到段末:这是「格式后加普通文本」的唯一出口)
+      final sOut = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(sOut, 4);
+      sOut.moveCaretHorizontal(1); // 切外侧
+      expect(sOut.caretOutsideMarkEnd, isTrue);
+      sOut.insertText('Y');
+      c = (sOut.blocks.first as TextBlock).content;
+      expect(c.text, 'boldY');
+      expect(c.marks.single.end, 4, reason: '外侧打字不延伸,追加普通文本');
+      expect(sOut.caretOutsideMarkEnd, isFalse,
+          reason: '插入落地后复位(光标已在普通文本内)');
+    });
+
+    test('imeReplace 纯插入:外侧同样不延伸', () {
+      final s = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 4);
+      s.moveCaretHorizontal(1); // 切外侧
+      s.imeReplace('e_0', 4, 4, '呀', caretOffset: 5);
+      final c = (s.blocks.first as TextBlock).content;
+      expect(c.text, 'bold呀');
+      expect(c.marks.single.end, 4, reason: '外侧 IME 打字不延伸');
+      expect(s.caretOutsideMarkEnd, isFalse);
+    });
+
+    test('点击/updateSelection 重置为内侧(含同位置重设)', () {
+      final s = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 4);
+      s.moveCaretHorizontal(1);
+      expect(s.caretOutsideMarkEnd, isTrue);
+      // 同位置重设(点击同一坐标):早退前也要切回内侧
+      caretAt(s, 4);
+      expect(s.caretOutsideMarkEnd, isFalse);
+      // 再切外侧后跳到别处
+      s.moveCaretHorizontal(1);
+      expect(s.caretOutsideMarkEnd, isTrue);
+      caretAt(s, 1);
+      expect(s.caretOutsideMarkEnd, isFalse);
+    });
+
+    test('扩选不参与二态:shift 右移直接按内容坐标扩', () {
+      final s = makeState(EditableTextContent(
+        text: 'bold tail',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 4);
+      s.moveCaretHorizontal(1, extend: true);
+      expect(s.selection!.extent.offset, 5, reason: '扩选跳过边界二态');
+      expect(s.selection!.isCollapsed, isFalse);
+    });
+
+    test('非 inclusive mark(link)end 不参与二态:右移直接过', () {
+      final s = makeState(EditableTextContent(
+        text: 'link tail',
+        marks: const [
+          MarkSpan(start: 0, end: 4, kind: MarkKind.link, attr: 'https://x'),
+        ],
+      ));
+      caretAt(s, 4);
+      s.moveCaretHorizontal(1);
+      expect(s.selection!.extent.offset, 5, reason: 'link 无内侧停位');
+      expect(s.caretOutsideMarkEnd, isFalse);
+    });
+  });
+
   group('反向固化:显形零模型泄漏', () {
     test('显形态 docToMarkdown 输出无虚拟定界符(字面 ** 邻居场景)', () {
       // 'x**2 bold':字面 ** 与真 strong mark 共存(打穿字面替换方案的

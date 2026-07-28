@@ -164,6 +164,25 @@ class EditorState extends ChangeNotifier {
   TextRange _composing = TextRange.empty;
   TextRange get composing => _composing;
 
+  /// mark 末端边界二态(Lexical 边界 affinity 同款):光标 collapsed 且
+  /// offset 恰在某 inclusive mark 的 end 时,同一内容坐标分两个瞬态停位
+  /// —— false = 内侧(格式内:打字延伸、退格删字),true = 外侧(格式外:
+  /// 打字不延伸、退格物化)。光标不在任何 inclusive mark.end 时该值
+  /// 无意义(视为 false)。
+  ///
+  /// 瞬态:只由左右键在 mark.end 上切换(见 [moveCaretHorizontal]);
+  /// 点击/程序化选区更新、任何文档事务后归位内侧。
+  bool _caretOutsideMarkEnd = false;
+  bool get caretOutsideMarkEnd => _caretOutsideMarkEnd;
+
+  /// [pos] 是否恰在某 inclusive mark 的 end(边界二态的适用判定)。
+  bool _isAtInclusiveMarkEnd(EditorPosition pos) {
+    final block = textBlockById(pos.blockId);
+    if (block == null) return false;
+    return block.content.marks.any((m) =>
+        m.end == pos.offset && EditableTextContent.isInclusiveMark(m));
+  }
+
   bool get hasComposing => _composing.isValid && !_composing.isCollapsed;
 
   // -----------------------------------------------------------------
@@ -303,6 +322,7 @@ class EditorState extends ChangeNotifier {
     _selection =
         entry.selection == null ? null : _clampSelection(entry.selection!);
     _composing = TextRange.empty;
+    _caretOutsideMarkEnd = false;
     notifyListeners();
   }
 
@@ -317,6 +337,7 @@ class EditorState extends ChangeNotifier {
     _selection =
         entry.selection == null ? null : _clampSelection(entry.selection!);
     _composing = TextRange.empty;
+    _caretOutsideMarkEnd = false;
     notifyListeners();
   }
 
@@ -325,7 +346,16 @@ class EditorState extends ChangeNotifier {
   // -----------------------------------------------------------------
 
   void updateSelection(EditorSelection? selection) {
-    if (_selection == selection) return;
+    if (_selection == selection) {
+      // 点击/程序化跳转默认内侧:同位置重设选区也要把外侧态切回来
+      // (早退前判断,否则点击同位置永远切不回内侧)。
+      if (_caretOutsideMarkEnd) {
+        _caretOutsideMarkEnd = false;
+        notifyListeners();
+      }
+      return;
+    }
+    _caretOutsideMarkEnd = false;
     _selection = selection == null ? null : _clampSelection(selection);
     // 选区跳走 = composition/pending 语境失效。
     _composing = TextRange.empty;
@@ -386,6 +416,9 @@ class EditorState extends ChangeNotifier {
     _docRevision++;
     _selection = newSelection == null ? null : _clampSelection(newSelection);
     _composing = composing;
+    // 边界二态收敛点:任何文档事务后归位内侧(外侧打完字光标已在普通
+    // 文本内;物化/删除/分块后原停位语境已失效)。
+    _caretOutsideMarkEnd = false;
     notifyListeners();
   }
 
@@ -407,11 +440,14 @@ class EditorState extends ChangeNotifier {
     final block = _blocks[i];
     if (block is! TextBlock) return; // 岛上无文本插入
     // 末端延伸(inclusive marks):粗体末尾继续打字 = 继续粗体。
-    // pending marks 命中锚点时用户意图已显式给出,不做隐式延伸。
+    // pending marks 命中锚点时用户意图已显式给出,不做隐式延伸;
+    // 边界二态外侧停位 = 用户显式走出格式,同样不延伸(mark 到段末时
+    // 这是追加普通文本的唯一出口)。
     var content = block.content.insert(
       pos.offset,
       sanitized,
-      extendMarksAtEnd: _pendingMarks == null || _pendingAnchor != pos,
+      extendMarksAtEnd: !_caretOutsideMarkEnd &&
+          (_pendingMarks == null || _pendingAnchor != pos),
     );
     // pending marks:命中锚点时对插入区间施加
     if (_pendingMarks != null && _pendingAnchor == pos) {
@@ -565,13 +601,16 @@ class EditorState extends ChangeNotifier {
         EditorPosition(blockId: blockId, offset: caretOffset),
       ));
       _composing = composing;
+      // 平台驱动的纯光标移动:边界二态归位内侧(与 updateSelection 同语义)
+      _caretOutsideMarkEnd = false;
       notifyListeners();
       return;
     }
 
     // 末端延伸(inclusive marks;仅纯插入形态生效,replace 内部判定):
     // 粗体末尾继续打字 = 继续粗体。pending 锚点命中时不隐式延伸(下方
-    // applyExactMarks 按用户显式意图整段重设)。
+    // applyExactMarks 按用户显式意图整段重设);边界二态外侧停位同样
+    // 不延伸(用户显式走出格式)。
     final pendingHit = _pendingMarks != null &&
         _pendingAnchor != null &&
         _pendingAnchor!.blockId == blockId &&
@@ -580,7 +619,7 @@ class EditorState extends ChangeNotifier {
       safeStart,
       safeEnd,
       replacement,
-      extendMarksAtEnd: !pendingHit,
+      extendMarksAtEnd: !_caretOutsideMarkEnd && !pendingHit,
     );
     // pending marks:替换起点命中锚点(打字第一个字符)时施加。
     // composing 进行中保留 pending(候选切换会反复 replace 同区间)。
@@ -766,7 +805,16 @@ class EditorState extends ChangeNotifier {
     // 定界符;物化后光标在闭定界符末尾,再退格走常规路径删字面字符,
     // 行为连贯。开端(mark.start)不触发 —— 普通退格删前一字符、mark
     // 区间自然收缩,现有行为已合理。
-    if (_tryMaterializeAtMarkEnd(block, pos)) return;
+    //
+    // 边界二态:inclusive mark.end 上物化只在**外侧**停位触发 ——
+    // 内侧退格 = 删格式内最后一个字符(mark 自然收缩),否则「删最后
+    // 一个字」会意外把 mark 拆成字面。非 inclusive(link/inlineCode/
+    // 带 attr)的 end 没有内侧停位,恒视为外侧,物化行为不变。
+    final atInclusiveEnd = _isAtInclusiveMarkEnd(pos);
+    if ((!atInclusiveEnd || _caretOutsideMarkEnd) &&
+        _tryMaterializeAtMarkEnd(block, pos)) {
+      return;
+    }
     // 找光标前一个 grapheme 的起点(原子 FFFC 恒 1)
     final before = block.content.text.substring(0, pos.offset);
     final lastCluster =
@@ -1943,6 +1991,23 @@ class EditorState extends ChangeNotifier {
     }
     block as TextBlock;
 
+    // mark 末端边界二态切换(仅非扩选;扩选语义按内容坐标,跳过这层):
+    // 内容坐标不动,只翻转内/外侧停位。
+    if (!extend && _isAtInclusiveMarkEnd(pos)) {
+      if (direction > 0 && !_caretOutsideMarkEnd) {
+        // 内侧 → 外侧:视觉上跨过闭定界符,内容坐标原地。
+        _caretOutsideMarkEnd = true;
+        notifyListeners();
+        return;
+      }
+      if (direction < 0 && _caretOutsideMarkEnd) {
+        // 外侧 → 内侧。
+        _caretOutsideMarkEnd = false;
+        notifyListeners();
+        return;
+      }
+    }
+
     if (direction < 0) {
       if (pos.offset > 0) {
         final before = block.content.text.substring(0, pos.offset);
@@ -1982,11 +2047,18 @@ class EditorState extends ChangeNotifier {
       }
     }
     if (next == null) return;
-    updateSelection(
-      extend
-          ? EditorSelection(base: sel.base, extent: next)
-          : EditorSelection.collapsed(next),
-    );
+    if (extend) {
+      updateSelection(EditorSelection(base: sel.base, extent: next));
+      return;
+    }
+    // 左移落到 inclusive mark.end 时停**外侧**(对称序:end+1 → 外 →
+    // 内 → end-1);updateSelection 默认归位内侧,落点后补置。
+    final landOutside = direction < 0 && _isAtInclusiveMarkEnd(next);
+    updateSelection(EditorSelection.collapsed(next));
+    if (landOutside && !_caretOutsideMarkEnd) {
+      _caretOutsideMarkEnd = true;
+      notifyListeners();
+    }
   }
 
   /// [index] 前一个可停位置(前块尾;岛为其 offset 0)。
