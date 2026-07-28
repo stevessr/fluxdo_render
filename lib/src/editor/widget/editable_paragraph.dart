@@ -432,7 +432,10 @@ class _SpoilerDecorPainter extends CustomPainter {
 
     for (final r in ranges) {
       final rs = proj.renderOffsetForContent(r.start);
-      final re = proj.renderOffsetForContent(r.end);
+      // 右界用末端语义:光标口径的延迟归属会跳过 mark.end 处的零内容
+      // entry(显形虚拟定界符/codePad),把紧随其后的 `[/spoiler]` 字面
+      // 一并框进装饰 —— 开定界符在框外、闭定界符在框内,不对称。
+      final re = proj.renderEndForContent(r.end);
       if (rs >= re) continue;
       final boxes = p.getBoxesForSelection(
         TextSelection(baseOffset: rs, extentOffset: re),

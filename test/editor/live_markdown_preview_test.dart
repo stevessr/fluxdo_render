@@ -43,6 +43,10 @@ void main() {
       // 内容→渲染:边界跳过零宽定界符
       expect(expanded.projection.renderOffsetForContent(6), 8);
       expect(expanded.projection.renderOffsetForContent(10), 14);
+      // 末端语义(装饰框右界):恰在 mark.end 时归属到内容 entry 末端,
+      // 不把随后的闭定界符 `**` 框进装饰(before**bold|**after → 12)
+      expect(expanded.projection.renderEndForContent(10), 12);
+      expect(expanded.projection.renderEndForContent(6), 6);
       // 渲染→内容:定界符内部坍缩(光标进不了定界符)
       expect(expanded.projection.contentOffsetForRender(6), 6);
       expect(expanded.projection.contentOffsetForRender(7), 6);
