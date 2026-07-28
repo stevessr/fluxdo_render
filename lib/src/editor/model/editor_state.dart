@@ -406,7 +406,13 @@ class EditorState extends ChangeNotifier {
     if (i < 0) return;
     final block = _blocks[i];
     if (block is! TextBlock) return; // 岛上无文本插入
-    var content = block.content.insert(pos.offset, sanitized);
+    // 末端延伸(inclusive marks):粗体末尾继续打字 = 继续粗体。
+    // pending marks 命中锚点时用户意图已显式给出,不做隐式延伸。
+    var content = block.content.insert(
+      pos.offset,
+      sanitized,
+      extendMarksAtEnd: _pendingMarks == null || _pendingAnchor != pos,
+    );
     // pending marks:命中锚点时对插入区间施加
     if (_pendingMarks != null && _pendingAnchor == pos) {
       content = content.applyExactMarks(
@@ -563,7 +569,19 @@ class EditorState extends ChangeNotifier {
       return;
     }
 
-    var content = block.content.replace(safeStart, safeEnd, replacement);
+    // 末端延伸(inclusive marks;仅纯插入形态生效,replace 内部判定):
+    // 粗体末尾继续打字 = 继续粗体。pending 锚点命中时不隐式延伸(下方
+    // applyExactMarks 按用户显式意图整段重设)。
+    final pendingHit = _pendingMarks != null &&
+        _pendingAnchor != null &&
+        _pendingAnchor!.blockId == blockId &&
+        _pendingAnchor!.offset == safeStart;
+    var content = block.content.replace(
+      safeStart,
+      safeEnd,
+      replacement,
+      extendMarksAtEnd: !pendingHit,
+    );
     // pending marks:替换起点命中锚点(打字第一个字符)时施加。
     // composing 进行中保留 pending(候选切换会反复 replace 同区间)。
     final anchor = _pendingAnchor;

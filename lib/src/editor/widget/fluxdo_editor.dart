@@ -46,6 +46,7 @@ import '../../selection/selection_scope.dart';
 import '../input/editor_ime_client.dart';
 import '../input/editor_key_handler.dart';
 import '../model/editor_image_commands.dart';
+import '../model/editable_text_content.dart' show EditableTextContent;
 import '../model/editor_state.dart';
 import 'editable_paragraph.dart';
 import 'editor_caret.dart';
@@ -1292,7 +1293,21 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (widget.state.blocks[index] is IslandBlock) return null;
     final id = _renderIdOf(index);
     final proj = _controller.registry.logicalById(id)?.projection;
-    final renderOffset = proj?.renderOffsetForContent(pos.offset) ?? pos.offset;
+    // 光标贴 inclusive mark 末端时用末端语义:显形态画在闭定界符**内侧**
+    // (「容」后 `[` 前)—— 与末端打字延伸格式的落点一致;光标口径的
+    // 延迟归属会跳过零宽定界符 entry 画到 `]` 之后,和打字落点脱节。
+    // 非 inclusive(inlineCode 的 codePad)保持外侧:代码尾打字本就
+    // 退出代码。
+    final block = widget.state.blocks[index];
+    final atInclusiveMarkEnd = block is TextBlock &&
+        block.content.marks.any((m) =>
+            m.end == pos.offset &&
+            EditableTextContent.isInclusiveMark(m));
+    final renderOffset = proj == null
+        ? pos.offset
+        : atInclusiveMarkEnd
+            ? proj.renderEndForContent(pos.offset)
+            : proj.renderOffsetForContent(pos.offset);
     return DocumentPosition(
       blockId: id,
       renderOffset: renderOffset,

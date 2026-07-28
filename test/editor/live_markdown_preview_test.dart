@@ -188,6 +188,97 @@ void main() {
     });
   });
 
+  group('末端打字延伸(inclusive marks)', () {
+    test('insertText 在 mark 末端:格式延伸覆盖新字符', () {
+      final state = EditorState(blocks: [
+        TextBlock(
+          id: 'e_0',
+          content: EditableTextContent(
+            text: 'bold tail',
+            marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+          ),
+        ),
+      ]);
+      addTearDown(state.dispose);
+      state.updateSelection(const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 4)));
+      state.insertText('X');
+      final c = (state.blocks.first as TextBlock).content;
+      expect(c.text, 'boldX tail');
+      expect(c.marks.single, isA<MarkSpan>());
+      expect(c.marks.single.end, 5, reason: '粗体末尾打字 = 继续粗体');
+    });
+
+    test('imeReplace 纯插入在 mark 末端:同样延伸', () {
+      final state = EditorState(blocks: [
+        TextBlock(
+          id: 'e_0',
+          content: EditableTextContent(
+            text: 'bold',
+            marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+          ),
+        ),
+      ]);
+      addTearDown(state.dispose);
+      state.updateSelection(const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 4)));
+      state.imeReplace('e_0', 4, 4, '呀', caretOffset: 5);
+      final c = (state.blocks.first as TextBlock).content;
+      expect(c.text, 'bold呀');
+      expect(c.marks.single.end, 5);
+    });
+
+    test('link/inlineCode/带 attr 的 mark 末端不延伸', () {
+      final state = EditorState(blocks: [
+        TextBlock(
+          id: 'e_0',
+          content: EditableTextContent(
+            text: 'abcd',
+            marks: const [
+              MarkSpan(start: 0, end: 2, kind: MarkKind.link, attr: 'https://x'),
+              MarkSpan(start: 2, end: 4, kind: MarkKind.size, attr: '150'),
+            ],
+          ),
+        ),
+      ]);
+      addTearDown(state.dispose);
+      // link 末端
+      state.updateSelection(const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 2)));
+      state.insertText('Y');
+      var c = (state.blocks.first as TextBlock).content;
+      final link = c.marks.firstWhere((m) => m.kind == MarkKind.link);
+      expect(link.end, 2, reason: '链接尾打字不长出链接');
+      // size(带 attr)末端
+      state.updateSelection(const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 5)));
+      state.insertText('Z');
+      c = (state.blocks.first as TextBlock).content;
+      final size = c.marks.firstWhere((m) => m.kind == MarkKind.size);
+      expect(size.end, 5, reason: '带 attr 的 mark 不隐式延伸');
+    });
+
+    test('mark 内部/前端插入语义不变(回归)', () {
+      final state = EditorState(blocks: [
+        TextBlock(
+          id: 'e_0',
+          content: EditableTextContent(
+            text: 'bold',
+            marks: const [MarkSpan(start: 1, end: 3, kind: MarkKind.strong)],
+          ),
+        ),
+      ]);
+      addTearDown(state.dispose);
+      // mark.start 处插入:mark 右移不吸收
+      state.updateSelection(const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 1)));
+      state.insertText('P');
+      final c = (state.blocks.first as TextBlock).content;
+      expect(c.marks.single.start, 2);
+      expect(c.marks.single.end, 4);
+    });
+  });
+
   group('反向固化:显形零模型泄漏', () {
     test('显形态 docToMarkdown 输出无虚拟定界符(字面 ** 邻居场景)', () {
       // 'x**2 bold':字面 ** 与真 strong mark 共存(打穿字面替换方案的

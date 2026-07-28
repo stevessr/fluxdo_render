@@ -761,14 +761,40 @@ class EditableTextContent {
   ///
   /// 注意:[inserted] 未经 [sanitizeText] —— 调用方(EditorState/
   /// insertAtom)负责;insertAtom 恰要插入哨兵本体,不能在这里一刀切剥。
-  EditableTextContent insert(int offset, String inserted) {
+  /// 末端打字是否延伸该 mark(主流编辑器 inclusive marks 语义:粗体末尾
+  /// 继续打字 = 继续粗体)。
+  /// - link 例外:链接尾打字长出链接是公认反直觉(ProseMirror link
+  ///   inclusive:false 同款);
+  /// - inlineCode 例外:代码框尾打字应退出代码(codePad 既有交互约定);
+  /// - 带 attr 的 mark(size/color/bgcolor)例外:延伸会与后续同 kind
+  ///   不同 attr 的区间重叠(破坏"同 kind 不重叠"不变量),且延伸出的
+  ///   字号/颜色未必是用户意图。
+  static bool isInclusiveMark(MarkSpan m) =>
+      m.attr == null &&
+      m.kind != MarkKind.link &&
+      m.kind != MarkKind.inlineCode;
+
+  EditableTextContent insert(
+    int offset,
+    String inserted, {
+    bool extendMarksAtEnd = false,
+  }) {
     assert(offset >= 0 && offset <= text.length);
     if (inserted.isEmpty) return this;
     final len = inserted.length;
     final newMarks = <MarkSpan>[];
     for (final m in marks) {
       if (m.end <= offset) {
-        newMarks.add(m);
+        // 打字路径([extendMarksAtEnd]):恰在 mark 末端插入时,inclusive
+        // kind 延伸覆盖插入段 —— 与 marksAt(工具栏活跃态探测 offset-1)
+        // 口径一致,也让显形态"最后一个字符后打字仍在格式内"成立。
+        if (extendMarksAtEnd &&
+            m.end == offset &&
+            isInclusiveMark(m)) {
+          newMarks.add(m.copyWith(end: m.end + len));
+        } else {
+          newMarks.add(m);
+        }
       } else if (m.start >= offset) {
         newMarks.add(m.copyWith(start: m.start + len, end: m.end + len));
       } else {
@@ -839,7 +865,16 @@ class EditableTextContent {
   /// 整选 → 直接打字」会因 delete+insert 在区间边界不延续样式而把
   /// spoiler mark 丢掉,打出来的是普通文字。用原始 span(含 attr)
   /// 重建而非只记 kind,链接 href/颜色值不丢。
-  EditableTextContent replace(int start, int end, String replacement) {
+  EditableTextContent replace(
+    int start,
+    int end,
+    String replacement, {
+    bool extendMarksAtEnd = false,
+  }) {
+    if (start == end) {
+      // 纯插入(IME 打字主形态):透传末端延伸语义
+      return insert(start, replacement, extendMarksAtEnd: extendMarksAtEnd);
+    }
     final carried = (start < end && replacement.isNotEmpty)
         ? [
             for (final m in marks)
