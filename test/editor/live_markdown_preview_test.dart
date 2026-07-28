@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/src/editor/widget/editable_paragraph.dart';
@@ -591,11 +592,21 @@ void main() {
       await tester.pump();
       expect(paragraphText(tester), '**bold** tail');
 
-      // range 选区 → 不显形(仅 collapsed)
+      // range 选区 → 显形冻结(建立于最后一个 collapsed 帧 offset 4,
+      // range 存续期间维持不回流,选区端点坐标才稳定)
       state.updateSelection(
         const EditorSelection(
           base: EditorPosition(blockId: 'e_0', offset: 1),
           extent: EditorPosition(blockId: 'e_0', offset: 3),
+        ),
+      );
+      await tester.pump();
+      expect(paragraphText(tester), '**bold** tail');
+
+      // 折叠到 mark 外 → 按新光标位置重派生,定界符消失
+      state.updateSelection(
+        const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 6),
         ),
       );
       await tester.pump();
@@ -605,6 +616,78 @@ void main() {
     testWidgets('wysiwyg 模式(默认)不显形', (tester) async {
       await pumpEditor(tester, mode: EditorMode.wysiwyg);
       expect(paragraphText(tester), 'bold tail');
+    });
+
+    testWidgets('wysiwyg:任意选区序列渲染文本永不含定界符', (tester) async {
+      final state = await pumpEditor(tester, mode: EditorMode.wysiwyg);
+      expect(paragraphText(tester), 'bold tail');
+      // collapsed 进 mark → range → 折叠回,全程无定界符
+      for (final sel in const [
+        EditorSelection.collapsed(EditorPosition(blockId: 'e_0', offset: 4)),
+        EditorSelection(
+          base: EditorPosition(blockId: 'e_0', offset: 1),
+          extent: EditorPosition(blockId: 'e_0', offset: 3),
+        ),
+        EditorSelection.collapsed(EditorPosition(blockId: 'e_0', offset: 2)),
+      ]) {
+        state.updateSelection(sel);
+        await tester.pump();
+        expect(paragraphText(tester), 'bold tail');
+      }
+    });
+
+    testWidgets('ir:Shift 扩选期间显形冻结,文本不回流;折叠后重派生',
+        (tester) async {
+      final state = await pumpEditor(tester); // 光标 offset 2,mark 内显形
+      expect(paragraphText(tester), '**bold** tail');
+
+      // Shift+ArrowRight 扩选成 range:定界符仍在(不回流)
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(state.selection!.isCollapsed, isFalse);
+      expect(paragraphText(tester), '**bold** tail',
+          reason: 'range 建立帧不回流');
+
+      // 再扩几步仍不变
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(state.selection!.extent.offset, 5);
+      expect(paragraphText(tester), '**bold** tail',
+          reason: 'range 存续期间维持冻结');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+
+      // 折叠选区(点击同款程序化路径)→ 按新光标位置重派生:
+      // offset 6 在 mark 外,定界符消失
+      state.updateSelection(
+        const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_0', offset: 6),
+        ),
+      );
+      await tester.pump();
+      expect(paragraphText(tester), 'bold tail');
+    });
+
+    testWidgets('ir:程序化 range(拖选松手后)仍不回流', (tester) async {
+      final state = await pumpEditor(tester); // 光标 offset 2,显形
+      expect(paragraphText(tester), '**bold** tail');
+
+      // 不经手势,直接 updateSelection 到 range(等价拖选松手后的稳态)
+      state.updateSelection(
+        const EditorSelection(
+          base: EditorPosition(blockId: 'e_0', offset: 1),
+          extent: EditorPosition(blockId: 'e_0', offset: 3),
+        ),
+      );
+      await tester.pump();
+      expect(paragraphText(tester), '**bold** tail',
+          reason: '冻结跟随 range 存续,不依赖手势标志');
+
+      // 多帧后依旧(松手后无手势标志也不解冻)
+      await tester.pump();
+      await tester.pump();
+      expect(paragraphText(tester), '**bold** tail');
     });
 
     testWidgets('composing 期间不显形(IME 预编辑不受扰)', (tester) async {
@@ -619,7 +702,6 @@ void main() {
       await tester.pump();
       expect(paragraphText(tester), '**bold** tail');
     });
-
     testWidgets('IME 窗口喂的文本 = content.text 原文(无定界符)',
         (tester) async {
       final state = await pumpEditor(tester);

@@ -1387,9 +1387,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// 就显示在行末,而不是跳到第二行行首);键盘移动/编辑后重置 downstream。
   TextAffinity _caretAffinity = TextAffinity.downstream;
 
-  /// 选择手势(拖选/长按扩选/手柄拖动)开始前一帧的显形位置快照 ——
-  /// 手势进行中维持该显形不折叠(文本形态冻结,选区端点坐标稳定),
-  /// 见 build 里的 revealSelection 注释。
+  /// 最后一个 collapsed 帧的显形位置快照 —— range 选区存续期间(拖选/
+  /// 长按扩选/手柄拖动/Shift 扩选,含松手后)维持该显形不折叠(文本
+  /// 形态冻结,选区端点坐标稳定),见 build 里的 revealSelection 注释。
   EditorSelection? _frozenRevealSelection;
 
   Rect? _computeLocalCaretRect() {
@@ -2088,9 +2088,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   void _onPanEnd(DragEndDetails details) {
     _dragBase = null;
     _ime.syncFromState(show: false);
-    // 解冻显形(手势期间 reveal 被冻结,见 build):立即重建,选区若已
-    // 离开 mark 定界符当帧折叠,不等下一次无关 build。
-    if (mounted) setState(() {});
+    // 不需要立即重建:显形冻结跟随「range 选区存续」而非手势标志(见
+    // build 的 revealSelection 注释),松手后 range 仍在 = 快照继续
+    // 生效;选区折叠时 updateSelection 的 notifyListeners 自会触发
+    // build 重派生。
   }
 
   // -----------------------------------------------------------------
@@ -2145,30 +2146,37 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         : null;
 
     // 定界符显形位置(仅 ir 模式,见 [EditorMode]):聚焦 + collapsed
-    // 选区才显形;composing 期间不显形(IME 预编辑中 mark 边界随每次
-    // 上屏抖动,定界符忽隐忽现会打扰输入;上屏后 composing 清空自然
-    // 恢复)。
+    // 选区才**重派生**;composing 期间不显形(IME 预编辑中 mark 边界随
+    // 每次上屏抖动,定界符忽隐忽现会打扰输入;上屏后 composing 清空
+    // 自然恢复)。
     //
-    // **选择手势进行中冻结显形**(拖选/长按扩选/手柄拖动):手势第一帧
-    // 选区变 range,若立即折叠定界符,文本回流坍缩 —— 鼠标还按着,
-    // 屏上的字已经移位,后续拖到的都是错字(真机实测:mark 内起手的
-    // 局部选择基本不可用)。冻结 = 手势期间维持手势开始前那一帧的
-    // reveal 位置(文本形态不变,选区端点坐标稳定);手势结束
-    // (_onPanEnd/长按抬手/手柄松开清标志后的下一次 build)自然解冻。
-    final selectGestureActive =
-        _dragBase != null || _longPressing || _handleDragging;
+    // **range 选区存续期间冻结显形**(拖选/长按扩选/手柄拖动/Shift
+    // 扩选,含松手后):选区一变 range 若立即折叠定界符,文本回流坍缩
+    // —— 选择还在进行,屏上的字已经移位,后续拖到/扩到的都是错字;
+    // 松手后回流同样会让已选中的区间视觉错位(Vditor 同语义:展开只
+    // 响应 collapsed 光标,选择期间形态不变)。
+    //
+    // 快照生命周期:
+    // - 建立:最后一个 collapsed 帧(唯一重派生时机);
+    // - 维持:range 选区存续期间只读快照(不限手势标志,Shift 扩选/
+    //   程序化 range 同样冻结);
+    // - 失效:选区折叠(按新光标位置重派生)/置 null/失焦/composing
+    //   开始(revealSelection 为 null 的帧同步清快照)。
+    final selCollapsed = state.selection?.isCollapsed ?? false;
     EditorSelection? revealSelection;
     if (widget.state.mode == EditorMode.ir &&
         _focusNode.hasPrimaryFocus &&
         !state.hasComposing) {
-      if (selectGestureActive) {
-        revealSelection = _frozenRevealSelection;
-      } else if (state.selection?.isCollapsed ?? false) {
+      if (selCollapsed) {
         revealSelection = state.selection;
+      } else {
+        revealSelection = _frozenRevealSelection;
       }
     }
-    // 快照供下一帧手势冻结用(仅在非手势期间刷新)
-    if (!selectGestureActive) _frozenRevealSelection = revealSelection;
+    // 快照只在 collapsed/清空帧刷新(range 存续期间保持建立时的值)
+    if (selCollapsed || revealSelection == null) {
+      _frozenRevealSelection = revealSelection;
+    }
 
     // 有序列表序号(派生渲染态):连续 listItem run 内扫描,run 首项取
     // listStart;ordered/depth 切换重新起算(同 depth 的 ol 连续编号)。
