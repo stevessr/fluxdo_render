@@ -200,7 +200,6 @@ class FluxdoEditor extends StatefulWidget {
     required this.state,
     this.baseTextStyle,
     this.autofocus = false,
-    this.liveMarkdownPreview = true,
     this.focusNode,
     this.nodeFactory,
     this.markdownImporter,
@@ -227,11 +226,6 @@ class FluxdoEditor extends StatefulWidget {
   final TextStyle? baseTextStyle;
 
   final bool autofocus;
-
-  /// 定界符显形开关:光标(collapsed)进入行内 mark 范围时,该 mark
-  /// 两端展示淡色字面定界符(`**`/`[u]` 等,纯渲染投影零逻辑宽);
-  /// 光标离开即折叠回富文本。
-  final bool liveMarkdownPreview;
 
   /// 外部焦点节点(宿主监听焦点态做键盘/面板联动;null 内部自建)。
   final FocusNode? focusNode;
@@ -2150,9 +2144,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         ? state.selection?.extent.blockId
         : null;
 
-    // 定界符显形位置:聚焦 + collapsed 选区才显形;composing 期间不显形
-    // (IME 预编辑中 mark 边界随每次上屏抖动,定界符忽隐忽现会打扰
-    // 输入;上屏后 composing 清空自然恢复)。
+    // 定界符显形位置(仅 ir 模式,见 [EditorMode]):聚焦 + collapsed
+    // 选区才显形;composing 期间不显形(IME 预编辑中 mark 边界随每次
+    // 上屏抖动,定界符忽隐忽现会打扰输入;上屏后 composing 清空自然
+    // 恢复)。
     //
     // **选择手势进行中冻结显形**(拖选/长按扩选/手柄拖动):手势第一帧
     // 选区变 range,若立即折叠定界符,文本回流坍缩 —— 鼠标还按着,
@@ -2163,7 +2158,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final selectGestureActive =
         _dragBase != null || _longPressing || _handleDragging;
     EditorSelection? revealSelection;
-    if (widget.liveMarkdownPreview &&
+    if (widget.state.mode == EditorMode.ir &&
         _focusNode.hasPrimaryFocus &&
         !state.hasComposing) {
       if (selectGestureActive) {

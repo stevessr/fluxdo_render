@@ -279,9 +279,10 @@ void main() {
     });
   });
 
-  group('mark 末端边界二态(内侧/外侧)', () {
+  group('mark 末端边界二态(内侧/外侧,仅 ir 模式)', () {
     EditorState makeState(EditableTextContent content) {
-      final s = EditorState(blocks: [TextBlock(id: 'e_0', content: content)]);
+      final s = EditorState(blocks: [TextBlock(id: 'e_0', content: content)])
+        ..mode = EditorMode.ir;
       addTearDown(s.dispose);
       return s;
     }
@@ -524,7 +525,7 @@ void main() {
   group('widget 级:焦点/选区/开关/IME', () {
     Future<EditorState> pumpEditor(
       WidgetTester tester, {
-      bool liveMarkdownPreview = true,
+      EditorMode mode = EditorMode.ir,
     }) async {
       final state = EditorState(
         blocks: [
@@ -536,7 +537,7 @@ void main() {
             ),
           ),
         ],
-      );
+      )..mode = mode;
       addTearDown(state.dispose);
       state.updateSelection(
         const EditorSelection.collapsed(
@@ -549,7 +550,6 @@ void main() {
             body: FluxdoEditor(
               state: state,
               autofocus: true,
-              liveMarkdownPreview: liveMarkdownPreview,
             ),
           ),
         ),
@@ -602,8 +602,8 @@ void main() {
       expect(paragraphText(tester), 'bold tail');
     });
 
-    testWidgets('liveMarkdownPreview=false 关闭显形', (tester) async {
-      await pumpEditor(tester, liveMarkdownPreview: false);
+    testWidgets('wysiwyg 模式(默认)不显形', (tester) async {
+      await pumpEditor(tester, mode: EditorMode.wysiwyg);
       expect(paragraphText(tester), 'bold tail');
     });
 

@@ -10,7 +10,10 @@ import 'package:fluxdo_render/src/editor/model/markdown_serializer.dart';
 import 'package:fluxdo_render/src/node/inline_node.dart';
 
 EditorState makeState(EditableTextContent content) {
-  final s = EditorState(blocks: [TextBlock(id: 'e_0', content: content)]);
+  // 本文件测的是 ir 模式语义(退格物化/边界二态);wysiwyg 门控回归
+  // 见 editor_mode_test.dart。
+  final s = EditorState(blocks: [TextBlock(id: 'e_0', content: content)])
+    ..mode = EditorMode.ir;
   addTearDown(s.dispose);
   return s;
 }

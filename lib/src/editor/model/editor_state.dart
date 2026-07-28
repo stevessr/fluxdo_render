@@ -94,6 +94,22 @@ class EditorSelection {
   String toString() => 'EditorSelection($base → $extent)';
 }
 
+/// 编辑器工作模式。
+///
+/// 两者共享同一份文档模型/序列化/输入规则,只在**格式边界的交互语义**
+/// 上分叉(显形、mark 末端二态停位、退格物化)。
+enum EditorMode {
+  /// 所见即所得(默认):任何时候不显形字面定界符;mark 末端无内/外
+  /// 二态停位(左右键直接过界);退格恒删字符 / mark 自然收缩,
+  /// 不把 mark 物化为字面定界符。
+  wysiwyg,
+
+  /// 即时渲染(instant render):光标进入行内 mark 范围时两端显形淡色
+  /// 字面定界符;mark 末端有内/外二态停位;外侧(及非 inclusive mark
+  /// 末端)退格把 mark 物化为字面定界符。
+  ir,
+}
+
 /// 历史快照(undo 单元)。
 @immutable
 class _HistoryEntry {
@@ -174,6 +190,19 @@ class EditorState extends ChangeNotifier {
   /// 点击/程序化选区更新、任何文档事务后归位内侧。
   bool _caretOutsideMarkEnd = false;
   bool get caretOutsideMarkEnd => _caretOutsideMarkEnd;
+
+  /// 编辑器工作模式(见 [EditorMode];宿主偏好,默认所见即所得)。
+  ///
+  /// 切换即时生效:ir 特有的瞬态残留(边界二态外侧停位)一并清掉,
+  /// 显形由视图层按模式派生,下一帧自然折叠/展开。
+  EditorMode _mode = EditorMode.wysiwyg;
+  EditorMode get mode => _mode;
+  set mode(EditorMode value) {
+    if (_mode == value) return;
+    _mode = value;
+    _caretOutsideMarkEnd = false;
+    notifyListeners();
+  }
 
   /// [pos] 是否恰在某 inclusive mark 的 end(边界二态的适用判定)。
   bool _isAtInclusiveMarkEnd(EditorPosition pos) {
@@ -800,18 +829,22 @@ class EditorState extends ChangeNotifier {
       mergeWithPrevious(pos.blockId);
       return;
     }
-    // 闭端退格 = 拆标记:光标恰在某 mark.end(显形态,闭定界符紧贴
-    // 光标左边)时,第一次退格不删正文字符,而是把该 mark 物化为字面
-    // 定界符;物化后光标在闭定界符末尾,再退格走常规路径删字面字符,
-    // 行为连贯。开端(mark.start)不触发 —— 普通退格删前一字符、mark
-    // 区间自然收缩,现有行为已合理。
+    // 闭端退格 = 拆标记(仅 ir 模式):光标恰在某 mark.end(显形态,
+    // 闭定界符紧贴光标左边)时,第一次退格不删正文字符,而是把该 mark
+    // 物化为字面定界符;物化后光标在闭定界符末尾,再退格走常规路径删
+    // 字面字符,行为连贯。开端(mark.start)不触发 —— 普通退格删前一
+    // 字符、mark 区间自然收缩,现有行为已合理。
     //
     // 边界二态:inclusive mark.end 上物化只在**外侧**停位触发 ——
     // 内侧退格 = 删格式内最后一个字符(mark 自然收缩),否则「删最后
     // 一个字」会意外把 mark 拆成字面。非 inclusive(link/inlineCode/
-    // 带 attr)的 end 没有内侧停位,恒视为外侧,物化行为不变。
+    // 带 attr)的 end 没有内侧停位,恒视为外侧,ir 下物化行为不变。
+    //
+    // wysiwyg:不物化,任何 mark.end(含非 inclusive)退格都恒删字符
+    // / mark 自然收缩 —— 所见即所得用户不该见到字面定界符。
     final atInclusiveEnd = _isAtInclusiveMarkEnd(pos);
-    if ((!atInclusiveEnd || _caretOutsideMarkEnd) &&
+    if (_mode == EditorMode.ir &&
+        (!atInclusiveEnd || _caretOutsideMarkEnd) &&
         _tryMaterializeAtMarkEnd(block, pos)) {
       return;
     }
@@ -1991,9 +2024,10 @@ class EditorState extends ChangeNotifier {
     }
     block as TextBlock;
 
-    // mark 末端边界二态切换(仅非扩选;扩选语义按内容坐标,跳过这层):
-    // 内容坐标不动,只翻转内/外侧停位。
-    if (!extend && _isAtInclusiveMarkEnd(pos)) {
+    // mark 末端边界二态切换(仅 ir 模式、非扩选;扩选语义按内容坐标,
+    // 跳过这层;wysiwyg 无二态,左右键直接过界):内容坐标不动,只翻转
+    // 内/外侧停位。
+    if (_mode == EditorMode.ir && !extend && _isAtInclusiveMarkEnd(pos)) {
       if (direction > 0 && !_caretOutsideMarkEnd) {
         // 内侧 → 外侧:视觉上跨过闭定界符,内容坐标原地。
         _caretOutsideMarkEnd = true;
@@ -2052,8 +2086,11 @@ class EditorState extends ChangeNotifier {
       return;
     }
     // 左移落到 inclusive mark.end 时停**外侧**(对称序:end+1 → 外 →
-    // 内 → end-1);updateSelection 默认归位内侧,落点后补置。
-    final landOutside = direction < 0 && _isAtInclusiveMarkEnd(next);
+    // 内 → end-1;仅 ir 模式,wysiwyg 无二态停位);updateSelection
+    // 默认归位内侧,落点后补置。
+    final landOutside = _mode == EditorMode.ir &&
+        direction < 0 &&
+        _isAtInclusiveMarkEnd(next);
     updateSelection(EditorSelection.collapsed(next));
     if (landOutside && !_caretOutsideMarkEnd) {
       _caretOutsideMarkEnd = true;
