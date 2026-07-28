@@ -146,7 +146,9 @@ void main() {
       }
     });
 
-    test('嵌套 mark 定界符按序列化固定序排列(外开内闭)', () {
+    test('嵌套 mark 定界符尊重列表序(外开内闭,与序列化同源)', () {
+      // marks 列表序承载原 DOM 嵌套方向(parser 摊平时外层先入表):
+      // [em, strong] = em 外 strong 内 → 开 `*` `**`、闭 `**` `*`。
       final content = EditableTextContent(
         text: 'x',
         marks: const [
@@ -158,13 +160,27 @@ void main() {
         content.toInlines(forEditing: true, revealMarkdownAt: 0),
         const TextStyle(fontSize: 14),
       );
-      // kMarkNestingOrder:strong 先于 em → 开 `**` `*`、闭 `*` `**`
       expect(result.span.toPlainText(), '***x***');
       final inlines =
           content.toInlines(forEditing: true, revealMarkdownAt: 0);
       final delims =
           inlines.whereType<EditingDelimiterRun>().map((d) => d.text).toList();
-      expect(delims, ['**', '*', '*', '**']);
+      expect(delims, ['*', '**', '**', '*']);
+
+      // 反向列表序 [strong, em] = strong 外 em 内。
+      final reversed = EditableTextContent(
+        text: 'x',
+        marks: const [
+          MarkSpan(start: 0, end: 1, kind: MarkKind.strong),
+          MarkSpan(start: 0, end: 1, kind: MarkKind.em),
+        ],
+      );
+      final rDelims = reversed
+          .toInlines(forEditing: true, revealMarkdownAt: 0)
+          .whereType<EditingDelimiterRun>()
+          .map((d) => d.text)
+          .toList();
+      expect(rDelims, ['**', '*', '*', '**']);
     });
   });
 

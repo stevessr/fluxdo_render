@@ -26,7 +26,11 @@ import 'package:flutter/foundation.dart';
 import '../../node/inline_node.dart';
 import '../../parser/paragraph_parser.dart' show ParagraphParser;
 import 'markdown_serializer.dart'
-    show kMarkNestingOrder, markOpeningDelimiter, markClosingDelimiter;
+    show
+        compareSameSpanMarkOpen,
+        kMarkNestingOrder,
+        markOpeningDelimiter,
+        markClosingDelimiter;
 
 /// 原子哨兵字符(U+FFFC OBJECT REPLACEMENT CHARACTER)。
 const String kAtomChar = '\uFFFC';
@@ -433,7 +437,13 @@ class EditableTextContent {
     final out = <InlineNode>[];
 
     // 显形定界符:片段边界处按嵌套序发射(开定界符外层先、闭定界符
-    // 内层先 —— 与序列化 kMarkNestingOrder 单一真相,显示形态 = raw 形态)。
+    // 内层先 —— 与序列化定序单一真相,显示形态 = raw 形态:同区间尊重
+    // marks 列表序(原 DOM 嵌套方向),硬约束 kind 按 kMarkNestingOrder,
+    // 见 compareSameSpanMarkOpen)。
+    final markListIndex = <MarkSpan, int>{};
+    for (var i = 0; i < marks.length; i++) {
+      markListIndex.putIfAbsent(marks[i], () => i);
+    }
     void appendDelimiters(int offset, {required bool opening}) {
       if (revealedMarks.isEmpty) return;
       final atOffset = <MarkSpan>[
@@ -441,18 +451,27 @@ class EditableTextContent {
           if ((opening ? mark.start : mark.end) == offset) mark,
       ];
       if (atOffset.isEmpty) return;
-      int order(MarkSpan m) => kMarkNestingOrder.indexOf(m.kind);
+      int openCompare(MarkSpan a, MarkSpan b) {
+        if (a.start == b.start && a.end == b.end) {
+          return compareSameSpanMarkOpen(
+              a, markListIndex[a] ?? 0, b, markListIndex[b] ?? 0);
+        }
+        return kMarkNestingOrder
+            .indexOf(a.kind)
+            .compareTo(kMarkNestingOrder.indexOf(b.kind));
+      }
+
       atOffset.sort((a, b) {
         if (opening) {
-          // 外层先开:覆盖更长(end 更大)在前;同界按固定嵌套序。
+          // 外层先开:覆盖更长(end 更大)在前;同界按开序。
           final byEnd = b.end.compareTo(a.end);
           if (byEnd != 0) return byEnd;
-          return order(a).compareTo(order(b));
+          return openCompare(a, b);
         }
-        // 内层先闭:start 更大在前;同界按固定嵌套序反向。
+        // 内层先闭:start 更大在前;同界按开序反向。
         final byStart = b.start.compareTo(a.start);
         if (byStart != 0) return byStart;
-        return order(b).compareTo(order(a));
+        return openCompare(b, a);
       });
       for (final mark in atOffset) {
         final delimiter = opening
