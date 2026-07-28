@@ -229,11 +229,12 @@ void main() {
       expect(s.selection!.extent.offset, 4);
       expect(s.caretOutsideMarkEnd, isTrue);
       s.backspace();
-      expect(first(s).content.text, '**bold** tail', reason: '外侧退格物化');
+      expect(first(s).content.text, '**bold* tail',
+          reason: '外侧退格复合物化:字面化 + 吃掉闭定界符末字符');
       expect(first(s).content.marks, isEmpty);
     });
 
-    test('link end 退格直接物化(无内侧停位)', () {
+    test('link end 退格直接物化+吃字符(无内侧停位)', () {
       final s = makeState(
         EditableTextContent(
           text: 'text',
@@ -245,7 +246,7 @@ void main() {
       );
       caretAt(s, 4);
       s.backspace();
-      expect(first(s).content.text, '[text](https://x)');
+      expect(first(s).content.text, '[text](https://x');
       expect(first(s).content.marks, isEmpty);
     });
   });

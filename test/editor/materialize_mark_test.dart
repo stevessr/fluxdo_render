@@ -131,7 +131,10 @@ void main() {
     // 语义更新(边界二态):inclusive mark.end 上的退格物化只在**外侧**
     // 停位触发(caretAt 默认内侧,先右移一次切外侧);内侧退格 = 删格式
     // 内最后一个字符,mark 自然收缩。
-    test('外侧停位退格 → 物化而非删字符', () {
+    //
+    // 复合退格(ir spin 阶段):一次外侧退格 = 物化 + 同一事务删掉闭
+    // 定界符末一个字符(Vditor「退格删格式符字符」语义)。
+    test('外侧停位退格 → 物化并吃掉闭定界符末字符', () {
       final s = makeState(EditableTextContent(
         text: 'bold',
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
@@ -141,9 +144,9 @@ void main() {
       expect(s.caretOutsideMarkEnd, isTrue);
       expect(s.selection!.extent.offset, 4);
       s.backspace();
-      expect(first(s).content.text, '**bold**');
+      expect(first(s).content.text, '**bold*', reason: '物化 + 删闭定界符末字符');
       expect(first(s).content.marks, isEmpty);
-      expect(s.selection!.extent.offset, 8);
+      expect(s.selection!.extent.offset, 7);
       expect(s.caretOutsideMarkEnd, isFalse, reason: '物化后复位内侧');
     });
 
@@ -159,17 +162,17 @@ void main() {
       expect(s.selection!.extent.offset, 3);
     });
 
-    test('物化后第二次退格 = 删字面字符', () {
+    test('复合退格后继续退格 = 删字面字符', () {
       final s = makeState(EditableTextContent(
         text: 'bold',
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
       ));
       caretAt(s, 4);
       s.moveCaretHorizontal(1);
+      s.backspace(); // 物化+吃字符 → '**bold*'
       s.backspace();
-      s.backspace();
-      expect(first(s).content.text, '**bold*');
-      expect(s.selection!.extent.offset, 7);
+      expect(first(s).content.text, '**bold');
+      expect(s.selection!.extent.offset, 6);
     });
 
     test('非闭端(mark 中部/开端)退格 = 普通删字符', () {
@@ -183,7 +186,7 @@ void main() {
       expect(first(s).content.marks.single.end, 3, reason: 'mark 自然收缩');
     });
 
-    test('非 inclusive mark(link)end 退格:无内侧停位,直接物化', () {
+    test('非 inclusive mark(link)end 退格:无内侧停位,直接物化+吃字符', () {
       final s = makeState(EditableTextContent(
         text: 'text',
         marks: const [
@@ -192,11 +195,12 @@ void main() {
       ));
       caretAt(s, 4); // link 不参与二态,视为外侧
       s.backspace();
-      expect(first(s).content.text, '[text](https://x)');
+      expect(first(s).content.text, '[text](https://x', reason: '尾 `)` 被吃');
       expect(first(s).content.marks, isEmpty);
+      expect(s.selection!.extent.offset, 16);
     });
 
-    test('undo:一次退格物化 = 一步回滚', () {
+    test('undo:一次复合退格 = 一步回滚(mark 完好 + 光标在 end)', () {
       final s = makeState(EditableTextContent(
         text: 'bold',
         marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
@@ -224,11 +228,12 @@ void main() {
       s.moveCaretHorizontal(1); // 切外侧
       s.backspace();
       final c = first(s).content;
-      expect(c.text, '*abc*');
+      expect(c.text, '*abc', reason: '拆内层 em 并吃掉闭 `*`');
       expect(c.marks.single.kind, MarkKind.strong, reason: '只拆内层 em');
       // 开定界符插在 strong.start 前 → strong 整体右移
       expect(c.marks.single.start, 1);
       expect(c.marks.single.end, 4);
+      expect(s.selection!.extent.offset, 4);
     });
 
     test('start 更大者为内层(不同区间同 end)', () {
@@ -243,7 +248,7 @@ void main() {
       s.moveCaretHorizontal(1); // 切外侧
       s.backspace();
       final c = first(s).content;
-      expect(c.text, 'a**bc**');
+      expect(c.text, 'a**bc*', reason: '拆内层 strong 并吃掉一个闭 `*`');
       expect(c.marks.single.kind, MarkKind.em, reason: '外层 em 保持');
     });
 
@@ -261,7 +266,25 @@ void main() {
     });
   });
 
-  group('物化 → 改字面 → input rules 重新折叠', () {
+  group('物化 → 改字面 → input rules / spin 重新折叠', () {
+    test('复合退格出破坏态 → 补回闭定界符(打字)→ 折叠回 strong', () {
+      final s = makeState(EditableTextContent(
+        text: 'bold',
+        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
+      ));
+      caretAt(s, 4);
+      s.moveCaretHorizontal(1); // 边界二态:切外侧,退格才物化
+      s.backspace(); // 复合物化 → '**bold*',caret 7
+      s.insertText('*'); // 补回 → '**bold**'
+      expect(
+        tryApplyInputRules(s, 'e_0', typedChar: '*'),
+        InputRuleOutcome.applied,
+      );
+      final c = first(s).content;
+      expect(c.text, 'bold');
+      expect(c.marks.single.kind, MarkKind.strong);
+    });
+
     test('**bold** 改成 *bold* → em(现有规则)', () {
       final s = makeState(EditableTextContent(
         text: 'bold',
@@ -269,8 +292,7 @@ void main() {
       ));
       caretAt(s, 4);
       s.moveCaretHorizontal(1); // 边界二态:切外侧,退格才物化
-      s.backspace(); // 物化 → '**bold**',caret 8
-      s.backspace(); // '**bold*'
+      s.backspace(); // 复合物化 → '**bold*',caret 7
       s.backspace(); // '**bold'
       caretAt(s, 2);
       s.backspace(); // '*bold'
@@ -283,27 +305,6 @@ void main() {
       final c = first(s).content;
       expect(c.text, 'bold');
       expect(c.marks.single.kind, MarkKind.em);
-    });
-
-    test('物化后原样打闭定界符(补回)→ 折叠回 strong', () {
-      final s = makeState(EditableTextContent(
-        text: 'bold',
-        marks: const [MarkSpan(start: 0, end: 4, kind: MarkKind.strong)],
-      ));
-      caretAt(s, 4);
-      s.moveCaretHorizontal(1); // 边界二态:切外侧,退格才物化
-      s.backspace(); // 物化 → '**bold**',caret 8
-      // 删掉闭 `**` 再重打:退格两次到 '**bold',补 `**`
-      s.backspace();
-      s.backspace();
-      s.insertText('**');
-      expect(
-        tryApplyInputRules(s, 'e_0', typedChar: '*'),
-        InputRuleOutcome.applied,
-      );
-      final c = first(s).content;
-      expect(c.text, 'bold');
-      expect(c.marks.single.kind, MarkKind.strong);
     });
   });
 }

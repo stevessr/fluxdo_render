@@ -32,6 +32,7 @@ import '../../node/node.dart';
 import 'editable_text_content.dart';
 import 'editor_block.dart';
 import 'inline_markdown_parser.dart';
+import 'inline_spin.dart';
 import 'markdown_serializer.dart';
 
 export 'editor_block.dart';
@@ -830,10 +831,11 @@ class EditorState extends ChangeNotifier {
       return;
     }
     // 闭端退格 = 拆标记(仅 ir 模式):光标恰在某 mark.end(显形态,
-    // 闭定界符紧贴光标左边)时,第一次退格不删正文字符,而是把该 mark
-    // 物化为字面定界符;物化后光标在闭定界符末尾,再退格走常规路径删
-    // 字面字符,行为连贯。开端(mark.start)不触发 —— 普通退格删前一
-    // 字符、mark 区间自然收缩,现有行为已合理。
+    // 闭定界符紧贴光标左边)时,退格不删正文字符,而是**复合物化**:
+    // 把该 mark 还原为字面定界符 + 同一事务删掉闭定界符末一个字符
+    // (Vditor「退格删格式符字符」语义 —— 物化那一下必须真的删掉一个
+    // 字符,否则不符合退格预期)。开端(mark.start)不触发 —— 普通退格
+    // 删前一字符、mark 区间自然收缩,现有行为已合理。
     //
     // 边界二态:inclusive mark.end 上物化只在**外侧**停位触发 ——
     // 内侧退格 = 删格式内最后一个字符(mark 自然收缩),否则「删最后
@@ -845,7 +847,7 @@ class EditorState extends ChangeNotifier {
     final atInclusiveEnd = _isAtInclusiveMarkEnd(pos);
     if (_mode == EditorMode.ir &&
         (!atInclusiveEnd || _caretOutsideMarkEnd) &&
-        _tryMaterializeAtMarkEnd(block, pos)) {
+        _tryMaterializeAndEatAtMarkEnd(block, pos)) {
       return;
     }
     // 找光标前一个 grapheme 的起点(原子 FFFC 恒 1)
@@ -863,16 +865,14 @@ class EditorState extends ChangeNotifier {
     );
   }
 
-  /// 闭端退格的物化判定:collapsed 光标恰在某 mark.end(显形判定
-  /// [EditableTextContent.revealableMarksAt] 对 end==caret 恒命中)时,
-  /// 取**最内层**的那个 mark 物化,返回 true(一次退格拆一层)。
-  ///
-  /// 最内层口径与显形定界符的闭合发射序(toInlines.appendDelimiters)
-  /// 同源:start 更大 = 更内层;同界按 [kMarkNestingOrder] 更靠后为内。
-  bool _tryMaterializeAtMarkEnd(TextBlock block, EditorPosition pos) {
+  /// [pos] 处最内层可物化的 mark(end == offset 且有定界符文案);无 →
+  /// null。最内层口径与显形定界符的闭合发射序(toInlines.
+  /// appendDelimiters)同源:start 更大 = 更内层;同界按
+  /// [kMarkNestingOrder] 更靠后为内。
+  MarkSpan? _innermostDelimitedMarkAt(TextBlock block, int offset) {
     MarkSpan? target;
     for (final m in block.content.marks) {
-      if (m.end != pos.offset) continue;
+      if (m.end != offset) continue;
       // 定界符文案覆盖不了的 kind 不参与(物化会 no-op,退格必须照常删字)
       if (markOpeningDelimiter(m).isEmpty && markClosingDelimiter(m).isEmpty) {
         continue;
@@ -885,9 +885,69 @@ class EditorState extends ChangeNotifier {
         target = m;
       }
     }
+    return target;
+  }
+
+  /// 复合退格:collapsed 光标恰在某 mark.end 时,取最内层 mark 物化
+  /// (摘 mark → 插闭定界符 → 插开定界符,与 [materializeMarkAt] 同一
+  /// 变换)**并在同一事务里删掉闭定界符末一个 grapheme**,光标落删除
+  /// 点。返回 true = 已处理(一次退格拆一层)。
+  ///
+  /// - 单 _commit = 独立 undo 步(undo 一步回「mark 完好 + 光标在
+  ///   end」,与旧的两步式不同 —— 物化与吃字符是一个动作);
+  /// - 闭定界符为空的 kind(理论不存在,防御)退化为只物化不吃字符;
+  /// - 结果跑一遍 spin(通常 no-op:吃掉一个字符后字面对已不完整;
+  ///   防的是块内其他位置恰有完整字面对的路过场景)。
+  bool _tryMaterializeAndEatAtMarkEnd(TextBlock block, EditorPosition pos) {
+    final target = _innermostDelimitedMarkAt(block, pos.offset);
     if (target == null) return false;
-    materializeMarkAt(block.id, target);
+    final content = block.content;
+    final opening = markOpeningDelimiter(target);
+    final closing = markClosingDelimiter(target);
+    sealHistory();
+    _clearPending();
+    // 摘掉目标 mark(其余 marks/atoms 原样),先插闭再插开(先尾后头,
+    // 避免偏移平移)—— 与 materializeMarkAt 同一变换。
+    var next = EditableTextContent(
+      text: content.text,
+      marks: [
+        for (final m in content.marks)
+          if (m != target) m,
+      ],
+      atoms: content.atoms,
+    );
+    next = next.insert(target.end, closing);
+    next = next.insert(target.start, opening);
+    // 再删闭定界符末一个 grapheme(定界符全 ASCII,grapheme 恒 1,按
+    // characters 语义防御);闭定界符为空则退化为只物化。
+    var caret = target.end + opening.length + closing.length;
+    if (closing.isNotEmpty) {
+      final tail = closing.characters.last.length;
+      next = next.delete(caret - tail, caret);
+      caret -= tail;
+    }
+    final spun = _maybeSpin(next, caret);
+    final i = indexOfBlock(block.id);
+    if (i < 0) return false;
+    final newBlocks = [..._blocks];
+    newBlocks[i] = block.copyWith(content: spun.content);
+    _commit(
+      newBlocks,
+      EditorSelection.collapsed(
+        EditorPosition(blockId: block.id, offset: spun.caret),
+      ),
+      groupWithPrevious: false,
+    );
+    sealHistory();
     return true;
+  }
+
+  /// ir spin 门:仅 ir 模式对 [content] 整块扫描折叠完整字面标记对
+  /// (见 inline_spin.dart);wysiwyg 原样返回。在既有事务 _commit 前
+  /// 对新 content 施加 = 同一 undo 步。
+  SpinResult _maybeSpin(EditableTextContent content, int caret) {
+    if (_mode != EditorMode.ir) return (content: content, caret: caret);
+    return spinInlineMarks(content, caret: caret);
   }
 
   /// 光标后删一个 grapheme(Forward Delete;段尾对岛同样两段式)。
