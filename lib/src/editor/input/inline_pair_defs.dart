@@ -29,11 +29,9 @@ const List<(String, MarkKind, String)> kInlinePairSpecs = [
   (r'__([^_\s](?:[^_]*[^_\s])?)__', MarkKind.strong, '__'),
   (r'~~([^~\s](?:[^~]*[^~\s])?)~~', MarkKind.lineThrough, '~~'),
   (r'`([^`]+)`', MarkKind.inlineCode, '`'),
-  // 单 * 斜体:前面不能还是 *(否则和 ** 混淆);闭 * 后紧跟的 * 串
-  // 若还能当开定界符(后随非空白)则不配对 —— CommonMark 3 整除规则
-  // 的实用近似,cook 实测:`*a**b` 全字面、`*a** b`/`*a**`(行尾)折 em。
-  (r'(?<!\*)\*([^*\s](?:[^*]*[^*\s])?)\*(?!\*+[^\s*])', MarkKind.em, '*'),
-  (r'(?<!_)_([^_\s](?:[^_]*[^_\s])?)_(?!_+[^\s_])', MarkKind.em, '_'),
+  // 单 * 斜体:前面不能还是 *(否则和 ** 混淆)
+  (r'(?<!\*)\*([^*\s](?:[^*]*[^*\s])?)\*', MarkKind.em, '*'),
+  (r'(?<!_)_([^_\s](?:[^_]*[^_\s])?)_', MarkKind.em, '_'),
 ];
 
 /// 收尾定界符触发版(`$` 锚定;input rules 的主形态)。
@@ -58,11 +56,8 @@ const String kBbcodeContentPattern = r'([^\[\s](?:[^\[]*[^\[\s])?)';
 /// (开标记 pattern【group 1 = attr 值】, mark, 闭标记字面)。
 const List<(String, MarkKind, String)> kBbcodeAttrSpecs = [
   (r'\[size=(\d{1,4})\]', MarkKind.size, '[/size]'),
-  // 颜色值:hex(#RGB…#RRGGBBAA)或 CSS 命名色(red/rebeccapurple 等,
-  // bbcode-color 插件对命名色原样透传 style,cook 认)。宽松到字母数字
-  // 串即可 —— 非法值 cook 会拒绝渲染,编辑端不必预判。
-  (r'\[color=(#?[0-9a-zA-Z]{1,24})\]', MarkKind.textColor, '[/color]'),
-  (r'\[bgcolor=(#?[0-9a-zA-Z]{1,24})\]', MarkKind.bgColor, '[/bgcolor]'),
+  (r'\[color=(#?[0-9a-fA-F]{3,8})\]', MarkKind.textColor, '[/color]'),
+  (r'\[bgcolor=(#?[0-9a-fA-F]{3,8})\]', MarkKind.bgColor, '[/bgcolor]'),
 ];
 
 /// 完整对收尾触发版(`$` 锚定;group 1 = attr,group 2 = 内容)。
