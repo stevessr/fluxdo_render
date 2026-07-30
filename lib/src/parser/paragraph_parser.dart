@@ -97,8 +97,9 @@ class ParagraphParser {
     _footnotes = _collectFootnoteContents(fragment);
     // 分 chunk 时正文与脚注区不在同一 html,额外扫整帖脚注区补全映射。
     if (footnotesHtml != null && footnotesHtml.isNotEmpty) {
-      final extra =
-          _collectFootnoteContents(html_parser.parseFragment(footnotesHtml));
+      final extra = _collectFootnoteContents(
+        html_parser.parseFragment(footnotesHtml),
+      );
       for (final e in extra.entries) {
         _footnotes.putIfAbsent(e.key, () => e.value);
       }
@@ -186,15 +187,16 @@ class ParagraphParser {
       }
       _normalizeWhitespace(inlines);
       if (inlines.isEmpty) continue;
-      out.add(FootnoteEntry(
-        id: id,
-        number: number.toString(),
-        inlines: List.unmodifiable(inlines),
-      ));
+      out.add(
+        FootnoteEntry(
+          id: id,
+          number: number.toString(),
+          inlines: List.unmodifiable(inlines),
+        ),
+      );
     }
     return out;
   }
-
 
   /// 顶层 parse 调它处理 fragment.nodes;blockquote 递归调它处理 inner。
   ///
@@ -216,10 +218,9 @@ class ParagraphParser {
       if (pendingInlines.isEmpty) return;
       _normalizeWhitespace(pendingInlines);
       if (pendingInlines.isEmpty) return;
-      out.add(ParagraphNode(
-        id: nextId(),
-        inlines: List.unmodifiable(pendingInlines),
-      ));
+      out.add(
+        ParagraphNode(id: nextId(), inlines: List.unmodifiable(pendingInlines)),
+      );
       pendingInlines.clear();
     }
 
@@ -319,11 +320,13 @@ class ParagraphParser {
             }
             _normalizeWhitespace(inlines);
             if (inlines.isNotEmpty) {
-              out.add(ParagraphNode(
-                id: nextId(),
-                inlines: List.unmodifiable(inlines),
-                textAlign: alignedInlines,
-              ));
+              out.add(
+                ParagraphNode(
+                  id: nextId(),
+                  inlines: List.unmodifiable(inlines),
+                  textAlign: alignedInlines,
+                ),
+              );
             }
             continue;
           }
@@ -350,11 +353,13 @@ class ParagraphParser {
                 void flushPInlines() {
                   _normalizeWhitespace(pInlines);
                   if (pInlines.isNotEmpty) {
-                    out.add(ParagraphNode(
-                      id: nextId(),
-                      inlines: List.unmodifiable(pInlines),
-                      textAlign: _readTextAlign(node),
-                    ));
+                    out.add(
+                      ParagraphNode(
+                        id: nextId(),
+                        inlines: List.unmodifiable(pInlines),
+                        textAlign: _readTextAlign(node),
+                      ),
+                    );
                   }
                   pInlines.clear();
                 }
@@ -378,29 +383,35 @@ class ParagraphParser {
                   _collectInlineFromAnyNode(child, inlines, nextImageIndex);
                 }
                 _normalizeWhitespace(inlines);
-                out.add(HeadingNode(
-                  id: nextId(),
-                  level: level,
-                  inlines: List.unmodifiable(inlines),
-                  textAlign: _readTextAlign(node),
-                ));
+                out.add(
+                  HeadingNode(
+                    id: nextId(),
+                    level: level,
+                    inlines: List.unmodifiable(inlines),
+                    textAlign: _readTextAlign(node),
+                  ),
+                );
               case 'ol' when node.classes.contains('footnotes-list'):
                 // 客户端 cook 的脚注区形态:裸 <ol class="footnotes-list">
                 // (服务端才包 <section class="footnotes">)。必须先于
                 // 通用 ul/ol case,否则走普通列表 → 序列化吐
                 // `1. 正文 [↩︎](#fnref1)` 垃圾。
-                out.add(FootnotesSectionNode(
-                  id: nextId(),
-                  entries: _parseFootnoteEntries(node, nextImageIndex),
-                ));
+                out.add(
+                  FootnotesSectionNode(
+                    id: nextId(),
+                    entries: _parseFootnoteEntries(node, nextImageIndex),
+                  ),
+                );
               case 'ul' || 'ol':
-                out.add(_parseList(
-                  node,
-                  ordered: tag == 'ol',
-                  depth: depth,
-                  nextId: nextId,
-                  nextImageIndex: nextImageIndex,
-                ));
+                out.add(
+                  _parseList(
+                    node,
+                    ordered: tag == 'ol',
+                    depth: depth,
+                    nextId: nextId,
+                    nextImageIndex: nextImageIndex,
+                  ),
+                );
               case 'dl':
                 // 定义列表 <dl>:dt(术语)+ 其后紧邻的若干 dd(释义)。
                 // legacy 走 fwfh 默认(浏览器 dl 样式);新引擎产 DefinitionListNode
@@ -413,22 +424,33 @@ class ParagraphParser {
                 // 再退普通 BlockquoteNode。
                 final calloutAttr = node.attributes['data-fxd-callout'];
                 if (calloutAttr != null) {
-                  out.add(_calloutFromAttrs(
-                      node, calloutAttr, nextId, nextImageIndex));
+                  out.add(
+                    _calloutFromAttrs(
+                      node,
+                      calloutAttr,
+                      nextId,
+                      nextImageIndex,
+                    ),
+                  );
                 } else {
                   final callout =
                       _tryParseCalloutFromClass(node, nextId, nextImageIndex) ??
-                          _tryParseCallout(node, nextId, nextImageIndex);
+                      _tryParseCallout(node, nextId, nextImageIndex);
                   if (callout != null) {
                     out.add(callout);
                   } else {
-                    out.add(BlockquoteNode(
-                      id: nextId(),
-                      children: _parseBlocks(
-                          node.nodes, nextId, nextImageIndex,
-                          keepBlankEdges: true),
-                      chunkPos: _blockquoteChunkPos(node),
-                    ));
+                    out.add(
+                      BlockquoteNode(
+                        id: nextId(),
+                        children: _parseBlocks(
+                          node.nodes,
+                          nextId,
+                          nextImageIndex,
+                          keepBlankEdges: true,
+                        ),
+                        chunkPos: _blockquoteChunkPos(node),
+                      ),
+                    );
                   }
                 }
               case 'hr':
@@ -454,11 +476,9 @@ class ParagraphParser {
                   final m = RegExp(r'lang-(\w+)').firstMatch(className);
                   if (m != null) language = m.group(1)?.toLowerCase();
                 }
-                out.add(CodeBlockNode(
-                  id: nextId(),
-                  code: code,
-                  language: language,
-                ));
+                out.add(
+                  CodeBlockNode(id: nextId(), code: code, language: language),
+                );
               case 'aside':
                 // class="quote" → QuoteCardNode
                 // class="onebox" / 含 *-onebox 子类 → OneboxNode
@@ -471,20 +491,29 @@ class ParagraphParser {
                   // 其他 aside:走 fallback textContent
                   final text = node.text;
                   if (text.trim().isNotEmpty) {
-                    out.add(ParagraphNode(
-                      id: nextId(),
-                      inlines: List.unmodifiable([_proseText(text)]),
-                    ));
+                    out.add(
+                      ParagraphNode(
+                        id: nextId(),
+                        inlines: List.unmodifiable([_proseText(text)]),
+                      ),
+                    );
                   }
                 }
-              case 'div' when node.classes.contains('spoiler') ||
-                    node.classes.contains('spoiled'):
+              case 'div'
+                  when node.classes.contains('spoiler') ||
+                      node.classes.contains('spoiled'):
                 // 块级 spoiler:div.spoiler / div.spoiled
-                out.add(SpoilerBlockNode(
-                  id: nextId(),
-                  children: _parseBlocks(node.nodes, nextId, nextImageIndex,
-                      keepBlankEdges: true),
-                ));
+                out.add(
+                  SpoilerBlockNode(
+                    id: nextId(),
+                    children: _parseBlocks(
+                      node.nodes,
+                      nextId,
+                      nextImageIndex,
+                      keepBlankEdges: true,
+                    ),
+                  ),
+                );
               case 'details':
                 // 折叠块:<details><summary>标题</summary>内容</details>
                 out.add(_parseDetails(node, nextId, nextImageIndex));
@@ -492,10 +521,12 @@ class ParagraphParser {
                 // 脚注列表区:解析成 FootnotesSectionNode(带 entries),
                 // node_factory 渲染底部「分隔线 + 编号列表」。
                 // 上标 popover 仍由 FootnoteRefRun.contentHtml 提供(并存)。
-                out.add(FootnotesSectionNode(
-                  id: nextId(),
-                  entries: _parseFootnoteEntries(node, nextImageIndex),
-                ));
+                out.add(
+                  FootnotesSectionNode(
+                    id: nextId(),
+                    entries: _parseFootnoteEntries(node, nextImageIndex),
+                  ),
+                );
               case 'iframe':
                 // 嵌入 iframe — 子包不渲染 webview,只产 IframeNode 让主项目
                 // 通过 iframeBuilder 注入真实 widget,fallback 显示占位卡。
@@ -533,17 +564,24 @@ class ParagraphParser {
                 // UI 图标 svg(d-icon / 无 viewBox 无尺寸)→ 跳过(对齐 legacy
                 // _buildInlineSvg:无 viewBox 且无宽高视为图标 SizedBox.shrink)。
                 if (_isContentSvg(node)) {
-                  out.add(SvgNode(
-                    id: nextId(),
-                    svgSource: node.outerHtml,
-                    width: double.tryParse(node.attributes['width'] ?? ''),
-                    height: double.tryParse(node.attributes['height'] ?? ''),
-                  ));
+                  out.add(
+                    SvgNode(
+                      id: nextId(),
+                      svgSource: node.outerHtml,
+                      width: double.tryParse(node.attributes['width'] ?? ''),
+                      height: double.tryParse(node.attributes['height'] ?? ''),
+                    ),
+                  );
                 }
-                // 非内容 svg(图标):不产节点(等价 legacy shrink)。
+              // 非内容 svg(图标):不产节点(等价 legacy shrink)。
               // 注意:div.lightbox-wrapper 在块级 switch 之前已被截获
               // 走 pendingInlines 流(不会到达这里),目的是让连续多张
               // lightbox 图合并到同一 ParagraphNode,消除 1em+1em 段间距。
+              case 'div'
+                  when node.classes.contains('onebox') ||
+                      node.classes.any((c) => c.endsWith('-onebox')):
+                // div.onebox / div.*-onebox（非 video 类,已被上方预检截获）→ OneboxNode
+                out.add(_parseOnebox(node, nextId));
               case 'div' || 'center':
                 // 纯展示 skip 元素(div.meta / div.lb-spacer):UI 占位,
                 // 既不拆壳也不兜底,直接丢弃(与 default 的 skip 行为一致)。
@@ -556,14 +594,20 @@ class ParagraphParser {
                 // <p><div class="lightbox-wrapper"> 非法嵌套被 html 解析修正
                 // (p 提前闭合)后,wrapper 成 div 的直接块级子。
                 // 容器带对齐时下放到无自身对齐的段落/标题(近似 text-align 继承)。
-                final containerAlign =
-                    tag == 'center' ? TextAlign.center : _readTextAlign(node);
+                final containerAlign = tag == 'center'
+                    ? TextAlign.center
+                    : _readTextAlign(node);
                 final unwrapped = _parseBlocks(
-                    node.nodes, nextId, nextImageIndex,
-                    depth: depth);
-                out.addAll(containerAlign == null
-                    ? unwrapped
-                    : unwrapped.map((b) => _inheritAlign(b, containerAlign)));
+                  node.nodes,
+                  nextId,
+                  nextImageIndex,
+                  depth: depth,
+                );
+                out.addAll(
+                  containerAlign == null
+                      ? unwrapped
+                      : unwrapped.map((b) => _inheritAlign(b, containerAlign)),
+                );
               default:
                 // 未识别块级:fallback 为 paragraph,只取纯 textContent,
                 // 不识别内部 inline tag(因为我们还不知道该块的语义 ——
@@ -576,10 +620,12 @@ class ParagraphParser {
                 _recordUnhandled(tag); // 诊断:未覆盖块级 → 纯文本兜底
                 final text = node.text;
                 if (text.trim().isNotEmpty) {
-                  out.add(ParagraphNode(
-                    id: nextId(),
-                    inlines: List.unmodifiable([_proseText(text)]),
-                  ));
+                  out.add(
+                    ParagraphNode(
+                      id: nextId(),
+                      inlines: List.unmodifiable([_proseText(text)]),
+                    ),
+                  );
                 }
             }
           }
@@ -648,11 +694,17 @@ class ParagraphParser {
         return t != 'br' && t != 'ul' && t != 'ol' && !_isInlineTag(t);
       });
       if (hasBlock) {
-        items.add(ListItem(
-          // 块级 li 内的嵌套列表比本列表深一层 → depth+1,marker 形状/缩进才对。
-          blocks: _parseBlocks(child.nodes, nextId, nextImageIndex,
-              depth: depth + 1),
-        ));
+        items.add(
+          ListItem(
+            // 块级 li 内的嵌套列表比本列表深一层 → depth+1,marker 形状/缩进才对。
+            blocks: _parseBlocks(
+              child.nodes,
+              nextId,
+              nextImageIndex,
+              depth: depth + 1,
+            ),
+          ),
+        );
         continue;
       }
 
@@ -662,13 +714,15 @@ class ParagraphParser {
         if (liChild is dom.Element) {
           final liTag = liChild.localName?.toLowerCase() ?? '';
           if (liTag == 'ul' || liTag == 'ol') {
-            subLists.add(_parseList(
-              liChild,
-              ordered: liTag == 'ol',
-              depth: depth + 1,
-              nextId: nextId,
-              nextImageIndex: nextImageIndex,
-            ));
+            subLists.add(
+              _parseList(
+                liChild,
+                ordered: liTag == 'ol',
+                depth: depth + 1,
+                nextId: nextId,
+                nextImageIndex: nextImageIndex,
+              ),
+            );
             continue;
           }
         }
@@ -682,10 +736,12 @@ class ParagraphParser {
       // 去掉,但保留中间 inline 之间的空格(`"x <em>y</em> z"` 里两端空格
       // 是有意义的)。
       _normalizeWhitespace(inlines);
-      items.add(ListItem(
-        inlines: List.unmodifiable(inlines),
-        children: subLists.isEmpty ? null : List.unmodifiable(subLists),
-      ));
+      items.add(
+        ListItem(
+          inlines: List.unmodifiable(inlines),
+          children: subLists.isEmpty ? null : List.unmodifiable(subLists),
+        ),
+      );
     }
     return ListNode(
       id: nextId(),
@@ -735,9 +791,9 @@ class ParagraphParser {
 
   /// 元素是否含块级子(非 inline 标签的子元素)。
   bool _hasBlockChild(dom.Element el) => el.children.any((c) {
-        final t = c.localName?.toLowerCase() ?? '';
-        return t != 'br' && !_isInlineTag(t);
-      });
+    final t = c.localName?.toLowerCase() ?? '';
+    return t != 'br' && !_isInlineTag(t);
+  });
 
   /// 容器(div[align] / center)拆壳时把容器对齐下放到子块:仅填充**无自身
   /// 对齐**的段落/标题(子块显式 align/style 优先,近似 CSS text-align 继承)。
@@ -745,7 +801,10 @@ class ParagraphParser {
   BlockNode _inheritAlign(BlockNode node, TextAlign align) {
     if (node is ParagraphNode && node.textAlign == null) {
       return ParagraphNode(
-          id: node.id, inlines: node.inlines, textAlign: align);
+        id: node.id,
+        inlines: node.inlines,
+        textAlign: align,
+      );
     }
     if (node is HeadingNode && node.textAlign == null) {
       return HeadingNode(
@@ -809,12 +868,14 @@ class ParagraphParser {
     void flushItem() {
       // 当前条目有 term 或有 dd 才产出(避免空条目)。
       if (pendingTerm == null && pendingDefs.isEmpty) return;
-      items.add(DefinitionItem(
-        term: List.unmodifiable(pendingTerm ?? const <InlineNode>[]),
-        definitions: List.unmodifiable(
-          pendingDefs.map((d) => List<BlockNode>.unmodifiable(d)).toList(),
+      items.add(
+        DefinitionItem(
+          term: List.unmodifiable(pendingTerm ?? const <InlineNode>[]),
+          definitions: List.unmodifiable(
+            pendingDefs.map((d) => List<BlockNode>.unmodifiable(d)).toList(),
+          ),
         ),
-      ));
+      );
       pendingTerm = null;
       pendingDefs = <List<BlockNode>>[];
     }
@@ -841,10 +902,7 @@ class ParagraphParser {
     flushItem();
 
     if (items.isEmpty) return null;
-    return DefinitionListNode(
-      id: nextId(),
-      items: List.unmodifiable(items),
-    );
+    return DefinitionListNode(id: nextId(), items: List.unmodifiable(items));
   }
 
   /// 解析 `<aside class="quote">` 为 QuoteCardNode。
@@ -871,9 +929,8 @@ class ParagraphParser {
     final avatarUrl = avatarEl?.attributes['src']?.trim();
 
     // 标题:新版 .quote-title__text-content > a;老版 .title > a
-    final titleAEl = asideEl.querySelector(
-          '.quote-title__text-content a',
-        ) ??
+    final titleAEl =
+        asideEl.querySelector('.quote-title__text-content a') ??
         asideEl.querySelector('.title a');
     String? titleText;
     String? titleHref;
@@ -898,8 +955,10 @@ class ParagraphParser {
     final badgeEl = asideEl.querySelector('.badge-category__wrapper');
     if (badgeEl != null) {
       categoryHref = badgeEl.attributes['href']?.trim();
-      categoryName =
-          badgeEl.querySelector('.badge-category__name')?.text.trim();
+      categoryName = badgeEl
+          .querySelector('.badge-category__name')
+          ?.text
+          .trim();
       final badgeSpan = badgeEl.querySelector('.badge-category');
       final style = badgeSpan?.attributes['style'] ?? '';
       categoryColor = _cssProp(style, '--category-badge-color');
@@ -911,8 +970,12 @@ class ParagraphParser {
     final blockquoteEl = asideEl.querySelector('blockquote');
     final children = blockquoteEl == null
         ? const <BlockNode>[]
-        : _parseBlocks(blockquoteEl.nodes, nextId, nextImageIndex,
-            keepBlankEdges: true);
+        : _parseBlocks(
+            blockquoteEl.nodes,
+            nextId,
+            nextImageIndex,
+            keepBlankEdges: true,
+          );
 
     return QuoteCardNode(
       id: nextId(),
@@ -929,8 +992,9 @@ class ParagraphParser {
       categoryHref: categoryHref,
       children: children,
       full: full,
-      displayName:
-          (displayName == null || displayName.isEmpty) ? null : displayName,
+      displayName: (displayName == null || displayName.isEmpty)
+          ? null
+          : displayName,
       oneboxUrl: asideEl.attributes['data-fluxdo-onebox-url'],
     );
   }
@@ -998,9 +1062,10 @@ class ParagraphParser {
     }
 
     // title:h3 a / h4 a / h3 / h4 text
-    final titleA = asideEl.querySelector('h4 a') ??
-        asideEl.querySelector('h3 a');
-    final title = titleA?.text.trim() ??
+    final titleA =
+        asideEl.querySelector('h4 a') ?? asideEl.querySelector('h3 a');
+    final title =
+        titleA?.text.trim() ??
         asideEl.querySelector('h3')?.text.trim() ??
         asideEl.querySelector('h4')?.text.trim() ??
         '';
@@ -1009,19 +1074,21 @@ class ParagraphParser {
     final description = asideEl.querySelector('p')?.text.trim() ?? '';
 
     // favicon:img.site-icon / img.favicon
-    final iconEl = asideEl.querySelector('img.site-icon') ??
+    final iconEl =
+        asideEl.querySelector('img.site-icon') ??
         asideEl.querySelector('img.favicon');
     final faviconUrl = iconEl?.attributes['src']?.trim() ?? '';
 
     // thumbnail:.thumbnail / .aspect-image img
-    final thumbEl = asideEl.querySelector('img.thumbnail') ??
+    final thumbEl =
+        asideEl.querySelector('img.thumbnail') ??
         asideEl.querySelector('.aspect-image img') ??
         asideEl.querySelector('.thumbnail');
     final thumbnailUrl = thumbEl?.attributes['src']?.trim() ?? '';
 
     // sourceName:.source a / .source
-    final sourceEl = asideEl.querySelector('.source a') ??
-        asideEl.querySelector('.source');
+    final sourceEl =
+        asideEl.querySelector('.source a') ?? asideEl.querySelector('.source');
     final sourceName = sourceEl?.text.trim() ?? '';
 
     return OneboxNode(
@@ -1058,8 +1125,12 @@ class ParagraphParser {
       }
       bodyNodes.add(c);
     }
-    final children = _parseBlocks(bodyNodes, nextId, nextImageIndex,
-        keepBlankEdges: true);
+    final children = _parseBlocks(
+      bodyNodes,
+      nextId,
+      nextImageIndex,
+      keepBlankEdges: true,
+    );
 
     return DetailsNode(
       id: nextId(),
@@ -1096,8 +1167,9 @@ class ParagraphParser {
     int Function() nextImageIndex,
   ) {
     if (!blockquoteEl.classes.contains('callout')) return null;
-    final typeRaw =
-        (blockquoteEl.attributes['data-callout-type'] ?? '').trim().toLowerCase();
+    final typeRaw = (blockquoteEl.attributes['data-callout-type'] ?? '')
+        .trim()
+        .toLowerCase();
     if (typeRaw.isEmpty) return null;
 
     final bool? foldable = blockquoteEl.classes.contains('is-collapsible')
@@ -1132,8 +1204,12 @@ class ParagraphParser {
 
     final children = contentEl == null
         ? const <BlockNode>[]
-        : _parseBlocks(contentEl.nodes, nextId, nextImageIndex,
-            keepBlankEdges: true);
+        : _parseBlocks(
+            contentEl.nodes,
+            nextId,
+            nextImageIndex,
+            keepBlankEdges: true,
+          );
 
     return CalloutNode(
       id: nextId(),
@@ -1167,15 +1243,18 @@ class ParagraphParser {
 
     // 取首段 textContent,只看第一行(<br> 之前)做 callout 标记识别
     final firstParaHtml = firstP.innerHtml;
-    final brMatch = RegExp(r'<br\s*/?>', caseSensitive: false)
-        .firstMatch(firstParaHtml);
+    final brMatch = RegExp(
+      r'<br\s*/?>',
+      caseSensitive: false,
+    ).firstMatch(firstParaHtml);
     final beforeBr = brMatch == null
         ? firstParaHtml
         : firstParaHtml.substring(0, brMatch.start);
     final firstLineText = beforeBr.replaceAll(RegExp(r'<[^>]*>'), '').trim();
 
-    final match =
-        RegExp(r'^\[!([^\]]+)\]([+-])?\s*(.*)').firstMatch(firstLineText);
+    final match = RegExp(
+      r'^\[!([^\]]+)\]([+-])?\s*(.*)',
+    ).firstMatch(firstLineText);
     if (match == null) return null;
 
     final typeRaw = match.group(1)!.trim().toLowerCase();
@@ -1243,8 +1322,12 @@ class ParagraphParser {
     // (剩余 inline 会被 _parseBlocks 收成 pendingInlines → ParagraphNode)
     final children = childNodes.isEmpty
         ? const <BlockNode>[]
-        : _parseBlocks(childNodes, nextId, nextImageIndex,
-            keepBlankEdges: true);
+        : _parseBlocks(
+            childNodes,
+            nextId,
+            nextImageIndex,
+            keepBlankEdges: true,
+          );
 
     return CalloutNode(
       id: nextId(),
@@ -1291,8 +1374,12 @@ class ParagraphParser {
       typeRaw: typeRaw,
       title: (title == null || title.isEmpty) ? null : title,
       foldable: null,
-      children: _parseBlocks(node.nodes, nextId, nextImageIndex,
-          keepBlankEdges: true),
+      children: _parseBlocks(
+        node.nodes,
+        nextId,
+        nextImageIndex,
+        keepBlankEdges: true,
+      ),
       chunkPos: _blockquoteChunkPos(node),
     );
   }
@@ -1352,7 +1439,8 @@ class ParagraphParser {
     if (aEl != null) {
       return _imageRunFromLightboxAnchor(aEl, nextImageIndex);
     }
-    final img = wrapperEl.querySelector('a.lightbox > img') ??
+    final img =
+        wrapperEl.querySelector('a.lightbox > img') ??
         wrapperEl.querySelector('img');
     if (img == null) return null;
     return _imageRunFromImg(img, nextImageIndex);
@@ -1372,8 +1460,9 @@ class ParagraphParser {
       return run;
     }
     return run.withLightboxMeta(
-      lightboxUrl:
-          (lightboxUrl == null || lightboxUrl.isEmpty) ? null : lightboxUrl,
+      lightboxUrl: (lightboxUrl == null || lightboxUrl.isEmpty)
+          ? null
+          : lightboxUrl,
       naturalWidth: info?.width,
       naturalHeight: info?.height,
       fileSizeText: info?.sizeText,
@@ -1385,11 +1474,10 @@ class ParagraphParser {
   /// `×`(U+00D7)连接)。img 的 width/height 是**显示尺寸**,原图尺寸
   /// 只有这里有。解析失败静默 null(容错)。
   static ({double? width, double? height, String? sizeText})?
-      _parseInformations(dom.Element aEl) {
+  _parseInformations(dom.Element aEl) {
     final text = aEl.querySelector('.informations')?.text.trim() ?? '';
     if (text.isEmpty) return null;
-    final match =
-        RegExp(r'^(\d+)\s*[×x]\s*(\d+)\s*(.*)$').firstMatch(text);
+    final match = RegExp(r'^(\d+)\s*[×x]\s*(\d+)\s*(.*)$').firstMatch(text);
     if (match == null) return null;
     final w = double.tryParse(match.group(1)!);
     final h = double.tryParse(match.group(2)!);
@@ -1447,8 +1535,7 @@ class ParagraphParser {
       // video/list 等被 figure 包裹的内容。
       final bodyNodes = <dom.Node>[];
       for (final c in figureEl.nodes) {
-        if (c is dom.Element &&
-            c.localName?.toLowerCase() == 'figcaption') {
+        if (c is dom.Element && c.localName?.toLowerCase() == 'figcaption') {
           continue;
         }
         bodyNodes.add(c);
@@ -1519,7 +1606,8 @@ class ParagraphParser {
 
     // 1) lightbox-wrapper(拿 lightboxUrl)
     for (final wrapper in figureEl.querySelectorAll('div.lightbox-wrapper')) {
-      final innerImg = wrapper.querySelector('a.lightbox > img') ??
+      final innerImg =
+          wrapper.querySelector('a.lightbox > img') ??
           wrapper.querySelector('img');
       if (innerImg == null || inFigcaption(innerImg)) continue;
       if (_isSkipImage(innerImg)) continue;
@@ -1555,11 +1643,13 @@ class ParagraphParser {
       for (final pic in figureEl.querySelectorAll('picture')) {
         final candidates = _pictureSourceSrcset(pic);
         if (candidates.isNotEmpty) {
-          images.add(ImageRun(
-            src: candidates.first.url,
-            indexInPost: nextImageIndex(),
-            srcset: candidates,
-          ));
+          images.add(
+            ImageRun(
+              src: candidates.first.url,
+              indexInPost: nextImageIndex(),
+              srcset: candidates,
+            ),
+          );
         }
       }
     }
@@ -1578,10 +1668,7 @@ class ParagraphParser {
   /// (image-controls feature):从中提取当前缩放档(`scale-btn active`
   /// 的 data-scale)与 data-image-index,承载「100%/75%/50%」缩放能力
   /// (legacy 引擎渲染控件 HTML 原文,新引擎结构化后由渲染层出原生控件)。
-  ImageRun? _imageRunFromImg(
-    dom.Element img,
-    int Function() nextImageIndex,
-  ) {
+  ImageRun? _imageRunFromImg(dom.Element img, int Function() nextImageIndex) {
     var src = img.attributes['src']?.trim() ?? '';
     final origSrc = img.attributes['data-orig-src']?.trim();
     if (origSrc != null && origSrc.startsWith('upload://')) {
@@ -1606,8 +1693,7 @@ class ParagraphParser {
       origWidth: controls?.origWidth,
       origHeight: controls?.origHeight,
       srcset: _parseSrcset(img.attributes['srcset']),
-      dominantColor:
-          (dominant == null || dominant.isEmpty) ? null : dominant,
+      dominantColor: (dominant == null || dominant.isEmpty) ? null : dominant,
       base62Sha1: (base62 == null || base62.isEmpty) ? null : base62,
     );
   }
@@ -1651,7 +1737,7 @@ class ParagraphParser {
   /// W' = ceil(cookW * 100 / N) 满足 floor(W' * N/100) == cookW(N ≤ 100),
   /// 往返 cook 逐像素一致。
   ({double? scale, int? imageIndex, double? origWidth, double? origHeight})?
-      _imageControlsOf(dom.Element img) {
+  _imageControlsOf(dom.Element img) {
     dom.Element? wrapper = img.parent;
     // image-wrapper 直接包 img(官方 ruleWithImageControls 结构),留 2 层
     // 余量容忍未来插层。
@@ -1665,7 +1751,8 @@ class ParagraphParser {
     final btnWrapper = wrapper.querySelector('span.button-wrapper');
     if (btnWrapper == null) return null;
     final imageIndex = int.tryParse(
-        btnWrapper.attributes['data-image-index']?.trim() ?? '');
+      btnWrapper.attributes['data-image-index']?.trim() ?? '',
+    );
     final active = btnWrapper.querySelector('span.scale-btn.active');
     final scale = double.tryParse(active?.attributes['data-scale'] ?? '');
     if (imageIndex == null && scale == null) return null;
@@ -1737,7 +1824,8 @@ class ParagraphParser {
     int Function() nextImageIndex,
   ) {
     final cols = int.tryParse(gridEl.attributes['data-columns'] ?? '') ?? 2;
-    final mode = (gridEl.attributes['data-mode'] == 'carousel' ||
+    final mode =
+        (gridEl.attributes['data-mode'] == 'carousel' ||
             gridEl.classes.contains('d-image-grid--carousel'))
         ? ImageGridMode.carousel
         : ImageGridMode.grid;
@@ -1748,7 +1836,8 @@ class ParagraphParser {
 
     // 先扫 lightbox-wrapper(优先它们,这样能拿到 lightboxUrl)
     for (final wrapper in gridEl.querySelectorAll('div.lightbox-wrapper')) {
-      final innerImg = wrapper.querySelector('a.lightbox > img') ??
+      final innerImg =
+          wrapper.querySelector('a.lightbox > img') ??
           wrapper.querySelector('img');
       if (innerImg == null) continue;
       if (_isSkipImage(innerImg)) continue;
@@ -1818,10 +1907,7 @@ class ParagraphParser {
   /// - data-video-id / data-video-title / data-video-start-time 直接提
   /// - 缩略图:取 div 内 `<img>` 的 src
   /// - 链接:取 `a.title-link` 的 href,fallback 到第一个 `<a>` 的 href
-  LazyVideoNode _parseLazyVideo(
-    dom.Element divEl,
-    String Function() nextId,
-  ) {
+  LazyVideoNode _parseLazyVideo(dom.Element divEl, String Function() nextId) {
     final attrs = divEl.attributes;
     final provider = LazyVideoProvider.fromName(
       attrs['data-provider-name']?.trim() ?? '',
@@ -1833,8 +1919,8 @@ class ParagraphParser {
     final img = divEl.querySelector('img');
     final thumbnailUrl = img?.attributes['src']?.trim() ?? '';
 
-    final titleA = divEl.querySelector('a.title-link') ??
-        divEl.querySelector('a');
+    final titleA =
+        divEl.querySelector('a.title-link') ?? divEl.querySelector('a');
     final url = titleA?.attributes['href']?.trim() ?? '';
 
     return LazyVideoNode(
@@ -1880,8 +1966,12 @@ class ParagraphParser {
         break;
       }
     }
-    final children = _parseBlocks(bodyEl.nodes, nextId, nextImageIndex,
-        keepBlankEdges: true);
+    final children = _parseBlocks(
+      bodyEl.nodes,
+      nextId,
+      nextImageIndex,
+      keepBlankEdges: true,
+    );
 
     final attrs = divEl.attributes;
     String? optStr(String key) {
@@ -1922,7 +2012,8 @@ class ParagraphParser {
     if (attrTitle != null && attrTitle.isNotEmpty) {
       title = attrTitle;
     } else {
-      final titleEl = divEl.querySelector('.poll-title') ??
+      final titleEl =
+          divEl.querySelector('.poll-title') ??
           divEl.querySelector('.poll-question');
       final t = titleEl?.text.trim();
       if (t != null && t.isNotEmpty) title = t;
@@ -1976,7 +2067,8 @@ class ParagraphParser {
   IframeNode _parseIframe(dom.Element el, String Function() nextId) {
     final attrs = el.attributes;
 
-    final src = (attrs['src']?.trim().isNotEmpty == true
+    final src =
+        (attrs['src']?.trim().isNotEmpty == true
             ? attrs['src']
             : attrs['data-src']) ??
         '';
@@ -1987,22 +2079,20 @@ class ParagraphParser {
     final sandboxRaw = attrs['sandbox'];
     final sandboxFlags = sandboxRaw == null
         ? <String>{}
-        : sandboxRaw
-            .split(RegExp(r'\s+'))
-            .where((s) => s.isNotEmpty)
-            .toSet();
+        : sandboxRaw.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toSet();
 
     final allowRaw = attrs['allow'];
     final allowFlags = allowRaw == null
         ? <String>{}
         : allowRaw
-            .split(';')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toSet();
+              .split(';')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toSet();
 
     final fullscreenAttr = attrs['allowfullscreen'];
-    final allowFullscreen = attrs.containsKey('allowfullscreen') &&
+    final allowFullscreen =
+        attrs.containsKey('allowfullscreen') &&
             (fullscreenAttr == null ||
                 fullscreenAttr == 'true' ||
                 fullscreenAttr == '' ||
@@ -2021,8 +2111,9 @@ class ParagraphParser {
       sandboxFlags: sandboxFlags,
       allowFlags: allowFlags,
       allowFullscreen: allowFullscreen,
-      referrerPolicy:
-          (referrerPolicy == null || referrerPolicy.isEmpty) ? null : referrerPolicy,
+      referrerPolicy: (referrerPolicy == null || referrerPolicy.isEmpty)
+          ? null
+          : referrerPolicy,
       lazyLoad: lazyLoad,
       cssClasses: el.classes.toSet(),
     );
@@ -2052,7 +2143,8 @@ class ParagraphParser {
     if (isDiv && videoEl == null) {
       // 纯 placeholder：只有 data-video-src / data-thumbnail-src
       origSrc = el.attributes['data-orig-src']?.trim();
-      src = (el.attributes['data-video-src']?.trim().isNotEmpty == true
+      src =
+          (el.attributes['data-video-src']?.trim().isNotEmpty == true
               ? el.attributes['data-video-src']
               : origSrc) ??
           '';
@@ -2068,8 +2160,8 @@ class ParagraphParser {
       src = (srcAttr != null && srcAttr.isNotEmpty)
           ? srcAttr
           : (origAttr != null && origAttr.isNotEmpty)
-              ? origAttr
-              : (videoSrcAttr ?? '');
+          ? origAttr
+          : (videoSrcAttr ?? '');
       mime = source?.attributes['type']?.trim();
       final posterAttr = videoEl.attributes['poster']?.trim();
       poster = (posterAttr == null || posterAttr.isEmpty)
@@ -2095,8 +2187,11 @@ class ParagraphParser {
 
   /// 解析音频节点 —— <audio><source src .. type ..><a>文本</a></audio>。
   /// [voice] = 位于 `[wrap=voice]` 语音消息容器内。
-  AudioNode _parseAudio(dom.Element el, String Function() nextId,
-      {bool voice = false}) {
+  AudioNode _parseAudio(
+    dom.Element el,
+    String Function() nextId, {
+    bool voice = false,
+  }) {
     final source = el.querySelector('source');
     final srcAttr = source?.attributes['src']?.trim();
     final origAttr = source?.attributes['data-orig-src']?.trim();
@@ -2104,8 +2199,8 @@ class ParagraphParser {
     final src = (srcAttr != null && srcAttr.isNotEmpty)
         ? srcAttr
         : (origAttr != null && origAttr.isNotEmpty)
-            ? origAttr
-            : (audioSrcAttr ?? '');
+        ? origAttr
+        : (audioSrcAttr ?? '');
     final mime = source?.attributes['type']?.trim();
     final anchor = el.querySelector('a');
     final title = anchor?.text.trim();
@@ -2164,8 +2259,9 @@ class ParagraphParser {
 
     if (rows.isEmpty) return null;
 
-    final columnCount =
-        rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
+    final columnCount = rows
+        .map((r) => r.length)
+        .reduce((a, b) => a > b ? a : b);
     if (columnCount == 0) return null;
 
     return TableNode(
@@ -2191,10 +2287,12 @@ class ParagraphParser {
       if (tag != 'th' && tag != 'td') continue;
       final isHeader = forceHeader || tag == 'th';
       final children = _parseBlocks(child.nodes, nextId, nextImageIndex);
-      cells.add(TableCellData(
-        children: List.unmodifiable(children),
-        isHeader: isHeader,
-      ));
+      cells.add(
+        TableCellData(
+          children: List.unmodifiable(children),
+          isHeader: isHeader,
+        ),
+      );
     }
     return cells;
   }
@@ -2225,37 +2323,58 @@ class ParagraphParser {
         out.add(const LineBreakRun());
       case 'u':
         // `<u>` 下划线(对齐 fwfh)。
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.underline,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'ins':
         // 编辑历史 diff 新增:fwfh 默认渲染为下划线(绿底是 Discourse 特化,
         // 简化为下划线)。
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.underline,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'del' || 's' || 'strike':
         // `<del>`/`<s>`/`<strike>` 删除线(对齐 fwfh line-through)。
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.lineThrough,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'small':
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.small,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'big':
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.big,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'mark':
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.mark,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'kbd' || 'samp' || 'tt':
         // fwfh 默认这几个仅等宽字体(非带框按键),对齐之。
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: InlineStyleKind.monospace,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'sup' || 'sub':
         // sup.footnote-ref 单独识别为 FootnoteRefRun(主项目可点弹脚注)。
         // 形态:<sup class="footnote-ref"><a href="#fn:abc">1</a></sup>
@@ -2268,21 +2387,26 @@ class ParagraphParser {
           // fnId 从 href "#fn:abc" 提取
           final fnId = href.startsWith('#') ? href.substring(1) : '';
           if (number.isNotEmpty && fnId.isNotEmpty) {
-            out.add(FootnoteRefRun(
-              number: number,
-              fnId: fnId,
-              contentHtml: _footnotes[fnId],
-            ));
+            out.add(
+              FootnoteRefRun(
+                number: number,
+                fnId: fnId,
+                contentHtml: _footnotes[fnId],
+              ),
+            );
             return;
           }
           // 解析失败 → 降级走上标样式
         }
         // 普通 <sup>/<sub>(化学式 / 数学等)→ 上/下标(0.833x + 垂直偏移)。
-        out.add(StyledRun(
+        out.add(
+          StyledRun(
             kind: tag == 'sup'
                 ? InlineStyleKind.superscript
                 : InlineStyleKind.subscript,
-            children: List.unmodifiable(children)));
+            children: List.unmodifiable(children),
+          ),
+        );
       case 'a':
         final href = el.attributes['href']?.trim() ?? '';
         // heading 自带锚(`<h2><a class="anchor" href="#h-2"></a>标题</h2>`):
@@ -2313,12 +2437,17 @@ class ParagraphParser {
             }
           }
           // username 去掉 @ 前缀
-          final username = textBuf.toString().trim().replaceFirst(RegExp(r'^@'), '');
-          out.add(MentionRun(
-            username: username,
-            href: href,
-            statusEmoji: statusEmoji,
-          ));
+          final username = textBuf.toString().trim().replaceFirst(
+            RegExp(r'^@'),
+            '',
+          );
+          out.add(
+            MentionRun(
+              username: username,
+              href: href,
+              statusEmoji: statusEmoji,
+            ),
+          );
         } else if (el.classes.contains('attachment')) {
           // class="attachment":Discourse 下载链接(形如
           // `[name.pdf|attachment](upload://…)` cook 出来,锚点文本=文件名,
@@ -2328,17 +2457,19 @@ class ParagraphParser {
           for (final c in children) {
             if (c is TextRun) filenameBuf.write(c.text);
           }
-          out.add(LinkRun(
-            href: href,
-            children: List.unmodifiable(children),
-            isAttachment: true,
-            filename: filenameBuf.toString().trim(),
-            origHref: () {
-              // 客户端 cook 预览:href="/404" + data-orig-href="upload://…"
-              final orig = el.attributes['data-orig-href']?.trim();
-              return (orig == null || orig.isEmpty) ? null : orig;
-            }(),
-          ));
+          out.add(
+            LinkRun(
+              href: href,
+              children: List.unmodifiable(children),
+              isAttachment: true,
+              filename: filenameBuf.toString().trim(),
+              origHref: () {
+                // 客户端 cook 预览:href="/404" + data-orig-href="upload://…"
+                final orig = el.attributes['data-orig-href']?.trim();
+                return (orig == null || orig.isEmpty) ? null : orig;
+              }(),
+            ),
+          );
         } else if (el.classes.contains('lightbox')) {
           var hasImage = false;
           for (final child in children) {
@@ -2361,21 +2492,26 @@ class ParagraphParser {
           final ref = el.attributes['data-ref']?.trim().isNotEmpty == true
               ? el.attributes['data-ref']!.trim()
               : el.attributes['data-slug']?.trim();
-          out.add(LinkRun(
-            href: href,
-            children: List.unmodifiable(children),
-            hashtagRef: (ref == null || ref.isEmpty) ? null : ref,
-          ));
+          out.add(
+            LinkRun(
+              href: href,
+              children: List.unmodifiable(children),
+              hashtagRef: (ref == null || ref.isEmpty) ? null : ref,
+            ),
+          );
         } else {
-          out.add(LinkRun(
-            href: href,
-            children: List.unmodifiable(children),
-            // onebox 系链接:inline-onebox(行内,锚文本=动态取回的页面
-            // 标题)与 onebox(未展开的裸链)。raw 里都是裸 URL ——
-            // 序列化写回裸 href,不能固化 `[标题](url)` 形态。
-            isOneboxLink: el.classes.contains('inline-onebox') ||
-                el.classes.contains('onebox'),
-          ));
+          out.add(
+            LinkRun(
+              href: href,
+              children: List.unmodifiable(children),
+              // onebox 系链接:inline-onebox(行内,锚文本=动态取回的页面
+              // 标题)与 onebox(未展开的裸链)。raw 里都是裸 URL ——
+              // 序列化写回裸 href,不能固化 `[标题](url)` 形态。
+              isOneboxLink:
+                  el.classes.contains('inline-onebox') ||
+                  el.classes.contains('onebox'),
+            ),
+          );
         }
       case 'code':
         // 浏览器 `<code>` 的实际语义:展示原始字面值,内部 markup 视觉
@@ -2387,13 +2523,16 @@ class ParagraphParser {
         // class="emoji" 走 EmojiRun(行内表情图)
         if (el.classes.contains('emoji')) {
           // alt/title 里去掉首尾 `:`(Discourse 形如 `:heart:`)
-          final raw = (el.attributes['title'] ?? el.attributes['alt'] ?? '').trim();
+          final raw = (el.attributes['title'] ?? el.attributes['alt'] ?? '')
+              .trim();
           final name = raw.replaceAll(RegExp(r'^:|:$'), '');
-          out.add(EmojiRun(
-            name: name,
-            url: src,
-            isOnlyEmoji: el.classes.contains('only-emoji'),
-          ));
+          out.add(
+            EmojiRun(
+              name: name,
+              url: src,
+              isOnlyEmoji: el.classes.contains('only-emoji'),
+            ),
+          );
         } else {
           // 普通内容图片走 ImageRun(主项目注入 builder)。
           // 统一走 _imageRunFromImg:短链还原/缩放控件/srcset/
@@ -2429,9 +2568,13 @@ class ParagraphParser {
         //勾选态,无文本)。序列化写回 `[x]`/`[ ]`,渲染层暂当纯文本
         // 方框(编辑场景保真优先;阅读端 fixture 无此形态)。
         if (el.classes.any((c) => c == 'chcklst-box')) {
-          out.add(TextRun(el.classes.contains('checked')
-              ? (el.classes.contains('permanent') ? '[X]' : '[x]')
-              : '[ ]'));
+          out.add(
+            TextRun(
+              el.classes.contains('checked')
+                  ? (el.classes.contains('permanent') ? '[X]' : '[x]')
+                  : '[ ]',
+            ),
+          );
           return;
         }
         // span.spoiler / span.spoiled → SpoilerRun
@@ -2448,15 +2591,21 @@ class ParagraphParser {
         // BBCode 直译 span(cook 对 [u]/[b]/[i]/[s] 的产物;服务端同形态):
         // bbcode-u/-s 已有 StyledRun 语义;bbcode-b/-i 对齐 strong/em。
         if (el.classes.contains('bbcode-u')) {
-          out.add(StyledRun(
+          out.add(
+            StyledRun(
               kind: InlineStyleKind.underline,
-              children: List.unmodifiable(children)));
+              children: List.unmodifiable(children),
+            ),
+          );
           return;
         }
         if (el.classes.contains('bbcode-s')) {
-          out.add(StyledRun(
+          out.add(
+            StyledRun(
               kind: InlineStyleKind.lineThrough,
-              children: List.unmodifiable(children)));
+              children: List.unmodifiable(children),
+            ),
+          );
           return;
         }
         if (el.classes.contains('bbcode-b')) {
@@ -2483,21 +2632,25 @@ class ParagraphParser {
           final timezones = timezonesRaw.isEmpty
               ? const <String>[]
               : timezonesRaw
-                  .split('|')
-                  .map((s) => s.trim())
-                  .where((s) => s.isNotEmpty)
-                  .toList(growable: false);
-          out.add(LocalDateRun(
-            date: date,
-            time: (time == null || time.isEmpty) ? null : time,
-            timezone: (timezone == null || timezone.isEmpty) ? null : timezone,
-            timezones: timezones,
-            format: attrs['data-format']?.trim(),
-            displayedTimezone: attrs['data-displayed-timezone']?.trim(),
-            countdown: attrs.containsKey('data-countdown'),
-            range: attrs['data-range']?.trim(),
-            fallbackText: el.text.trim(),
-          ));
+                    .split('|')
+                    .map((s) => s.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList(growable: false);
+          out.add(
+            LocalDateRun(
+              date: date,
+              time: (time == null || time.isEmpty) ? null : time,
+              timezone: (timezone == null || timezone.isEmpty)
+                  ? null
+                  : timezone,
+              timezones: timezones,
+              format: attrs['data-format']?.trim(),
+              displayedTimezone: attrs['data-displayed-timezone']?.trim(),
+              countdown: attrs.containsKey('data-countdown'),
+              range: attrs['data-range']?.trim(),
+              fallbackText: el.text.trim(),
+            ),
+          );
           return;
         }
         // span.click-count → ClickCountRun(链接旁的点击数小 chip,
@@ -2550,13 +2703,15 @@ class ParagraphParser {
             ];
           }
           if (fg != null || bg != null) {
-            out.add(ColoredRun(
-              color: fg,
-              background: bg,
-              colorRaw: fg == null ? null : fgRaw,
-              backgroundRaw: bg == null ? null : bgRaw,
-              children: List.unmodifiable(inner),
-            ));
+            out.add(
+              ColoredRun(
+                color: fg,
+                background: bg,
+                colorRaw: fg == null ? null : fgRaw,
+                backgroundRaw: bg == null ? null : bgRaw,
+                children: List.unmodifiable(inner),
+              ),
+            );
             return;
           }
           if (scale != null) {
@@ -2709,8 +2864,11 @@ class ParagraphParser {
       final open = s.indexOf('(');
       final close = s.indexOf(')');
       if (open < 0 || close < 0 || close < open) return null;
-      final parts =
-          s.substring(open + 1, close).split(RegExp('[,/ ]+')).where((p) => p.isNotEmpty).toList();
+      final parts = s
+          .substring(open + 1, close)
+          .split(RegExp('[,/ ]+'))
+          .where((p) => p.isNotEmpty)
+          .toList();
       if (parts.length < 3) return null;
       int chan(String p) {
         if (p.endsWith('%')) {
@@ -2719,6 +2877,7 @@ class ParagraphParser {
         }
         return (double.tryParse(p) ?? 0).round().clamp(0, 255);
       }
+
       final r = chan(parts[0]);
       final g = chan(parts[1]);
       final b = chan(parts[2]);
@@ -2726,9 +2885,11 @@ class ParagraphParser {
       if (parts.length >= 4) {
         final av = parts[3];
         a = av.endsWith('%')
-            ? ((double.tryParse(av.substring(0, av.length - 1)) ?? 100) * 255 / 100)
-                .round()
-                .clamp(0, 255)
+            ? ((double.tryParse(av.substring(0, av.length - 1)) ?? 100) *
+                      255 /
+                      100)
+                  .round()
+                  .clamp(0, 255)
             : ((double.tryParse(av) ?? 1) * 255).round().clamp(0, 255);
       }
       return Color.fromARGB(a, r, g, b);
@@ -2741,63 +2902,155 @@ class ParagraphParser {
 
   /// CSS Level 4 标准命名色(ARGB,均不透明)。对齐 fwfh 的完整命名色表。
   static const Map<String, int> _cssNamedColors = {
-    'black': 0xff000000, 'silver': 0xffc0c0c0, 'gray': 0xff808080,
-    'grey': 0xff808080, 'white': 0xffffffff, 'maroon': 0xff800000,
-    'red': 0xffff0000, 'purple': 0xff800080, 'fuchsia': 0xffff00ff,
-    'magenta': 0xffff00ff, 'green': 0xff008000, 'lime': 0xff00ff00,
-    'olive': 0xff808000, 'yellow': 0xffffff00, 'navy': 0xff000080,
-    'blue': 0xff0000ff, 'teal': 0xff008080, 'aqua': 0xff00ffff,
-    'cyan': 0xff00ffff, 'orange': 0xffffa500, 'aliceblue': 0xfff0f8ff,
-    'antiquewhite': 0xfffaebd7, 'aquamarine': 0xff7fffd4, 'azure': 0xfff0ffff,
-    'beige': 0xfff5f5dc, 'bisque': 0xffffe4c4, 'blanchedalmond': 0xffffebcd,
-    'blueviolet': 0xff8a2be2, 'brown': 0xffa52a2a, 'burlywood': 0xffdeb887,
-    'cadetblue': 0xff5f9ea0, 'chartreuse': 0xff7fff00, 'chocolate': 0xffd2691e,
-    'coral': 0xffff7f50, 'cornflowerblue': 0xff6495ed, 'cornsilk': 0xfffff8dc,
-    'crimson': 0xffdc143c, 'darkblue': 0xff00008b, 'darkcyan': 0xff008b8b,
-    'darkgoldenrod': 0xffb8860b, 'darkgray': 0xffa9a9a9, 'darkgrey': 0xffa9a9a9,
-    'darkgreen': 0xff006400, 'darkkhaki': 0xffbdb76b, 'darkmagenta': 0xff8b008b,
-    'darkolivegreen': 0xff556b2f, 'darkorange': 0xffff8c00,
-    'darkorchid': 0xff9932cc, 'darkred': 0xff8b0000, 'darksalmon': 0xffe9967a,
-    'darkseagreen': 0xff8fbc8f, 'darkslateblue': 0xff483d8b,
-    'darkslategray': 0xff2f4f4f, 'darkslategrey': 0xff2f4f4f,
-    'darkturquoise': 0xff00ced1, 'darkviolet': 0xff9400d3,
-    'deeppink': 0xffff1493, 'deepskyblue': 0xff00bfff, 'dimgray': 0xff696969,
-    'dimgrey': 0xff696969, 'dodgerblue': 0xff1e90ff, 'firebrick': 0xffb22222,
-    'floralwhite': 0xfffffaf0, 'forestgreen': 0xff228b22, 'gainsboro': 0xffdcdcdc,
-    'ghostwhite': 0xfff8f8ff, 'gold': 0xffffd700, 'goldenrod': 0xffdaa520,
-    'greenyellow': 0xffadff2f, 'honeydew': 0xfff0fff0, 'hotpink': 0xffff69b4,
-    'indianred': 0xffcd5c5c, 'indigo': 0xff4b0082, 'ivory': 0xfffffff0,
-    'khaki': 0xfff0e68c, 'lavender': 0xffe6e6fa, 'lavenderblush': 0xfffff0f5,
-    'lawngreen': 0xff7cfc00, 'lemonchiffon': 0xfffffacd, 'lightblue': 0xffadd8e6,
-    'lightcoral': 0xfff08080, 'lightcyan': 0xffe0ffff,
-    'lightgoldenrodyellow': 0xfffafad2, 'lightgray': 0xffd3d3d3,
-    'lightgrey': 0xffd3d3d3, 'lightgreen': 0xff90ee90, 'lightpink': 0xffffb6c1,
-    'lightsalmon': 0xffffa07a, 'lightseagreen': 0xff20b2aa,
-    'lightskyblue': 0xff87cefa, 'lightslategray': 0xff778899,
-    'lightslategrey': 0xff778899, 'lightsteelblue': 0xffb0c4de,
-    'lightyellow': 0xffffffe0, 'limegreen': 0xff32cd32, 'linen': 0xfffaf0e6,
-    'mediumaquamarine': 0xff66cdaa, 'mediumblue': 0xff0000cd,
-    'mediumorchid': 0xffba55d3, 'mediumpurple': 0xff9370db,
-    'mediumseagreen': 0xff3cb371, 'mediumslateblue': 0xff7b68ee,
-    'mediumspringgreen': 0xff00fa9a, 'mediumturquoise': 0xff48d1cc,
-    'mediumvioletred': 0xffc71585, 'midnightblue': 0xff191970,
-    'mintcream': 0xfff5fffa, 'mistyrose': 0xffffe4e1, 'moccasin': 0xffffe4b5,
-    'navajowhite': 0xffffdead, 'oldlace': 0xfffdf5e6, 'olivedrab': 0xff6b8e23,
-    'orangered': 0xffff4500, 'orchid': 0xffda70d6, 'palegoldenrod': 0xffeee8aa,
-    'palegreen': 0xff98fb98, 'paleturquoise': 0xffafeeee,
-    'palevioletred': 0xffdb7093, 'papayawhip': 0xffffefd5, 'peachpuff': 0xffffdab9,
-    'peru': 0xffcd853f, 'pink': 0xffffc0cb, 'plum': 0xffdda0dd,
-    'powderblue': 0xffb0e0e6, 'rosybrown': 0xffbc8f8f, 'royalblue': 0xff4169e1,
-    'saddlebrown': 0xff8b4513, 'salmon': 0xfffa8072, 'sandybrown': 0xfff4a460,
-    'seagreen': 0xff2e8b57, 'seashell': 0xfffff5ee, 'sienna': 0xffa0522d,
-    'skyblue': 0xff87ceeb, 'slateblue': 0xff6a5acd, 'slategray': 0xff708090,
-    'slategrey': 0xff708090, 'snow': 0xfffffafa, 'springgreen': 0xff00ff7f,
-    'steelblue': 0xff4682b4, 'tan': 0xffd2b48c, 'thistle': 0xffd8bfd8,
-    'tomato': 0xffff6347, 'turquoise': 0xff40e0d0, 'violet': 0xffee82ee,
-    'wheat': 0xfff5deb3, 'whitesmoke': 0xfff5f5f5, 'yellowgreen': 0xff9acd32,
+    'black': 0xff000000,
+    'silver': 0xffc0c0c0,
+    'gray': 0xff808080,
+    'grey': 0xff808080,
+    'white': 0xffffffff,
+    'maroon': 0xff800000,
+    'red': 0xffff0000,
+    'purple': 0xff800080,
+    'fuchsia': 0xffff00ff,
+    'magenta': 0xffff00ff,
+    'green': 0xff008000,
+    'lime': 0xff00ff00,
+    'olive': 0xff808000,
+    'yellow': 0xffffff00,
+    'navy': 0xff000080,
+    'blue': 0xff0000ff,
+    'teal': 0xff008080,
+    'aqua': 0xff00ffff,
+    'cyan': 0xff00ffff,
+    'orange': 0xffffa500,
+    'aliceblue': 0xfff0f8ff,
+    'antiquewhite': 0xfffaebd7,
+    'aquamarine': 0xff7fffd4,
+    'azure': 0xfff0ffff,
+    'beige': 0xfff5f5dc,
+    'bisque': 0xffffe4c4,
+    'blanchedalmond': 0xffffebcd,
+    'blueviolet': 0xff8a2be2,
+    'brown': 0xffa52a2a,
+    'burlywood': 0xffdeb887,
+    'cadetblue': 0xff5f9ea0,
+    'chartreuse': 0xff7fff00,
+    'chocolate': 0xffd2691e,
+    'coral': 0xffff7f50,
+    'cornflowerblue': 0xff6495ed,
+    'cornsilk': 0xfffff8dc,
+    'crimson': 0xffdc143c,
+    'darkblue': 0xff00008b,
+    'darkcyan': 0xff008b8b,
+    'darkgoldenrod': 0xffb8860b,
+    'darkgray': 0xffa9a9a9,
+    'darkgrey': 0xffa9a9a9,
+    'darkgreen': 0xff006400,
+    'darkkhaki': 0xffbdb76b,
+    'darkmagenta': 0xff8b008b,
+    'darkolivegreen': 0xff556b2f,
+    'darkorange': 0xffff8c00,
+    'darkorchid': 0xff9932cc,
+    'darkred': 0xff8b0000,
+    'darksalmon': 0xffe9967a,
+    'darkseagreen': 0xff8fbc8f,
+    'darkslateblue': 0xff483d8b,
+    'darkslategray': 0xff2f4f4f,
+    'darkslategrey': 0xff2f4f4f,
+    'darkturquoise': 0xff00ced1,
+    'darkviolet': 0xff9400d3,
+    'deeppink': 0xffff1493,
+    'deepskyblue': 0xff00bfff,
+    'dimgray': 0xff696969,
+    'dimgrey': 0xff696969,
+    'dodgerblue': 0xff1e90ff,
+    'firebrick': 0xffb22222,
+    'floralwhite': 0xfffffaf0,
+    'forestgreen': 0xff228b22,
+    'gainsboro': 0xffdcdcdc,
+    'ghostwhite': 0xfff8f8ff,
+    'gold': 0xffffd700,
+    'goldenrod': 0xffdaa520,
+    'greenyellow': 0xffadff2f,
+    'honeydew': 0xfff0fff0,
+    'hotpink': 0xffff69b4,
+    'indianred': 0xffcd5c5c,
+    'indigo': 0xff4b0082,
+    'ivory': 0xfffffff0,
+    'khaki': 0xfff0e68c,
+    'lavender': 0xffe6e6fa,
+    'lavenderblush': 0xfffff0f5,
+    'lawngreen': 0xff7cfc00,
+    'lemonchiffon': 0xfffffacd,
+    'lightblue': 0xffadd8e6,
+    'lightcoral': 0xfff08080,
+    'lightcyan': 0xffe0ffff,
+    'lightgoldenrodyellow': 0xfffafad2,
+    'lightgray': 0xffd3d3d3,
+    'lightgrey': 0xffd3d3d3,
+    'lightgreen': 0xff90ee90,
+    'lightpink': 0xffffb6c1,
+    'lightsalmon': 0xffffa07a,
+    'lightseagreen': 0xff20b2aa,
+    'lightskyblue': 0xff87cefa,
+    'lightslategray': 0xff778899,
+    'lightslategrey': 0xff778899,
+    'lightsteelblue': 0xffb0c4de,
+    'lightyellow': 0xffffffe0,
+    'limegreen': 0xff32cd32,
+    'linen': 0xfffaf0e6,
+    'mediumaquamarine': 0xff66cdaa,
+    'mediumblue': 0xff0000cd,
+    'mediumorchid': 0xffba55d3,
+    'mediumpurple': 0xff9370db,
+    'mediumseagreen': 0xff3cb371,
+    'mediumslateblue': 0xff7b68ee,
+    'mediumspringgreen': 0xff00fa9a,
+    'mediumturquoise': 0xff48d1cc,
+    'mediumvioletred': 0xffc71585,
+    'midnightblue': 0xff191970,
+    'mintcream': 0xfff5fffa,
+    'mistyrose': 0xffffe4e1,
+    'moccasin': 0xffffe4b5,
+    'navajowhite': 0xffffdead,
+    'oldlace': 0xfffdf5e6,
+    'olivedrab': 0xff6b8e23,
+    'orangered': 0xffff4500,
+    'orchid': 0xffda70d6,
+    'palegoldenrod': 0xffeee8aa,
+    'palegreen': 0xff98fb98,
+    'paleturquoise': 0xffafeeee,
+    'palevioletred': 0xffdb7093,
+    'papayawhip': 0xffffefd5,
+    'peachpuff': 0xffffdab9,
+    'peru': 0xffcd853f,
+    'pink': 0xffffc0cb,
+    'plum': 0xffdda0dd,
+    'powderblue': 0xffb0e0e6,
+    'rosybrown': 0xffbc8f8f,
+    'royalblue': 0xff4169e1,
+    'saddlebrown': 0xff8b4513,
+    'salmon': 0xfffa8072,
+    'sandybrown': 0xfff4a460,
+    'seagreen': 0xff2e8b57,
+    'seashell': 0xfffff5ee,
+    'sienna': 0xffa0522d,
+    'skyblue': 0xff87ceeb,
+    'slateblue': 0xff6a5acd,
+    'slategray': 0xff708090,
+    'slategrey': 0xff708090,
+    'snow': 0xfffffafa,
+    'springgreen': 0xff00ff7f,
+    'steelblue': 0xff4682b4,
+    'tan': 0xffd2b48c,
+    'thistle': 0xffd8bfd8,
+    'tomato': 0xffff6347,
+    'turquoise': 0xff40e0d0,
+    'violet': 0xffee82ee,
+    'wheat': 0xfff5deb3,
+    'whitesmoke': 0xfff5f5f5,
+    'yellowgreen': 0xff9acd32,
     'rebeccapurple': 0xff663399,
   };
-
 
   /// 判断元素是否应该**整体跳过**(不渲染、不取 textContent)。
   ///
@@ -2852,6 +3105,7 @@ class ParagraphParser {
         }
       }
     }
+
     for (final c in el.nodes) {
       visit(c);
     }
