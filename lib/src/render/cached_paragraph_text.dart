@@ -85,10 +85,7 @@ class ParagraphEnv {
 
 /// 已排版段落的缓存条目。
 class ParagraphLayoutEntry {
-  ParagraphLayoutEntry({
-    required this.paragraph,
-    required this.size,
-  });
+  ParagraphLayoutEntry({required this.paragraph, required this.size});
 
   final ui.Paragraph paragraph;
 
@@ -140,6 +137,15 @@ class ParagraphLayoutCache {
     double minWidth,
     double maxWidth,
   ) {
+    // 无界宽兜底:IntrinsicWidth/IntrinsicHeight 会以 infinity 询问内在尺寸,
+    // 未约束的 Row / 横向 Scrollable 里布局也会给到无穷 maxWidth。退化成段落
+    // 自身的内在宽度(语义 = 「有多宽排多宽」,由下方 _layout 的
+    // maxIntrinsicWidth.clamp 收缩实现);不兜底的话下面的宽度桶
+    // `(inf * 2).round()` 会抛 "Unsupported operation: Infinity or NaN toInt",
+    // 整棵内容子树布局失败 —— 表现就是正文一个像素都画不出来。
+    if (!maxWidth.isFinite) {
+      maxWidth = 1000000;
+    }
     final tight = minWidth == maxWidth;
     final key = _LayoutKey(flat, env, (maxWidth * 2).round(), tight);
     final existing = _entries.remove(key);
@@ -216,7 +222,9 @@ class ParagraphLayoutCache {
   /// 因子放大 child),占位 = child 布局尺寸 × 因子;这里等价地把确定
   /// 尺寸 × 因子(emoji 尺寸恒derive自根字号,因子按根字号算)。
   static List<PlaceholderDimensions>? _placeholderDims(
-      FlattenResult flat, ParagraphEnv env) {
+    FlattenResult flat,
+    ParagraphEnv env,
+  ) {
     if (flat.islands.isEmpty) return const [];
     final scale = islandScale(flat, env);
     return [
@@ -248,8 +256,9 @@ class ParagraphLayoutCache {
     if (minWidth != maxWidth) {
       // TextWidthBasis.parent 语义(TextPainter.layout 同款):
       // 收缩到内容宽,短文本不占满整列。
-      contentWidth =
-          paragraph.maxIntrinsicWidth.clamp(minWidth, maxWidth).toDouble();
+      contentWidth = paragraph.maxIntrinsicWidth
+          .clamp(minWidth, maxWidth)
+          .toDouble();
       if (contentWidth != paragraph.width) {
         paragraph.layout(ui.ParagraphConstraints(width: contentWidth));
       }
@@ -277,8 +286,7 @@ class _LayoutKey {
       other.tight == tight;
 
   @override
-  int get hashCode =>
-      Object.hash(identityHashCode(flat), env, bucket, tight);
+  int get hashCode => Object.hash(identityHashCode(flat), env, bucket, tight);
 }
 
 class _MetricsKey {
@@ -288,9 +296,7 @@ class _MetricsKey {
 
   @override
   bool operator ==(Object other) =>
-      other is _MetricsKey &&
-      identical(other.flat, flat) &&
-      other.env == env;
+      other is _MetricsKey && identical(other.flat, flat) && other.env == env;
 
   @override
   int get hashCode => Object.hash(identityHashCode(flat), env);
@@ -303,16 +309,13 @@ class _MetricsKey {
 /// layout 后按 getBoxesForPlaceholders 摆进占位坑 —— 与 RenderParagraph
 /// 处理 WidgetSpan 同款机制(同一渲染树/变换链,非 overlay 对齐)。
 class CachedParagraphText extends MultiChildRenderObjectWidget {
-  CachedParagraphText({
-    super.key,
-    required this.result,
-    this.textAlign,
-  }) : super(
-          children: [
-            for (final island in result.islands)
-              if (island != null) island.child,
-          ],
-        );
+  CachedParagraphText({super.key, required this.result, this.textAlign})
+    : super(
+        children: [
+          for (final island in result.islands)
+            if (island != null) island.child,
+        ],
+      );
 
   final FlattenResult result;
   final TextAlign? textAlign;
@@ -335,7 +338,9 @@ class CachedParagraphText extends MultiChildRenderObjectWidget {
 
   @override
   void updateRenderObject(
-      BuildContext context, RenderCachedParagraph renderObject) {
+    BuildContext context,
+    RenderCachedParagraph renderObject,
+  ) {
     renderObject
       ..result = result
       ..env = _env(context);
@@ -356,8 +361,8 @@ class RenderCachedParagraph extends RenderBox
   RenderCachedParagraph({
     required FlattenResult result,
     required ParagraphEnv env,
-  })  : _result = result,
-        _env = env;
+  }) : _result = result,
+       _env = env;
 
   FlattenResult _result;
   FlattenResult get result => _result;
@@ -405,7 +410,10 @@ class RenderCachedParagraph extends RenderBox
     );
     // 预热探针:登记真实布局用的 (env, 约束宽),idle 预热同源构 key。
     ParagraphWarmupProbe.noteEnv(
-        _env, constraints.minWidth, constraints.maxWidth);
+      _env,
+      constraints.minWidth,
+      constraints.maxWidth,
+    );
     size = constraints.constrain(entry.size);
 
     // 岛子节点:tight 约束到占位尺寸(与 addPlaceholder 一致;emoji
@@ -419,9 +427,9 @@ class RenderCachedParagraph extends RenderBox
       if (island == null) continue; // 直绘判据下不该出现,防御跳过
       if (child == null || boxIndex >= boxes.length) break;
       final box = boxes[boxIndex].toRect();
-      child.layout(BoxConstraints.tight(
-        Size(island.width * scale, island.height * scale),
-      ));
+      child.layout(
+        BoxConstraints.tight(Size(island.width * scale, island.height * scale)),
+      );
       (child.parentData! as _IslandParentData).offset = box.topLeft;
       child = (child.parentData! as _IslandParentData).nextSibling;
       boxIndex++;
@@ -437,12 +445,10 @@ class RenderCachedParagraph extends RenderBox
       ParagraphLayoutCache.intrinsics(_result, _env).maxIntrinsicWidth;
 
   @override
-  double computeMinIntrinsicHeight(double width) =>
-      _heightAtWidth(width);
+  double computeMinIntrinsicHeight(double width) => _heightAtWidth(width);
 
   @override
-  double computeMaxIntrinsicHeight(double width) =>
-      _heightAtWidth(width);
+  double computeMaxIntrinsicHeight(double width) => _heightAtWidth(width);
 
   double _heightAtWidth(double width) =>
       ParagraphLayoutCache.obtain(_result, _env, 0, width).size.height;
@@ -494,10 +500,9 @@ class RenderCachedParagraph extends RenderBox
     final paragraph = _entry?.paragraph;
     if (paragraph == null) return null;
     final pos = paragraph.getPositionForOffset(local);
-    final span = _result.span.getSpanForPosition(TextPosition(
-      offset: pos.offset,
-      affinity: pos.affinity,
-    ));
+    final span = _result.span.getSpanForPosition(
+      TextPosition(offset: pos.offset, affinity: pos.affinity),
+    );
     return span is TextSpan ? span.recognizer : null;
   }
 
