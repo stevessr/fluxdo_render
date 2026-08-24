@@ -277,6 +277,38 @@ void main() {
       expect(img.height, 52);
     });
 
+    test('lightbox .meta .filename 提取原始文件名', () {
+      final result = parser.parse(
+        '<div class="lightbox-wrapper">'
+        '<a class="lightbox" href="https://e.com/original/7d38c2.jpeg">'
+        '<img src="https://e.com/optimized/x_690x52.jpeg" width="690" height="52">'
+        '<div class="meta">'
+        '<span class="filename">PXL_20240101_123456.jpg</span>'
+        '<span class="informations">1686×128 15.7 KB</span>'
+        '</div></a></div>',
+      );
+      // 文件名与 URL 解耦:即使原图 URL 是哈希名,仍拿到上传原名。
+      expect(firstImage(result).filename, 'PXL_20240101_123456.jpg');
+    });
+
+    test('.filename 缺失时回退 anchor title', () {
+      final result = parser.parse(
+        '<p><a class="lightbox" href="https://e.com/o.png" title="photo.png">'
+        '<img src="https://e.com/t.png">'
+        '</a></p>',
+      );
+      expect(firstImage(result).filename, 'photo.png');
+    });
+
+    test('无 .filename 与 title 时 filename 为 null', () {
+      final result = parser.parse(
+        '<p><a class="lightbox" href="https://e.com/o.png">'
+        '<img src="https://e.com/t.png">'
+        '</a></p>',
+      );
+      expect(firstImage(result).filename, isNull);
+    });
+
     test('informations 缺失/畸形时静默 null 不炸', () {
       final result = parser.parse(
         '<div class="lightbox-wrapper">'

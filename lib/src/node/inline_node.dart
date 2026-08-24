@@ -517,6 +517,7 @@ class ImageRun extends InlineNode {
     this.naturalWidth,
     this.naturalHeight,
     this.fileSizeText,
+    this.filename,
   });
 
   /// 完整图片 URL(parser 不做任何重写;含 upload:// 短链时由主项目解析)。
@@ -617,6 +618,11 @@ class ImageRun extends InlineNode {
   /// `.informations` 的人类可读文件大小(如 `"15.7 KB"`),查看器展示用。
   final String? fileSizeText;
 
+  /// 原始文件名(lightbox `.meta .filename`;回退 anchor `title`)。
+  /// 上传时的原始文件名(如 `"PXL_20240101_123456.jpg"`),分享/保存
+  /// 图片时的命名依据;非 lightbox 图 → null。
+  final String? filename;
+
   /// 换 alt / lightboxUrl / 尺寸 / 缩放档,其余字段保持。
   /// alt 非空 String(默认 ''):传 '' = 清空,null = 不改,无 sentinel 歧义。
   /// 缩放档切换用法:`copyWith(scale: 75, width: origW*0.75, ...)`,
@@ -629,6 +635,7 @@ class ImageRun extends InlineNode {
     double? scale,
     double? origWidth,
     double? origHeight,
+    String? filename,
   }) =>
       ImageRun(
         src: src,
@@ -648,6 +655,7 @@ class ImageRun extends InlineNode {
         naturalWidth: naturalWidth,
         naturalHeight: naturalHeight,
         fileSizeText: fileSizeText,
+        filename: filename,
       );
 
   /// lightbox 包装解析专用:一次带上 anchor 侧的全部契约字段。
@@ -656,6 +664,7 @@ class ImageRun extends InlineNode {
     double? naturalWidth,
     double? naturalHeight,
     String? fileSizeText,
+    String? filename,
   }) =>
       ImageRun(
         src: src,
@@ -675,6 +684,7 @@ class ImageRun extends InlineNode {
         naturalWidth: naturalWidth ?? this.naturalWidth,
         naturalHeight: naturalHeight ?? this.naturalHeight,
         fileSizeText: fileSizeText ?? this.fileSizeText,
+        filename: filename ?? this.filename,
       );
 
   @override
@@ -698,7 +708,8 @@ class ImageRun extends InlineNode {
           base62Sha1 == other.base62Sha1 &&
           naturalWidth == other.naturalWidth &&
           naturalHeight == other.naturalHeight &&
-          fileSizeText == other.fileSizeText;
+          fileSizeText == other.fileSizeText &&
+          filename == other.filename;
 
   @override
   int get hashCode => Object.hash(
@@ -718,7 +729,8 @@ class ImageRun extends InlineNode {
       base62Sha1,
       naturalWidth,
       naturalHeight,
-      fileSizeText);
+      fileSizeText,
+      filename);
 
   @override
   String toString() =>

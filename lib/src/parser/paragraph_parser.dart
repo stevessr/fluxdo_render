@@ -1430,7 +1430,13 @@ class ParagraphParser {
     if (run == null) return null;
     final lightboxUrl = aEl.attributes['href']?.trim();
     final info = _parseInformations(aEl);
-    if ((lightboxUrl == null || lightboxUrl.isEmpty) && info == null) {
+    // 原始文件名:.meta .filename 优先,回退 anchor title;
+    // 分享/保存图片的命名依据。
+    final filename = aEl.querySelector('.meta .filename')?.text.trim() ??
+        aEl.attributes['title']?.trim();
+    if ((lightboxUrl == null || lightboxUrl.isEmpty) &&
+        info == null &&
+        (filename == null || filename.isEmpty)) {
       return run;
     }
     return run.withLightboxMeta(
@@ -1439,6 +1445,7 @@ class ParagraphParser {
       naturalWidth: info?.width,
       naturalHeight: info?.height,
       fileSizeText: info?.sizeText,
+      filename: (filename == null || filename.isEmpty) ? null : filename,
     );
   }
 
@@ -2410,10 +2417,21 @@ class ParagraphParser {
           ));
         } else if (el.classes.contains('lightbox')) {
           var hasImage = false;
+          // 原始文件名:.meta .filename 优先(该子树是 skip 元素,不进
+          // inline 流),回退 anchor title —— 与 _imageRunFromLightboxAnchor
+          // 同口径,分享/保存图片的命名依据。
+          final filename =
+              el.querySelector('.meta .filename')?.text.trim() ??
+              el.attributes['title']?.trim();
           for (final child in children) {
             if (child is ImageRun) {
               hasImage = true;
-              out.add(child.copyWith(lightboxUrl: href));
+              out.add(child.copyWith(
+                lightboxUrl: href,
+                filename: (filename == null || filename.isEmpty)
+                    ? null
+                    : filename,
+              ));
             } else {
               out.add(child);
             }
