@@ -47,9 +47,9 @@ class EditorPosition {
   final int offset;
 
   EditorPosition copyWith({String? blockId, int? offset}) => EditorPosition(
-        blockId: blockId ?? this.blockId,
-        offset: offset ?? this.offset,
-      );
+    blockId: blockId ?? this.blockId,
+    offset: offset ?? this.offset,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -71,8 +71,8 @@ class EditorSelection {
   const EditorSelection({required this.base, required this.extent});
 
   const EditorSelection.collapsed(EditorPosition position)
-      : base = position,
-        extent = position;
+    : base = position,
+      extent = position;
 
   final EditorPosition base;
   final EditorPosition extent;
@@ -123,19 +123,16 @@ class _HistoryEntry {
 /// 编辑器状态机。
 class EditorState extends ChangeNotifier {
   EditorState({required List<EditorBlock> blocks})
-      : _blocks = List.unmodifiable(
-          blocks.any((b) => b is TextBlock)
-              ? blocks
-              // 不变量:文档至少一个 TextBlock(全岛/空输入自动补空段;
-              // id 用不会与 e_N 冲突的保留名,后续编辑发号从 e_0 起)
-              : [
-                  ...blocks,
-                  TextBlock(
-                    id: 'e_auto_pad',
-                    content: EditableTextContent.empty,
-                  ),
-                ],
-        ) {
+    : _blocks = List.unmodifiable(
+        blocks.any((b) => b is TextBlock)
+            ? blocks
+            // 不变量:文档至少一个 TextBlock(全岛/空输入自动补空段;
+            // id 用不会与 e_N 冲突的保留名,后续编辑发号从 e_0 起)
+            : [
+                ...blocks,
+                TextBlock(id: 'e_auto_pad', content: EditableTextContent.empty),
+              ],
+      ) {
     // id 计数器越过既有 e_N,防碰撞
     for (final b in _blocks) {
       final m = RegExp(r'^e_(\d+)$').firstMatch(b.id);
@@ -220,7 +217,8 @@ class EditorState extends ChangeNotifier {
         newBlocks,
         inBlock
             ? EditorSelection.collapsed(
-                EditorPosition(blockId: block.id, offset: spun.caret))
+                EditorPosition(blockId: block.id, offset: spun.caret),
+              )
             : _selection,
         groupWithPrevious: false,
         recordHistory: false,
@@ -305,7 +303,9 @@ class EditorState extends ChangeNotifier {
     if (sel == null || !sel.isCollapsed) return const {};
     final block = textBlockById(sel.extent.blockId);
     if (block == null) return const {};
-    return block.content.marksAt(sel.extent.offset.clamp(0, block.content.length));
+    return block.content.marksAt(
+      sel.extent.offset.clamp(0, block.content.length),
+    );
   }
 
   // -----------------------------------------------------------------
@@ -364,8 +364,9 @@ class EditorState extends ChangeNotifier {
     _blocks = entry.blocks;
     _docRevision++;
     // 历史里的选区可能指向已不存在的块/越界偏移,必须 clamp。
-    _selection =
-        entry.selection == null ? null : _clampSelection(entry.selection!);
+    _selection = entry.selection == null
+        ? null
+        : _clampSelection(entry.selection!);
     _composing = TextRange.empty;
     notifyListeners();
   }
@@ -378,8 +379,9 @@ class EditorState extends ChangeNotifier {
     final entry = _redoStack.removeLast();
     _blocks = entry.blocks;
     _docRevision++;
-    _selection =
-        entry.selection == null ? null : _clampSelection(entry.selection!);
+    _selection = entry.selection == null
+        ? null
+        : _clampSelection(entry.selection!);
     _composing = TextRange.empty;
     notifyListeners();
   }
@@ -388,7 +390,10 @@ class EditorState extends ChangeNotifier {
   // 选区/composing 更新(不产历史)
   // -----------------------------------------------------------------
 
-  void updateSelection(EditorSelection? selection, {bool deferIrReconcile = false}) {
+  void updateSelection(
+    EditorSelection? selection, {
+    bool deferIrReconcile = false,
+  }) {
     if (_selection == selection) {
       // 选区没变也要让延迟收口挂起(tapDown 同位重点击):否则 tapUp
       // 的结算无事可做,光标所在 mark 永不物化 —— 显形符号点不进去、
@@ -470,10 +475,7 @@ class EditorState extends ChangeNotifier {
 
     // 1. 折叠(离开块 + 当前块;当前光标作守卫)
     var foldedInCaretBlock = false;
-    final targets = <String>{
-      ?prevBlockId,
-      if (sel != null) sel.extent.blockId,
-    };
+    final targets = <String>{?prevBlockId, if (sel != null) sel.extent.blockId};
     for (final id in targets) {
       final i = indexOfBlock(id);
       if (i < 0) continue;
@@ -497,7 +499,8 @@ class EditorState extends ChangeNotifier {
         newBlocks,
         inBlock
             ? EditorSelection.collapsed(
-                EditorPosition(blockId: id, offset: spun.caret))
+                EditorPosition(blockId: id, offset: spun.caret),
+              )
             : _selection,
         groupWithPrevious: false,
         recordHistory: false,
@@ -513,11 +516,12 @@ class EditorState extends ChangeNotifier {
     if (foldedInCaretBlock) {
       final b = textBlockById(cur.extent.blockId);
       final off = cur.extent.offset;
-      final strictlyInside = b != null &&
-          b.content.marks.any((m) =>
-              m.start < off &&
-              off < m.end &&
-              isRefoldableMark(b.content, m));
+      final strictlyInside =
+          b != null &&
+          b.content.marks.any(
+            (m) =>
+                m.start < off && off < m.end && isRefoldableMark(b.content, m),
+          );
       if (!strictlyInside) return;
     }
     materializeClusterAt(cur.extent.blockId, cur.extent.offset);
@@ -554,7 +558,9 @@ class EditorState extends ChangeNotifier {
       grew = false;
       for (final m in content.marks) {
         if (cluster.contains(m) || !isRefoldableMark(content, m)) continue;
-        final touches = cluster.any((c) => m.start <= c.end && c.start <= m.end);
+        final touches = cluster.any(
+          (c) => m.start <= c.end && c.start <= m.end,
+        );
         if (touches) {
           cluster.add(m);
           grew = true;
@@ -628,7 +634,9 @@ class EditorState extends ChangeNotifier {
     }
 
     return EditorSelection(
-        base: clampPos(sel.base), extent: clampPos(sel.extent));
+      base: clampPos(sel.base),
+      extent: clampPos(sel.extent),
+    );
   }
 
   /// 全岛文档兜底:确保 [blocks] 至少含一个 TextBlock(尾部补空段)。
@@ -685,16 +693,21 @@ class EditorState extends ChangeNotifier {
   /// 不可物化 mark(inlineCode / 含原子 link 等)恒延伸 —— 没有物化
   /// 入口,末端 inclusive 打字是唯一的「在格式尾继续写」路径。
   bool _irSuppressEndExtension(
-      EditableTextContent c, String blockId, int offset) {
+    EditableTextContent c,
+    String blockId,
+    int offset,
+  ) {
     if (_mode != EditorMode.ir) return false;
     final le = _lastEditPos;
     if (le != null && le.blockId == blockId && le.offset == offset) {
       return false; // 连续编辑:仍在格式内
     }
-    return c.marks.any((m) =>
-        m.end == offset &&
-        EditableTextContent.isInclusiveMark(m) &&
-        isRefoldableMark(c, m));
+    return c.marks.any(
+      (m) =>
+          m.end == offset &&
+          EditableTextContent.isInclusiveMark(m) &&
+          isRefoldableMark(c, m),
+    );
   }
 
   /// 最近一次文本编辑事务后的光标位(连续编辑豁免判据)。任何**光标
@@ -733,7 +746,8 @@ class EditorState extends ChangeNotifier {
     var content = block.content.insert(
       pos.offset,
       sanitized,
-      extendMarksAtEnd: !hasNewline &&
+      extendMarksAtEnd:
+          !hasNewline &&
           !hasInlineDelimiterChar(sanitized) &&
           !_irSuppressEndExtension(block.content, pos.blockId, pos.offset) &&
           (_pendingMarks == null || _pendingAnchor != pos),
@@ -898,9 +912,11 @@ class EditorState extends ChangeNotifier {
     if (!isTextChange) {
       final prevBlockId = _selection?.extent.blockId;
       final prevSel = _selection;
-      _selection = _clampSelection(EditorSelection.collapsed(
-        EditorPosition(blockId: blockId, offset: caretOffset),
-      ));
+      _selection = _clampSelection(
+        EditorSelection.collapsed(
+          EditorPosition(blockId: blockId, offset: caretOffset),
+        ),
+      );
       // 平台驱动的光标移动(IME 方向键/点击回喂)同样中断连续编辑;
       // 选区没实际变化(纯 composing 更新)不清。
       if (_selection != prevSel) _lastEditPos = null;
@@ -918,7 +934,8 @@ class EditorState extends ChangeNotifier {
     // applyExactMarks 按用户显式意图整段重设)。含定界符字符的插入同样
     // 不延伸:格式符是语法不是内容(与 insertText 同口径 —— 吸进 mark
     // 会得到 em("123*") 假内容,spin 折不回,永远解不开)。
-    final pendingHit = _pendingMarks != null &&
+    final pendingHit =
+        _pendingMarks != null &&
         _pendingAnchor != null &&
         _pendingAnchor!.blockId == blockId &&
         _pendingAnchor!.offset == safeStart;
@@ -926,7 +943,8 @@ class EditorState extends ChangeNotifier {
       safeStart,
       safeEnd,
       replacement,
-      extendMarksAtEnd: !pendingHit &&
+      extendMarksAtEnd:
+          !pendingHit &&
           !hasInlineDelimiterChar(replacement) &&
           !_irSuppressEndExtension(block.content, blockId, safeStart),
     );
@@ -1033,8 +1051,10 @@ class EditorState extends ChangeNotifier {
       TextBlock? headBlock;
       if (fromBlock is TextBlock) {
         headBlock = fromBlock;
-        headContent =
-            fromBlock.content.delete(from.offset, fromBlock.content.length);
+        headContent = fromBlock.content.delete(
+          from.offset,
+          fromBlock.content.length,
+        );
       }
       // 尾块残余
       EditableTextContent? tailContent;
@@ -1047,10 +1067,7 @@ class EditorState extends ChangeNotifier {
       if (headBlock != null && tailContent != null) {
         // 文-文:合并(首块 kind 胜出)。ir spin:首尾拼接处可能拼出
         // 完整字面对,同一事务折叠。
-        final spun = _maybeSpin(
-          headContent!.concat(tailContent),
-          from.offset,
-        );
+        final spun = _maybeSpin(headContent!.concat(tailContent), from.offset);
         newBlocks.add(headBlock.copyWith(content: spun.content));
         caret = EditorPosition(blockId: headBlock.id, offset: spun.caret);
       } else if (headBlock != null) {
@@ -1114,8 +1131,10 @@ class EditorState extends ChangeNotifier {
         _updateBlockAttrs(
           i,
           block.copyWith(
-            containers:
-                block.containers.sublist(0, block.containers.length - 1),
+            containers: block.containers.sublist(
+              0,
+              block.containers.length - 1,
+            ),
           ),
         );
         return;
@@ -1134,13 +1153,14 @@ class EditorState extends ChangeNotifier {
     // mark 内时进入收口已把它物化,这里看到的恒是普通文本。
     // 找光标前一个 grapheme 的起点(原子 FFFC 恒 1)
     final before = block.content.text.substring(0, pos.offset);
-    final lastCluster =
-        before.characters.isEmpty ? '' : before.characters.last;
+    final lastCluster = before.characters.isEmpty ? '' : before.characters.last;
     final delStart = pos.offset - lastCluster.length;
     // ir spin:删字可能拼出完整字面标记对(`**bold***` 删掉尾 `*`),
     // 同一事务折叠(见 inline_spin.dart)。
-    final spun =
-        _maybeSpin(block.content.delete(delStart, pos.offset), delStart);
+    final spun = _maybeSpin(
+      block.content.delete(delStart, pos.offset),
+      delStart,
+    );
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(content: spun.content);
     _commit(
@@ -1197,7 +1217,9 @@ class EditorState extends ChangeNotifier {
     if (step == 0) return;
     // ir spin:同 backspace,前删也可能拼出完整字面对。
     final spun = _maybeSpin(
-        block.content.delete(pos.offset, pos.offset + step), pos.offset);
+      block.content.delete(pos.offset, pos.offset + step),
+      pos.offset,
+    );
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(content: spun.content);
     _commit(
@@ -1209,10 +1231,12 @@ class EditorState extends ChangeNotifier {
 
   void _selectIsland(String islandId) {
     sealHistory();
-    updateSelection(EditorSelection(
-      base: EditorPosition(blockId: islandId, offset: 0),
-      extent: EditorPosition(blockId: islandId, offset: 1),
-    ));
+    updateSelection(
+      EditorSelection(
+        base: EditorPosition(blockId: islandId, offset: 0),
+        extent: EditorPosition(blockId: islandId, offset: 1),
+      ),
+    );
   }
 
   /// 回车是否插**软换行**(段内 `\n` → cook 成 `<br>`)而非新建块。
@@ -1289,8 +1313,7 @@ class EditorState extends ChangeNotifier {
       _updateBlockAttrs(
         i,
         block.copyWith(
-          containers:
-              block.containers.sublist(0, block.containers.length - 1),
+          containers: block.containers.sublist(0, block.containers.length - 1),
         ),
       );
       return;
@@ -1313,16 +1336,18 @@ class EditorState extends ChangeNotifier {
     } else {
       newBlock = block
           .copyWith(content: after)
-          .let((b) => TextBlock(
-                id: newId,
-                content: b.content,
-                kind: b.kind,
-                headingLevel: b.headingLevel,
-                ordered: b.ordered,
-                depth: b.depth,
-                // listStart 只属于 run 首项,分裂出的新项不带
-                containers: b.containers,
-              ));
+          .let(
+            (b) => TextBlock(
+              id: newId,
+              content: b.content,
+              kind: b.kind,
+              headingLevel: b.headingLevel,
+              ordered: b.ordered,
+              depth: b.depth,
+              // listStart 只属于 run 首项,分裂出的新项不带
+              containers: b.containers,
+            ),
+          );
     }
 
     final newBlocks = [..._blocks];
@@ -1400,9 +1425,11 @@ class EditorState extends ChangeNotifier {
     if (sel.isCollapsed) {
       final block = textBlockById(sel.extent.blockId);
       if (block == null) return;
-      final current = _pendingMarks ??
-          block.content
-              .marksAt(sel.extent.offset.clamp(0, block.content.length));
+      final current =
+          _pendingMarks ??
+          block.content.marksAt(
+            sel.extent.offset.clamp(0, block.content.length),
+          );
       final next = {...current};
       if (!next.remove(kind)) next.add(kind);
       _pendingMarks = next;
@@ -1422,8 +1449,7 @@ class EditorState extends ChangeNotifier {
     sealHistory();
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(
-      content:
-          block.content.toggleMarkInRange(from.offset, to.offset, kind),
+      content: block.content.toggleMarkInRange(from.offset, to.offset, kind),
     );
     _commit(newBlocks, sel, groupWithPrevious: false);
     sealHistory();
@@ -1443,8 +1469,12 @@ class EditorState extends ChangeNotifier {
     sealHistory();
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(
-      content: block.content
-          .applyMark(from.offset, to.offset, MarkKind.link, attr: href),
+      content: block.content.applyMark(
+        from.offset,
+        to.offset,
+        MarkKind.link,
+        attr: href,
+      ),
     );
     _commit(newBlocks, _selection, groupWithPrevious: false);
     sealHistory();
@@ -1464,6 +1494,34 @@ class EditorState extends ChangeNotifier {
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(
       content: block.content.removeMark(from.offset, to.offset, MarkKind.link),
+    );
+    _commit(newBlocks, _selection, groupWithPrevious: false);
+    sealHistory();
+  }
+
+  /// 对选区施加文字颜色(`[color=…]`,单块选区;覆盖同 kind 异 attr 旧
+  /// 区间 —— 改色 = 直接重选)。折叠选区无操作:pendingMarks 不带 attr,
+  /// 视图层仿行内剧透走"插占位 → 整选 → 本方法"路径。attr 存 CSS 颜色
+  /// 原文(hex/named),序列化逐字写回 `[color=$attr]…[/color]`,任何
+  /// 规范化都会让往返门禁失配(见 [MarkKind.textColor] 注)。
+  void applyTextColor(String colorValue) {
+    final norm = normalizedSelection();
+    if (norm == null || _selection!.isCollapsed) return;
+    final (from, to) = norm;
+    if (from.blockId != to.blockId) return;
+    final i = indexOfBlock(from.blockId);
+    if (i < 0) return;
+    final block = _blocks[i];
+    if (block is! TextBlock) return;
+    sealHistory();
+    final newBlocks = [..._blocks];
+    newBlocks[i] = block.copyWith(
+      content: block.content.applyMark(
+        from.offset,
+        to.offset,
+        MarkKind.textColor,
+        attr: colorValue,
+      ),
     );
     _commit(newBlocks, _selection, groupWithPrevious: false);
     sealHistory();
@@ -1511,7 +1569,8 @@ class EditorState extends ChangeNotifier {
     // 光标:显式指定(如点击进入 link 字面 —— 落在点击处对应的字面
     // 坐标)或默认闭定界符末尾(mark.end 退格物化的自然落点:再退格 =
     // 删字面字符,行为连贯)。
-    final caret = caretOffset?.clamp(0, next.length) ??
+    final caret =
+        caretOffset?.clamp(0, next.length) ??
         mark.end + opening.length + closing.length;
     final newBlocks = [..._blocks];
     newBlocks[i] = block.copyWith(content: next);
@@ -1571,8 +1630,8 @@ class EditorState extends ChangeNotifier {
 
   /// 设置标题级别;null = 回段落。
   void setHeading(int? level) => _mapSelectedTextBlocks(
-        (b) => level == null ? b.asParagraph() : b.asHeading(level),
-      );
+    (b) => level == null ? b.asParagraph() : b.asHeading(level),
+  );
 
   /// toggle 标题:选区全为该级 heading → 回段落;否则设为该级。
   void toggleHeading(int level) {
@@ -1583,8 +1642,7 @@ class EditorState extends ChangeNotifier {
         .whereType<TextBlock>()
         .toList();
     if (all.isEmpty) return;
-    final isAll =
-        all.every((b) => b.isHeading && b.headingLevel == level);
+    final isAll = all.every((b) => b.isHeading && b.headingLevel == level);
     setHeading(isAll ? null : level);
   }
 
@@ -1612,8 +1670,7 @@ class EditorState extends ChangeNotifier {
     final block = _blocks[i];
     if (block is! TextBlock || !block.isListItem) return;
     final prev = i > 0 ? _blocks[i - 1] : null;
-    final maxDepth =
-        prev is TextBlock && prev.isListItem ? prev.depth + 1 : 0;
+    final maxDepth = prev is TextBlock && prev.isListItem ? prev.depth + 1 : 0;
     if (block.depth >= maxDepth) return;
     _updateBlockAttrs(i, block.copyWith(depth: block.depth + 1));
   }
@@ -1654,9 +1711,7 @@ class EditorState extends ChangeNotifier {
         return b.copyWith(containers: next);
       }
       // 外面再包一层引用(栈头插入 —— 语义上新引用包住现有容器)
-      return b.copyWith(
-        containers: [newFrame, ...b.containers],
-      );
+      return b.copyWith(containers: [newFrame, ...b.containers]);
     });
   }
 
@@ -1728,8 +1783,10 @@ class EditorState extends ChangeNotifier {
     }
     // 软行触发:块分裂。lineStart-1 处必是 '\n'(input_rules 的行首定义)。
     if (lineStart > block.content.length) return;
-    final markerEnd =
-        (lineStart + markerLength).clamp(lineStart, block.content.length);
+    final markerEnd = (lineStart + markerLength).clamp(
+      lineStart,
+      block.content.length,
+    );
     final (head, tail) = block.content.split(lineStart);
     final newId = _nextId();
     final newBlocks = [..._blocks];
@@ -1815,14 +1872,17 @@ class EditorState extends ChangeNotifier {
     required int delimLength,
     required int contentLength,
     required MarkKind kind,
+
     /// 光标落在内容尾(默认,对应"刚打完闭定界符")还是内容首。
     ///
     /// 补打**开**定界符时光标本来就在内容首,甩到尾巴上等于替用户跳一次
     /// 光标 —— 那不是他的意图。
     bool caretAtEnd = true,
+
     /// 开定界符长度(不传则同 [delimLength],对称定界符如 `**`/`~~`)。
     /// BBCode 属性标记(`[size=150]`/`[/size]`)开闭不等长,需要分开传。
     int? openLength,
+
     /// mark 附加值(color/size 的色值/百分比),同 [MarkSpan.attr]。
     String? attr,
   }) {
@@ -1902,7 +1962,9 @@ class EditorState extends ChangeNotifier {
       }
       b as TextBlock;
       final s = i == fi ? from.offset.clamp(0, b.content.length) : 0;
-      final e = i == ti ? to.offset.clamp(0, b.content.length) : b.content.length;
+      final e = i == ti
+          ? to.offset.clamp(0, b.content.length)
+          : b.content.length;
       out.add(b.copyWith(content: b.content.slice(s, e)));
     }
     return out;
@@ -1944,9 +2006,7 @@ class EditorState extends ChangeNotifier {
     // 光标在岛上(理论只有整选态,防御):落到岛后插整段
     if (host is! TextBlock) {
       final newBlocks = [..._blocks];
-      final inserted = <EditorBlock>[
-        for (final b in fragment) _reIdBlock(b),
-      ];
+      final inserted = <EditorBlock>[for (final b in fragment) _reIdBlock(b)];
       newBlocks.insertAll(i + 1, inserted);
       final last = inserted.last;
       _commit(
@@ -1966,9 +2026,8 @@ class EditorState extends ChangeNotifier {
     // 单**纯段落**片段:纯内联并入(不分裂宿主)。带块属性的单块
     // (容器壳/列表项/标题)不能内联 —— 内联只拿 content,容器帧/
     // 列表性会静默蒸发(插入菜单 [quote]/[spoiler] 模板全是这形态)。
-    final firstPlain = first is TextBlock &&
-        first.containers.isEmpty &&
-        first.isParagraph;
+    final firstPlain =
+        first is TextBlock && first.containers.isEmpty && first.isParagraph;
     if (fragment.length == 1 && firstPlain) {
       final newBlocks = [..._blocks];
       newBlocks[i] = host.copyWith(
@@ -1997,23 +2056,28 @@ class EditorState extends ChangeNotifier {
     // 宿主前半:有内容、或首块要并入时保留;空且不并入 → 不留孤儿空段
     // (空文档插容器模板不该在壳上方多一个空行)
     if (firstText != null || head.length > 0) {
-      assembled.add(host.copyWith(
-        content: firstText != null
-            ? _spliceContent(head, head.length, firstText.content)
-            : head,
-      ));
+      assembled.add(
+        host.copyWith(
+          content: firstText != null
+              ? _spliceContent(head, head.length, firstText.content)
+              : head,
+        ),
+      );
     }
 
     final last = fragment.last;
-    final lastPlain = fragment.length > 1 &&
+    final lastPlain =
+        fragment.length > 1 &&
         last is TextBlock &&
         last.containers.isEmpty &&
         last.isParagraph;
     final lastText = lastPlain ? last : null;
 
-    for (var k = (firstText != null ? 1 : 0);
-        k < fragment.length - (lastText != null ? 1 : 0);
-        k++) {
+    for (
+      var k = (firstText != null ? 1 : 0);
+      k < fragment.length - (lastText != null ? 1 : 0);
+      k++
+    ) {
       assembled.add(_reIdBlock(fragment[k]));
     }
 
@@ -2021,31 +2085,35 @@ class EditorState extends ChangeNotifier {
     if (lastText != null) {
       // 纯段落尾块:并入宿主后半(tail 接在其后)
       final tailId = _nextId();
-      assembled.add(TextBlock(
-        id: tailId,
-        content: lastText.content.concat(tail),
-        kind: lastText.kind,
-        headingLevel: lastText.headingLevel,
-        ordered: lastText.ordered,
-        depth: lastText.depth,
-        listStart: lastText.listStart,
-        containers: lastText.containers,
-      ));
+      assembled.add(
+        TextBlock(
+          id: tailId,
+          content: lastText.content.concat(tail),
+          kind: lastText.kind,
+          headingLevel: lastText.headingLevel,
+          ordered: lastText.ordered,
+          depth: lastText.depth,
+          listStart: lastText.listStart,
+          containers: lastText.containers,
+        ),
+      );
       caret = EditorPosition(blockId: tailId, offset: lastText.content.length);
     } else {
       // 尾块整块插入(岛/容器块/列表项):tail 残余单独成段。
       // tail 为空也保留 —— 容器/岛后的空段是继续打字的落点
       // (官方 trailing paragraph 惯例)。
       final tailId = _nextId();
-      assembled.add(TextBlock(
-        id: tailId,
-        content: tail,
-        kind: host.kind,
-        headingLevel: host.headingLevel,
-        ordered: host.ordered,
-        depth: host.depth,
-        containers: host.containers,
-      ));
+      assembled.add(
+        TextBlock(
+          id: tailId,
+          content: tail,
+          kind: host.kind,
+          headingLevel: host.headingLevel,
+          ordered: host.ordered,
+          depth: host.depth,
+          containers: host.containers,
+        ),
+      );
       caret = EditorPosition(blockId: tailId, offset: 0);
     }
 
@@ -2060,16 +2128,14 @@ class EditorState extends ChangeNotifier {
 
   /// 纯文本粘贴降级(cook 不可用/剪贴板无结构):按换行拆段插入。
   void pastePlainText(String text) {
-    final sanitized = EditableTextContent.sanitizeText(text)
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
+    final sanitized = EditableTextContent.sanitizeText(
+      text,
+    ).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     if (sanitized.isEmpty) return;
     // 双换行 = 分段;单换行 = 段内硬换行(与 markdown 语义一致)
     final paras = sanitized.split('\n\n');
     var n = 0;
-    pasteBlocks([
-      for (final p in paras) _paragraphFromMarkdown('p_${n++}', p),
-    ]);
+    pasteBlocks([for (final p in paras) _paragraphFromMarkdown('p_${n++}', p)]);
   }
 
   /// 一段纯文本 → 块:行首块级标记(`# `/`- `/`1. `/`> `)转结构,
@@ -2108,18 +2174,18 @@ class EditorState extends ChangeNotifier {
 
   /// 片段块重发 id(粘贴片段可能来自本文档自身的复制,原 id 会碰撞)。
   EditorBlock _reIdBlock(EditorBlock b) => switch (b) {
-        final TextBlock tb => TextBlock(
-            id: _nextId(),
-            content: tb.content,
-            kind: tb.kind,
-            headingLevel: tb.headingLevel,
-            ordered: tb.ordered,
-            depth: tb.depth,
-            listStart: tb.listStart,
-            containers: tb.containers,
-          ),
-        final IslandBlock ib => IslandBlock(id: _nextId(), node: ib.node),
-      };
+    final TextBlock tb => TextBlock(
+      id: _nextId(),
+      content: tb.content,
+      kind: tb.kind,
+      headingLevel: tb.headingLevel,
+      ordered: tb.ordered,
+      depth: tb.depth,
+      listStart: tb.listStart,
+      containers: tb.containers,
+    ),
+    final IslandBlock ib => IslandBlock(id: _nextId(), node: ib.node),
+  };
 
   /// 片段容器帧 groupId 重发:片段内同组 → 同一个新 id(保持分组),
   /// 与原文档的旧 id 隔离(自我复制粘贴不吸并进原容器)。
@@ -2145,8 +2211,11 @@ class EditorState extends ChangeNotifier {
             full: full,
           ),
         SpoilerFrame() => SpoilerFrame(groupId: newId),
-        DetailsFrame(:final summary, :final open) =>
-          DetailsFrame(groupId: newId, summary: summary, open: open),
+        DetailsFrame(:final summary, :final open) => DetailsFrame(
+          groupId: newId,
+          summary: summary,
+          open: open,
+        ),
         CalloutFrame(
           :final kind,
           :final typeRaw,
@@ -2167,9 +2236,9 @@ class EditorState extends ChangeNotifier {
     final out = <EditorBlock>[];
     for (final b in fragment) {
       if (b is TextBlock && b.containers.isNotEmpty) {
-        out.add(b.copyWith(
-          containers: [for (final f in b.containers) remap(f)],
-        ));
+        out.add(
+          b.copyWith(containers: [for (final f in b.containers) remap(f)]),
+        );
         changed = true;
       } else {
         out.add(b);
@@ -2207,11 +2276,11 @@ class EditorState extends ChangeNotifier {
       final anchor = i < newBlocks.length
           ? EditorPosition(blockId: newBlocks[i].id, offset: 0)
           : (newBlocks.isEmpty
-              ? null
-              : EditorPosition(
-                  blockId: newBlocks.last.id,
-                  offset: newBlocks.last.selectionLength,
-                ));
+                ? null
+                : EditorPosition(
+                    blockId: newBlocks.last.id,
+                    offset: newBlocks.last.selectionLength,
+                  ));
       _commit(
         newBlocks,
         anchor == null ? null : EditorSelection.collapsed(anchor),
@@ -2251,13 +2320,12 @@ class EditorState extends ChangeNotifier {
   void selectAll() {
     final first = _blocks.first;
     final last = _blocks.last;
-    updateSelection(EditorSelection(
-      base: EditorPosition(blockId: first.id, offset: 0),
-      extent: EditorPosition(
-        blockId: last.id,
-        offset: last.selectionLength,
+    updateSelection(
+      EditorSelection(
+        base: EditorPosition(blockId: first.id, offset: 0),
+        extent: EditorPosition(blockId: last.id, offset: last.selectionLength),
       ),
-    ));
+    );
   }
 
   /// 光标水平移动 ±1 grapheme(跨块衔接;岛两段式跳跃)。
@@ -2271,8 +2339,7 @@ class EditorState extends ChangeNotifier {
       var target = direction < 0 ? norm.$1 : norm.$2;
       final ti = indexOfBlock(target.blockId);
       if (ti >= 0 && _blocks[ti] is IslandBlock) {
-        final moved =
-            direction < 0 ? _positionBefore(ti) : _positionAfter(ti);
+        final moved = direction < 0 ? _positionBefore(ti) : _positionAfter(ti);
         if (moved != null) target = moved;
       }
       updateSelection(EditorSelection.collapsed(target));
@@ -2305,8 +2372,9 @@ class EditorState extends ChangeNotifier {
     if (direction < 0) {
       if (pos.offset > 0) {
         final before = block.content.text.substring(0, pos.offset);
-        final step =
-            before.characters.isEmpty ? 1 : before.characters.last.length;
+        final step = before.characters.isEmpty
+            ? 1
+            : before.characters.last.length;
         next = pos.copyWith(offset: pos.offset - step);
       } else if (i > 0) {
         final prev = _blocks[i - 1];
@@ -2325,10 +2393,12 @@ class EditorState extends ChangeNotifier {
     } else {
       if (pos.offset < block.content.length) {
         final after = block.content.text.substring(pos.offset);
-        final step =
-            after.characters.isEmpty ? 1 : after.characters.first.length;
+        final step = after.characters.isEmpty
+            ? 1
+            : after.characters.first.length;
         next = pos.copyWith(
-            offset: math.min(pos.offset + step, block.content.length));
+          offset: math.min(pos.offset + step, block.content.length),
+        );
       } else if (i + 1 < _blocks.length) {
         final nextBlock = _blocks[i + 1];
         if (nextBlock is IslandBlock && !extend) {

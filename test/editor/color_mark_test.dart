@@ -217,4 +217,72 @@ void main() {
       expect(EditableTextContent.parseHex(null), isNull);
     });
   });
+
+  group('EditorState.applyTextColor', () {
+    TextBlock only(EditorState s) => s.blocks.single as TextBlock;
+
+    test('选区施加:mark 带 attr 原文,序列化写回 BBCode', () {
+      final s = EditorState(
+        blocks: [TextBlock(id: 'e_t', content: EditableTextContent(text: '红字'))],
+      );
+      addTearDown(s.dispose);
+      s.updateSelection(const EditorSelection(
+        base: EditorPosition(blockId: 'e_t', offset: 0),
+        extent: EditorPosition(blockId: 'e_t', offset: 2),
+      ));
+      s.applyTextColor('#e45735');
+      final c = only(s).content;
+      expect(c.text, '红字');
+      expect(c.marks.single.kind, MarkKind.textColor);
+      expect(c.marks.single.attr, '#e45735', reason: 'attr 逐字透传,不规范化');
+      final md = docToMarkdown(s.blocks);
+      expect(md, contains('[color=#e45735]'));
+      expect(md, contains('红字[/color]'));
+    });
+
+    test('改色覆盖旧区间(同 kind 异 attr)', () {
+      final s = EditorState(
+        blocks: [TextBlock(id: 'e_t', content: EditableTextContent(text: '红字'))],
+      );
+      addTearDown(s.dispose);
+      const sel = EditorSelection(
+        base: EditorPosition(blockId: 'e_t', offset: 0),
+        extent: EditorPosition(blockId: 'e_t', offset: 2),
+      );
+      s.updateSelection(sel);
+      s.applyTextColor('#ff0000');
+      s.updateSelection(sel);
+      s.applyTextColor('blue');
+      final c = only(s).content;
+      expect(c.marks.where((m) => m.kind == MarkKind.textColor), hasLength(1));
+      expect(c.marks.single.attr, 'blue');
+    });
+
+    test('折叠选区 no-op(视图层走占位符路径)', () {
+      final s = EditorState(
+        blocks: [TextBlock(id: 'e_t', content: EditableTextContent(text: '红字'))],
+      );
+      addTearDown(s.dispose);
+      s.updateSelection(const EditorSelection.collapsed(
+          EditorPosition(blockId: 'e_t', offset: 1)));
+      s.applyTextColor('#f00');
+      expect(only(s).content.marks, isEmpty);
+    });
+
+    test('跨块选区 no-op', () {
+      final s = EditorState(blocks: [
+        TextBlock(id: 'e_0', content: EditableTextContent(text: 'aa')),
+        TextBlock(id: 'e_1', content: EditableTextContent(text: 'bb')),
+      ]);
+      addTearDown(s.dispose);
+      s.updateSelection(EditorSelection(
+        base: EditorPosition(blockId: 'e_0', offset: 0),
+        extent: EditorPosition(blockId: 'e_1', offset: 2),
+      ));
+      s.applyTextColor('#f00');
+      for (final b in s.blocks) {
+        expect((b as TextBlock).content.marks, isEmpty);
+      }
+    });
+  });
 }

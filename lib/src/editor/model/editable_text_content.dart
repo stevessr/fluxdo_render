@@ -84,25 +84,25 @@ enum MarkKind {
 
 /// [MarkKind] ↔ [InlineStyleKind] 双向映射(纯样式类,无 attr 的那六个)。
 InlineStyleKind? _styleKindFor(MarkKind kind) => switch (kind) {
-      MarkKind.smallStyle => InlineStyleKind.small,
-      MarkKind.bigStyle => InlineStyleKind.big,
-      MarkKind.markStyle => InlineStyleKind.mark,
-      MarkKind.superscript => InlineStyleKind.superscript,
-      MarkKind.subscript => InlineStyleKind.subscript,
-      MarkKind.monospaceStyle => InlineStyleKind.monospace,
-      _ => null,
-    };
+  MarkKind.smallStyle => InlineStyleKind.small,
+  MarkKind.bigStyle => InlineStyleKind.big,
+  MarkKind.markStyle => InlineStyleKind.mark,
+  MarkKind.superscript => InlineStyleKind.superscript,
+  MarkKind.subscript => InlineStyleKind.subscript,
+  MarkKind.monospaceStyle => InlineStyleKind.monospace,
+  _ => null,
+};
 
 MarkKind? _markKindFor(InlineStyleKind kind) => switch (kind) {
-      InlineStyleKind.underline => MarkKind.underline,
-      InlineStyleKind.lineThrough => MarkKind.lineThrough,
-      InlineStyleKind.small => MarkKind.smallStyle,
-      InlineStyleKind.big => MarkKind.bigStyle,
-      InlineStyleKind.mark => MarkKind.markStyle,
-      InlineStyleKind.superscript => MarkKind.superscript,
-      InlineStyleKind.subscript => MarkKind.subscript,
-      InlineStyleKind.monospace => MarkKind.monospaceStyle,
-    };
+  InlineStyleKind.underline => MarkKind.underline,
+  InlineStyleKind.lineThrough => MarkKind.lineThrough,
+  InlineStyleKind.small => MarkKind.smallStyle,
+  InlineStyleKind.big => MarkKind.bigStyle,
+  InlineStyleKind.mark => MarkKind.markStyle,
+  InlineStyleKind.superscript => MarkKind.superscript,
+  InlineStyleKind.subscript => MarkKind.subscript,
+  InlineStyleKind.monospace => MarkKind.monospaceStyle,
+};
 
 /// 一段样式区间 `[start, end)`(扁平文本坐标)。
 ///
@@ -127,11 +127,11 @@ class MarkSpan {
   bool get isEmpty => start >= end;
 
   MarkSpan copyWith({int? start, int? end}) => MarkSpan(
-        start: start ?? this.start,
-        end: end ?? this.end,
-        kind: kind,
-        attr: attr,
-      );
+    start: start ?? this.start,
+    end: end ?? this.end,
+    kind: kind,
+    attr: attr,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -158,20 +158,19 @@ class EditableTextContent {
     required this.text,
     List<MarkSpan> marks = const [],
     Map<int, InlineNode> atoms = const {},
-  })  : marks = List.unmodifiable(
-          marks.where((m) => !m.isEmpty).toList()
-            ..sort((a, b) {
-              final c = a.start.compareTo(b.start);
-              return c != 0 ? c : a.end.compareTo(b.end);
-            }),
-        ),
-        atoms = Map.unmodifiable(atoms),
-        assert(
-          atoms.keys.every(
-            (o) => o >= 0 && o < text.length && text[o] == kAtomChar,
-          ),
-          'atoms 的每个 offset 必须指向文本中的 kAtomChar',
-        );
+  }) : marks = List.unmodifiable(
+         marks.where((m) => !m.isEmpty).toList()..sort((a, b) {
+           final c = a.start.compareTo(b.start);
+           return c != 0 ? c : a.end.compareTo(b.end);
+         }),
+       ),
+       atoms = Map.unmodifiable(atoms),
+       assert(
+         atoms.keys.every(
+           (o) => o >= 0 && o < text.length && text[o] == kAtomChar,
+         ),
+         'atoms 的每个 offset 必须指向文本中的 kAtomChar',
+       );
 
   static final EditableTextContent empty = EditableTextContent(text: '');
 
@@ -275,18 +274,20 @@ class EditableTextContent {
         case LineBreakRun():
           _appendText(buf, marks, activeKinds, '\n');
         case EmRun(:final children):
-          _flattenInto(children, buf, marks, atoms,
-              [...activeKinds, (MarkKind.em, null)]);
+          _flattenInto(children, buf, marks, atoms, [
+            ...activeKinds,
+            (MarkKind.em, null),
+          ]);
         case StrongRun(:final children):
-          _flattenInto(children, buf, marks, atoms,
-              [...activeKinds, (MarkKind.strong, null)]);
+          _flattenInto(children, buf, marks, atoms, [
+            ...activeKinds,
+            (MarkKind.strong, null),
+          ]);
         case InlineCodeRun(:final text):
-          _appendText(
-            buf,
-            marks,
-            [...activeKinds, (MarkKind.inlineCode, null)],
-            sanitizeText(text),
-          );
+          _appendText(buf, marks, [
+            ...activeKinds,
+            (MarkKind.inlineCode, null),
+          ], sanitizeText(text));
         case StyledRun(:final kind, :final children):
           final mapped = _markKindFor(kind);
           _flattenInto(
@@ -298,8 +299,10 @@ class EditableTextContent {
           );
         // ---- M5 白名单:行内剧透 / 链接(mark 化,内容可编辑) ----
         case SpoilerRun(:final children):
-          _flattenInto(children, buf, marks, atoms,
-              [...activeKinds, (MarkKind.spoilerInline, null)]);
+          _flattenInto(children, buf, marks, atoms, [
+            ...activeKinds,
+            (MarkKind.spoilerInline, null),
+          ]);
         // hashtag 链接:行内原子(mention 同机制)。整体一个哨兵字符,
         // 序列化写回 `#ref`。必须排在普通 LinkRun 分支之前 —— 否则会
         // 被当成普通链接 mark 化,把 `#ref` 写法毁掉。
@@ -311,11 +314,15 @@ class EditableTextContent {
             // 裸 URL 的 linkify 链接:编辑器显示 URL 本身(锚文本可能
             // 是 cook 种子取回的页面标题,但 raw 是裸 URL —— 显示 href
             // 才能让序列化的 text==attr 裸 URL 规则保住往返)
-            _appendText(buf, marks,
-                [...activeKinds, (MarkKind.link, href)], sanitizeText(href));
+            _appendText(buf, marks, [
+              ...activeKinds,
+              (MarkKind.link, href),
+            ], sanitizeText(href));
           } else {
-            _flattenInto(children, buf, marks, atoms,
-                [...activeKinds, (MarkKind.link, href)]);
+            _flattenInto(children, buf, marks, atoms, [
+              ...activeKinds,
+              (MarkKind.link, href),
+            ]);
           }
         // ---- 原子(一等公民):哨兵占位 + 身份入表 ----
         case EmojiRun():
@@ -337,15 +344,17 @@ class EditableTextContent {
           // 字号 → 带 attr 的 mark(见 MarkKind.size 注释:岛化不可编辑,
           // mark 化后一行内可以混多个不同 size 区间)。attr 优先存 cooked
           // 里的原文(pctRaw),程序化构造(pctRaw=null)才按 scale 计算。
-          _flattenInto(children, buf, marks, atoms,
-              [...activeKinds, (MarkKind.size, pctRaw ?? _pct(scale))]);
+          _flattenInto(children, buf, marks, atoms, [
+            ...activeKinds,
+            (MarkKind.size, pctRaw ?? _pct(scale)),
+          ]);
         case ColoredRun(
-            :final color,
-            :final background,
-            :final colorRaw,
-            :final backgroundRaw,
-            :final children
-          ):
+          :final color,
+          :final background,
+          :final colorRaw,
+          :final backgroundRaw,
+          :final children,
+        ):
           // 颜色 → 带 attr 的 mark(见 MarkKind.textColor 注释:岛化会
           // 让整行变只读、光标消失)。attr 优先存 CSS 原文(colorRaw/
           // backgroundRaw,`red`/`#F00` 等逐字保留),程序化构造才写 hex。
@@ -384,8 +393,9 @@ class EditableTextContent {
     for (final frame in {...activeKinds}) {
       final (kind, attr) = frame;
       // 与紧邻的同 kind 同 attr 区间合并(嵌套展开会产生相邻碎段)。
-      final lastIdx =
-          marks.lastIndexWhere((m) => m.kind == kind && m.attr == attr);
+      final lastIdx = marks.lastIndexWhere(
+        (m) => m.kind == kind && m.attr == attr,
+      );
       if (lastIdx >= 0 && marks[lastIdx].end == start) {
         marks[lastIdx] = marks[lastIdx].copyWith(end: end);
       } else {
@@ -521,7 +531,11 @@ class EditableTextContent {
       int openCompare(MarkSpan a, MarkSpan b) {
         if (a.start == b.start && a.end == b.end) {
           return compareSameSpanMarkOpen(
-              a, markListIndex[a] ?? 0, b, markListIndex[b] ?? 0);
+            a,
+            markListIndex[a] ?? 0,
+            b,
+            markListIndex[b] ?? 0,
+          );
         }
         return kMarkNestingOrder
             .indexOf(a.kind)
@@ -607,12 +621,18 @@ class EditableTextContent {
         // 无身份的孤儿哨兵(不变量破坏,构造器断言防):静默丢弃。
         continue;
       }
-      out.add(_wrapPiece(piece, kinds, href,
+      out.add(
+        _wrapPiece(
+          piece,
+          kinds,
+          href,
           forEditing: forEditing,
           editingLinkColor: editingLinkColor,
           fgHex: fgHex,
           bgHex: bgHex,
-          sizePct: sizePct));
+          sizePct: sizePct,
+        ),
+      );
     }
     appendDelimiters(text.length, opening: false);
     return _applyOnlyEmoji(out);
@@ -702,8 +722,9 @@ class EditableTextContent {
   /// 判据不重写第二份 —— 直接看编辑渲染出口([toInlines] →
   /// [_applyOnlyEmoji])的产物,与实际渲染**构造上同源**,不会漂移。
   /// 实例不可变,late final 缓存首算结果。
-  late final bool hasOnlyEmojiLine = toInlines(forEditing: true)
-      .any((n) => n is EmojiRun && n.isOnlyEmoji);
+  late final bool hasOnlyEmojiLine = toInlines(
+    forEditing: true,
+  ).any((n) => n is EmojiRun && n.isOnlyEmoji);
 
   /// 超过这个数量就不再算大表情(对齐 Discourse)。
   static const int _maxOnlyEmoji = 3;
@@ -825,8 +846,9 @@ class EditableTextContent {
   }) {
     final scale = parsePct(pct);
     if (scale == null) return node;
-    final effective =
-        forEditing && scale < hiddenSizeThreshold ? hiddenSizeEditingScale : scale;
+    final effective = forEditing && scale < hiddenSizeThreshold
+        ? hiddenSizeEditingScale
+        : scale;
     return SizedRun(scale: effective, pctRaw: pct, children: [node]);
   }
 
@@ -896,9 +918,7 @@ class EditableTextContent {
         // 打字路径([extendMarksAtEnd]):恰在 mark 末端插入时,inclusive
         // kind 延伸覆盖插入段 —— 与 marksAt(工具栏活跃态探测 offset-1)
         // 口径一致,也让显形态"最后一个字符后打字仍在格式内"成立。
-        if (extendMarksAtEnd &&
-            m.end == offset &&
-            isInclusiveMark(m)) {
+        if (extendMarksAtEnd && m.end == offset && isInclusiveMark(m)) {
           span = m.copyWith(end: m.end + len);
         } else {
           span = m;
@@ -1040,12 +1060,20 @@ class EditableTextContent {
           m.attr != null &&
           m.attr == text.substring(m.start, m.end)) {
         final newEnd = m.end - (end - start) + replacement.length;
-        out = out.applyMark(m.start, newEnd, m.kind,
-            attr: out.text.substring(m.start, newEnd));
+        out = out.applyMark(
+          m.start,
+          newEnd,
+          m.kind,
+          attr: out.text.substring(m.start, newEnd),
+        );
         continue;
       }
-      out = out.applyMark(start, start + replacement.length, m.kind,
-          attr: m.attr);
+      out = out.applyMark(
+        start,
+        start + replacement.length,
+        m.kind,
+        attr: m.attr,
+      );
     }
     return out;
   }
@@ -1102,17 +1130,26 @@ class EditableTextContent {
 
   /// 对 `[start, end)` 应用 [kind](幂等;与既有区间合并归一)。
   ///
-  /// [attr]:link 的 href。合并只发生在**同 kind 同 attr** 之间 ——
-  /// 相邻两个不同 href 的链接不吞并。施加带 attr 的 mark 前先移除
-  /// 区间上同 kind 异 attr 的旧区间(改链接 = 覆盖旧链接)。
-  EditableTextContent applyMark(int start, int end, MarkKind kind,
-      {String? attr}) {
+  /// [attr]:link 的 href / textColor 的颜色原文。合并只发生在
+  /// **同 kind 同 attr** 之间 —— 相邻两个不同 href 的链接不吞并。
+  /// 施加带 attr 的 mark 前先移除区间上同 kind 异 attr 的旧区间
+  /// (改链接 = 覆盖旧链接;改色 = 覆盖旧色)。
+  EditableTextContent applyMark(
+    int start,
+    int end,
+    MarkKind kind, {
+    String? attr,
+  }) {
     assert(start >= 0 && end <= text.length && start <= end);
     if (start == end) return this;
-    // 先清区间上同 kind 异 attr 的部分(removeMark 全清后重加同 attr 的)
+    // 先清区间上同 kind 异 attr 的部分:link 全清(历史行为);
+    // 其他带 attr 的 mark(textColor…)只清异 attr 段 —— 同 attr
+    // 照常走下面的合并路径。
     var base = this;
     if (kind == MarkKind.link) {
       base = base.removeMark(start, end, kind);
+    } else if (attr != null) {
+      base = base.removeMark(start, end, kind, exceptAttr: attr);
     }
     final same = <MarkSpan>[];
     final others = <MarkSpan>[];
@@ -1142,13 +1179,22 @@ class EditableTextContent {
     );
   }
 
-  /// 从 `[start, end)` 移除 [kind](区间切分)。
-  EditableTextContent removeMark(int start, int end, MarkKind kind) {
+  /// 从 `[start, end)` 移除 [kind](区间切分)。[exceptAttr] 指定
+  /// 跳过不移的同 attr 区间(applyMark 覆盖异 attr 旧值时用)。
+  EditableTextContent removeMark(
+    int start,
+    int end,
+    MarkKind kind, {
+    String? exceptAttr,
+  }) {
     assert(start >= 0 && end <= text.length && start <= end);
     if (start == end) return this;
     final newMarks = <MarkSpan>[];
     for (final m in marks) {
-      if (m.kind != kind || m.end <= start || m.start >= end) {
+      if (m.kind != kind ||
+          (exceptAttr != null && m.attr == exceptAttr) ||
+          m.end <= start ||
+          m.start >= end) {
         newMarks.add(m);
         continue;
       }
@@ -1166,8 +1212,8 @@ class EditableTextContent {
   /// toggle:全覆盖 → 移除;否则 → 补齐(主流编辑器语义)。
   EditableTextContent toggleMarkInRange(int start, int end, MarkKind kind) =>
       isRangeFullyMarked(start, end, kind)
-          ? removeMark(start, end, kind)
-          : applyMark(start, end, kind);
+      ? removeMark(start, end, kind)
+      : applyMark(start, end, kind);
 
   /// 对 `[start, end)` 精确设置 marks 集合(pending style 应用:
   /// 先清区间上全部 kind,再施加 [kinds])。
@@ -1241,12 +1287,13 @@ class EditableTextContent {
 
   @override
   int get hashCode => Object.hash(
-        text,
-        Object.hashAll(marks),
-        Object.hashAll(atoms.entries.map((e) => Object.hash(e.key, e.value))),
-      );
+    text,
+    Object.hashAll(marks),
+    Object.hashAll(atoms.entries.map((e) => Object.hash(e.key, e.value))),
+  );
 
   @override
-  String toString() => 'EditableTextContent(${text.length} chars, '
+  String toString() =>
+      'EditableTextContent(${text.length} chars, '
       '${marks.length} marks, ${atoms.length} atoms)';
 }
