@@ -1,0 +1,34 @@
+name: Temporary upstream render validation
+
+on:
+  push:
+    branches:
+      - ci/upstream-validate-20260905
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Prepare standalone package
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version
+          # This repo is normally consumed as a workspace package by fluxdo.
+          # Standalone CI removes only the workspace-resolution marker locally.
+          sed -i '/^resolution: workspace$/d' pubspec.yaml
+          flutter pub get
+      - name: Analyze
+        run: dart analyze
+      - name: Fork intrinsic-width regression
+        run: flutter test test/widget/fluxdo_render_intrinsic_test.dart
+      - name: Widget regressions
+        run: flutter test test/widget
+      - name: Editor and flatten regressions
+        run: flutter test test/editor test/flatten
