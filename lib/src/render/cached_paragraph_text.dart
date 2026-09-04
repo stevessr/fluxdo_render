@@ -93,7 +93,46 @@ class ParagraphLayoutEntry {
   /// performLayout 直接 constrain,零测量。
   final Size size;
 
-  void dispose() => paragraph.dispose();
+  /// 在屏 RenderObject 的持有计数。
+  ///
+  /// [RenderCachedParagraph._entry] 会跨 layout/paint 持有本条目,而 LRU 淘汰
+  /// 与 evictAll 随时可能发生 —— 直接 dispose 会让仍在屏的 RenderObject 在
+  /// paint 时 drawParagraph 到已释放的 native Paragraph,SIGSEGV(线上
+  /// `_NativeParagraph.__paint` / `__dispose` 两个崩溃即此)。
+  ///
+  /// 计数 > 0 时释放请求只打标,等最后一个持有者 [release] 时才真正 dispose。
+  int _refCount = 0;
+
+  /// 已被缓存逐出,等引用归零即释放。
+  bool _pendingDispose = false;
+
+  /// 已释放:防重复 dispose(native 侧重复释放同样是 SIGSEGV/SIGABRT)。
+  bool _disposed = false;
+
+  bool get isDisposed => _disposed;
+
+  /// RenderObject 开始持有(performLayout 取到条目时调用)。
+  void retain() {
+    _refCount++;
+  }
+
+  /// RenderObject 释放持有(换条目 / detach / dispose 时调用)。
+  void release() {
+    if (_refCount > 0) _refCount--;
+    _disposeIfIdle();
+  }
+
+  /// 缓存侧请求释放(LRU 淘汰 / evictAll)。仍被持有时延后。
+  void requestDispose() {
+    _pendingDispose = true;
+    _disposeIfIdle();
+  }
+
+  void _disposeIfIdle() {
+    if (_disposed || !_pendingDispose || _refCount > 0) return;
+    _disposed = true;
+    paragraph.dispose();
+  }
 }
 
 /// 段落的内在宽度度量(表格列宽用;按 env 缓存,与具体约束宽无关)。
@@ -165,7 +204,8 @@ class ParagraphLayoutCache {
     _entries[key] = entry;
     while (_entries.length > _cap) {
       final oldest = _entries.keys.first;
-      _entries.remove(oldest)!.dispose();
+      // 仍在屏的条目只打标,等最后一个 RenderObject 释放时才真 dispose。
+      _entries.remove(oldest)!.requestDispose();
     }
     return entry;
   }
@@ -189,11 +229,13 @@ class ParagraphLayoutCache {
   }
 
   /// 全清(hot reload / 字体注册等环境级失效)。
-  /// ui.Paragraph 的 dispose 安全:直绘 RenderObject 每次 layout 都经
-  /// obtain 重取(不持旧引用跨 relayout)。
+  ///
+  /// 注意:[RenderCachedParagraph] 会通过 `_entry` 跨 layout/paint 持有条目,
+  /// 所以这里不能直接 dispose —— 否则在屏段落下一帧 paint 就会用到已释放的
+  /// native Paragraph。改为打标,由最后一个持有者释放时完成。
   static void evictAll() {
     for (final e in _entries.values) {
-      e.dispose();
+      e.requestDispose();
     }
     _entries.clear();
     _metrics.clear();
@@ -369,7 +411,7 @@ class RenderCachedParagraph extends RenderBox
   set result(FlattenResult value) {
     if (identical(_result, value)) return;
     _result = value;
-    _entry = null;
+    _releaseEntry();
     _cachedPlainText = null;
     markNeedsLayout();
     markNeedsSemanticsUpdate();
@@ -380,13 +422,27 @@ class RenderCachedParagraph extends RenderBox
   set env(ParagraphEnv value) {
     if (_env == value) return;
     _env = value;
-    _entry = null;
+    _releaseEntry();
     markNeedsLayout();
     markNeedsSemanticsUpdate();
   }
 
   ParagraphLayoutEntry? _entry;
   String? _cachedPlainText;
+
+  /// 交还当前条目的持有权(换内容 / 换环境 / 本对象销毁)。
+  void _releaseEntry() {
+    _entry?.release();
+    _entry = null;
+  }
+
+  @override
+  void dispose() {
+    // RenderObject 销毁时必须交还持有权,否则被逐出的条目永远等不到
+    // 引用归零,native Paragraph 泄漏。
+    _releaseEntry();
+    super.dispose();
+  }
 
   String get _plainText =>
       _cachedPlainText ??= _result.span.toPlainText(includePlaceholders: false);
@@ -402,12 +458,20 @@ class RenderCachedParagraph extends RenderBox
 
   @override
   void performLayout() {
-    final entry = _entry = ParagraphLayoutCache.obtain(
+    final obtained = ParagraphLayoutCache.obtain(
       _result,
       _env,
       constraints.minWidth,
       constraints.maxWidth,
     );
+    // 先 retain 新条目再 release 旧的:两者可能是同一条(约束未变时命中
+    // 同一 key),先释放会让引用瞬间归零而被误 dispose。
+    if (!identical(obtained, _entry)) {
+      obtained.retain();
+      _entry?.release();
+      _entry = obtained;
+    }
+    final entry = obtained;
     // 预热探针:登记真实布局用的 (env, 约束宽),idle 预热同源构 key。
     ParagraphWarmupProbe.noteEnv(
       _env,
