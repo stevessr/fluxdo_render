@@ -171,6 +171,39 @@ void main() {
       s.insertText('b');
       expect(s.canRedo, false);
     });
+
+    // 工具栏撤销/恢复按钮的置灰态由 canUndo/canRedo 驱动,且只在
+    // notifyListeners 时重算 —— 三个跃迁点必须都发通知,否则移动端
+    // (无快捷键,按钮是唯一入口)会出现「能撤销但按钮灰着」的死锁。
+    test('canUndo/canRedo 跃迁均发出通知(驱动工具栏按钮置灰)', () {
+      final s = makeState();
+      var notifications = 0;
+      s.addListener(() => notifications++);
+      placeCaret(s, 0, 0);
+
+      expect(s.canUndo, false);
+      expect(s.canRedo, false);
+
+      // false → true(首次编辑)
+      notifications = 0;
+      s.insertText('a');
+      expect(s.canUndo, true);
+      expect(notifications, greaterThan(0), reason: '首次编辑后要通知');
+
+      // canRedo false → true(撤销)
+      notifications = 0;
+      s.undo();
+      expect(s.canUndo, false);
+      expect(s.canRedo, true);
+      expect(notifications, greaterThan(0), reason: 'undo 后要通知');
+
+      // canRedo true → false(恢复到栈顶)
+      notifications = 0;
+      s.redo();
+      expect(s.canUndo, true);
+      expect(s.canRedo, false);
+      expect(notifications, greaterThan(0), reason: 'redo 后要通知');
+    });
   });
 
   group('imeReplace', () {

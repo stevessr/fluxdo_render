@@ -70,6 +70,31 @@ class _Harness {
 }
 
 void main() {
+  testWidgets('内容操作句柄更新时解除旧绑定，卸载后不可再操作', (tester) async {
+    final state = EditorState.fromTexts(['draft']);
+    final first = FluxdoEditorContentActions();
+    final second = FluxdoEditorContentActions();
+    Widget editor(FluxdoEditorContentActions actions) => MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: FluxdoEditor(
+            key: const ValueKey('editor'),
+            state: state,
+            contentActions: actions,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(editor(first));
+    expect(first.isAttached, isTrue);
+    await tester.pumpWidget(editor(second));
+    expect(first.isAttached, isFalse);
+    expect(second.isAttached, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(second.isAttached, isFalse);
+    state.dispose();
+  });
+
   Future<(_Harness, EditorState)> pumpEditor(
     WidgetTester tester, {
     List<String> paragraphs = const ['第一段', 'abc'],

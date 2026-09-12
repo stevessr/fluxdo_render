@@ -14,6 +14,8 @@ export 'src/editor/input/editor_key_handler.dart' show
         primaryModifierHeld,
         primaryModifierHeldForReversibleAction,
         shiftModifierHeld;
+export 'src/editor/input/three_finger_gestures.dart'
+    show ThreeFingerGesture, ThreeFingerConfig, ThreeFingerGestureRecognizer;
 export 'src/editor/model/doc_converter.dart';
 export 'src/editor/model/editable_text_content.dart';
 export 'src/editor/model/editor_block.dart';

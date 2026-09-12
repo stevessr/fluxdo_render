@@ -45,6 +45,7 @@ import '../../selection/selection_registry.dart';
 import '../../selection/selection_scope.dart';
 import '../input/editor_ime_client.dart';
 import '../input/editor_key_handler.dart';
+import '../input/three_finger_gestures.dart';
 import '../model/editor_image_commands.dart';
 import '../model/editor_state.dart';
 import 'editable_paragraph.dart';
@@ -193,6 +194,74 @@ class FluxdoEditorVirtualPointer {
   }
 }
 
+/// 内容操作句柄:把「作用于文字本身」的动作(剪贴板/全选/撤销重做)
+/// 暴露给宿主。
+///
+/// 为什么需要它:这些动作的实现散在 [_FluxdoEditorState] 私有方法里
+/// (剪贴板要走 markdown 序列化 + cook 导入链,不是简单取文本),宿主的
+/// 工具栏/手势层够不到。照 [FluxdoEditorVirtualPointer] 同款:宿主持有
+/// 句柄对象,编辑器 initState 时反向绑定 state。
+///
+/// 撤销/重做直接转发 [EditorState],放在这里只是为了让宿主有**单一**
+/// 内容操作入口 —— 工具栏的「内容操作」按钮与三指手势共用同一套动作,
+/// 不必一半调 state、一半调编辑器。
+///
+/// 编辑器未挂载时所有方法静默无操作([canUndo] 等返回 false)。
+class FluxdoEditorContentActions {
+  _FluxdoEditorState? _state;
+
+  /// 编辑器是否已挂载可用(宿主据此禁用整个内容操作入口)。
+  bool get isAttached => _state?.mounted ?? false;
+
+  EditorState? get _editorState => _state?.widget.state;
+
+  bool get canUndo => _editorState?.canUndo ?? false;
+  bool get canRedo => _editorState?.canRedo ?? false;
+
+  /// 当前是否有非折叠选区(决定复制/剪切是否可用)。
+  bool get hasSelection {
+    final sel = _editorState?.selection;
+    return sel != null && !sel.isCollapsed;
+  }
+
+  void undo() {
+    final s = _editorState;
+    if (s == null) return;
+    // 先封口:未 seal 的输入组作为完整一步回退(与工具栏按钮同语义)
+    s.sealHistory();
+    s.undo();
+    _state?._ime.syncFromState(show: false);
+  }
+
+  void redo() {
+    final s = _editorState;
+    if (s == null) return;
+    s.redo();
+    _state?._ime.syncFromState(show: false);
+  }
+
+  void selectAll() {
+    _editorState?.selectAll();
+  }
+
+  /// 工具栏方向按钮复用内核的字素移动与真实行布局。
+  void moveHorizontal(int direction, {required bool extend}) {
+    _editorState?.moveCaretHorizontal(direction, extend: extend);
+    _state?._ime.syncFromState(show: false);
+  }
+
+  void moveVertical(int direction, {required bool extend}) {
+    _state?._moveCaretVertical(direction, extend: extend);
+    _state?._ime.syncFromState(show: false);
+  }
+
+  void copy() => _state?._clipboardCopy();
+
+  void cut() => _state?._clipboardCut();
+
+  void paste() => _state?._clipboardPaste();
+}
+
 class FluxdoEditor extends StatefulWidget {
   const FluxdoEditor({
     super.key,
@@ -218,6 +287,7 @@ class FluxdoEditor extends StatefulWidget {
     this.onIslandSelected,
     this.keyEventInterceptor,
     this.virtualPointer,
+    this.contentActions,
   });
 
   final EditorState state;
@@ -316,6 +386,9 @@ class FluxdoEditor extends StatefulWidget {
   /// 虚拟指针控制器(宿主手势光标驱动浮动光标链);null 不启用。
   final FluxdoEditorVirtualPointer? virtualPointer;
 
+  /// 内容操作句柄(剪贴板/全选/撤销重做),供宿主工具栏与手势层调用。
+  final FluxdoEditorContentActions? contentActions;
+
   /// 按键拦截器:编辑器处理按键**之前**先问它(返回 true = 已消费,
   /// 编辑器不再处理)。宿主的浮层(斜杠菜单/mention)激活时借此接管
   /// 上下键/回车/Esc —— 否则方向键被编辑器拿去移光标,菜单无法导航。
@@ -363,12 +436,24 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // macOS selector 快捷键(自管 IME 激活时 Cmd+A/C/V/X 走 selector)
     _ime.onSelector = _onImeSelector;
     widget.virtualPointer?._state = this;
+    widget.contentActions?._state = this;
     _islandFactory = widget.nodeFactory ?? NodeFactory();
     widget.state.addListener(_onStateChanged);
     _focusNode.addListener(_onFocusChanged);
     // 手柄拖动的反向回写(controller → state;仅 _handleDragging 期间)
     _controller.addListener(_onSelectionControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _afterFrame());
+  }
+
+  @override
+  void didUpdateWidget(covariant FluxdoEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contentActions != widget.contentActions) {
+      if (oldWidget.contentActions?._state == this) {
+        oldWidget.contentActions!._state = null;
+      }
+      widget.contentActions?._state = this;
+    }
   }
 
   @override
@@ -393,6 +478,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (widget.virtualPointer?._state == this) {
       widget.virtualPointer!._active = false;
       widget.virtualPointer!._state = null;
+    }
+    if (widget.contentActions?._state == this) {
+      widget.contentActions!._state = null;
     }
     _handles?.hide();
     _collapsedHandle?.hide();
@@ -756,10 +844,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 双手柄终态 range 时收口守卫 no-op(选择保持不展开)。
     final before = widget.state.docRevision;
     widget.state.commitDeferredIrReconcile();
-    _ime.syncFromState(
-      show: false,
-      force: widget.state.docRevision != before,
-    );
+    _ime.syncFromState(show: false, force: widget.state.docRevision != before);
     // 双手柄:按新选区重新定位显示动作条;collapsed 无区间几何,内部早退。
     _showContextBarForSelection();
   }
@@ -1324,8 +1409,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final renderOffset = proj == null
         ? pos.offset
         : atEditPos
-            ? proj.renderEndForContent(pos.offset)
-            : proj.renderOffsetForContent(pos.offset);
+        ? proj.renderEndForContent(pos.offset)
+        : proj.renderOffsetForContent(pos.offset);
     return DocumentPosition(
       blockId: id,
       renderOffset: renderOffset,
@@ -1504,6 +1589,32 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         return true;
     }
     return false;
+  }
+
+  // -----------------------------------------------------------------
+  // 三指手势
+  // -----------------------------------------------------------------
+
+  /// 三指手势派发。只在编辑器持有焦点时响应 —— 否则页面上只是
+  /// “碰到了编辑区”的三指滑动会改到文档(用户未在编辑时误操作)。
+  void _onThreeFingerGesture(ThreeFingerGesture gesture) {
+    if (!_focusNode.hasFocus) return;
+    switch (gesture) {
+      case ThreeFingerGesture.undo:
+        widget.state.sealHistory();
+        widget.state.undo();
+        _ime.syncFromState(show: false);
+      case ThreeFingerGesture.redo:
+        widget.state.redo();
+        _ime.syncFromState(show: false);
+      case ThreeFingerGesture.copy:
+        _clipboardCopy();
+      case ThreeFingerGesture.cut:
+        _clipboardCut();
+      case ThreeFingerGesture.paste:
+        _clipboardPaste();
+    }
+    HapticFeedback.selectionClick();
   }
 
   // -----------------------------------------------------------------
@@ -1890,7 +2001,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   }
 
   /// [global] 处按词边界选词。命中失败/空词返回 false。
-  bool _selectWordAtGlobal(Offset global) {    final docPos = _hitTester.positionAt(
+  bool _selectWordAtGlobal(Offset global) {
+    final docPos = _hitTester.positionAt(
       global,
       hitTestRoot: _rootKey.currentContext?.findRenderObject(),
     );
@@ -2282,12 +2394,14 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 手势进行中不显形(tap 按下未松/手柄/长按/浮动光标/鼠标拖选):
     // 按下即落光标(光标要立刻可见),但展开=松手结算 —— 中途显形
     // 会闪烁,定界符插入还让后续命中坐标漂移。
-    final gestureDragging = _tapPending ||
+    final gestureDragging =
+        _tapPending ||
         _handleDragging ||
         _longPressing ||
         _floatingCursor ||
         _dragBase != null;
-    final revealSelection = widget.state.mode == EditorMode.ir &&
+    final revealSelection =
+        widget.state.mode == EditorMode.ir &&
             !gestureDragging &&
             _focusNode.hasPrimaryFocus &&
             !state.hasComposing &&
@@ -2581,6 +2695,19 @@ class _FluxdoEditorState extends State<FluxdoEditor>
                     ..onLongPressStart = _onLongPressStart
                     ..onLongPressMoveUpdate = _onLongPressMoveUpdate
                     ..onLongPressEnd = _onLongPressEnd,
+                ),
+            // 三指文本编辑手势(撤销/重做/复制/剪切/粘贴)。
+            // 源码模式走原生 TextField 白拿这些,富文本自绘必须自己识别。
+            // 与上面三个单指/指针识别器不冲突(它只接 touch 且要求 3 指)。
+            ThreeFingerGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  ThreeFingerGestureRecognizer
+                >(
+                  () => ThreeFingerGestureRecognizer(
+                    debugOwner: this,
+                    onGesture: _onThreeFingerGesture,
+                  ),
+                  (r) => r.onGesture = _onThreeFingerGesture,
                 ),
           },
           child: SelectionScope(
