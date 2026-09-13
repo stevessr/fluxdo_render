@@ -885,21 +885,16 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     bool extend = false,
   }) {
     var sel = widget.state.selection;
-    // 可视区(键盘裁剪后;无滚动宿主退编辑器根矩形)
-    var vp = _visibleViewportRect();
-    if (vp == null) {
-      final rootBox = _rootKey.currentContext?.findRenderObject();
-      if (rootBox is RenderBox && rootBox.attached && rootBox.hasSize) {
-        vp = rootBox.localToGlobal(Offset.zero) & rootBox.size;
-      }
-    }
+    // 只在正文可见区域起步，不能把标题、阅读留白算进编辑范围。
+    final vp = _visibleContentRect();
+    if (vp == null || vp.isEmpty) return false;
 
     // 视口中心命中一个文档位并落光标(虚拟指针"随时可拖"的起步锚:
     // 无光标、或光标在屏外时,都从看得见的地方开始 —— 否则幽灵生成
     // 在视口外,Update 钳回边缘还会触发边缘自动滚狂滚)。
     bool anchorAtViewportCenter() {
       final v = vp;
-      if (v == null || v.isEmpty) return false;
+      if (v.isEmpty) return false;
       final docPos = _hitTester.positionAt(
         v.center,
         hitTestRoot: _rootKey.currentContext?.findRenderObject(),
@@ -924,7 +919,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         : _hitTester.editingCaretRectAt(docPos, lineHeight: _caretLineHeight);
     if (rect == null) return false;
     // 光标在视口外(如上次编辑位已滚走):改从视口中心起步
-    if (!extend && vp != null && !vp.isEmpty && !vp.contains(rect.center)) {
+    if (!extend && !vp.contains(rect.center)) {
       if (anchorAtViewportCenter()) {
         sel = widget.state.selection;
         docPos = sel == null
@@ -943,7 +938,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     _floatingCursor = true;
     _floatingExtendBase = extend ? sel.base : null;
     _floatingBase = rect.center;
-    _floatingPos = rect.center + initialOffset;
+    _floatingPos = _clampFloatingPosition(rect.center + initialOffset, vp);
     widget.state.sealHistory();
     _collapsedHandle?.hide();
     _contextBar?.hide();
@@ -956,24 +951,12 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   void _floatingUpdate(Offset accumulated) {
     final base = _floatingBase;
     if (!_floatingCursor || base == null) return;
-    var pos = base + accumulated;
-    // 钳到可视视口内(编辑区上缘/键盘上缘;半行余量让幽灵整条可见)。
-    // 无滚动宿主(demo/测试)退回编辑器根矩形。
-    var vp = _visibleViewportRect();
-    if (vp == null) {
-      final rootBox = _rootKey.currentContext?.findRenderObject();
-      if (rootBox is RenderBox && rootBox.attached && rootBox.hasSize) {
-        vp = rootBox.localToGlobal(Offset.zero) & rootBox.size;
-      }
+    final visible = _visibleContentRect();
+    if (visible == null || visible.isEmpty) {
+      _stopAutoScroll();
+      return;
     }
-    if (vp != null && !vp.isEmpty) {
-      final half = _caretLineHeight / 2;
-      // x 留幽灵条半宽(1.25),整条不出界
-      pos = Offset(
-        pos.dx.clamp(vp.left + 1.25, vp.right - 1.25),
-        pos.dy.clamp(vp.top + half, vp.bottom - half),
-      );
-    }
+    final pos = _clampFloatingPosition(base + accumulated, visible);
     _floatingPos = pos;
     _floatingGhost?.markNeedsBuild();
     // 实光标就近吸附(EditableText 的灰色残影等价物:吸附位即落点)
@@ -981,6 +964,18 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 贴视口上下缘 → 边缘自动滚(键盘态可视区小,长文档必需;
     // tick 每帧滚动后按幽灵位置重命中,吸附点随内容继续走)
     _updateAutoScroll(pos);
+  }
+
+  /// 预留幽灵本体半宽/半高；可见区域过小时收敛到中心，避免反向 clamp。
+  Offset _clampFloatingPosition(Offset pos, Rect bounds) {
+    final halfWidth = bounds.width < 2.5 ? bounds.width / 2 : 1.25;
+    final halfHeight = bounds.height < _caretLineHeight
+        ? bounds.height / 2
+        : _caretLineHeight / 2;
+    return Offset(
+      pos.dx.clamp(bounds.left + halfWidth, bounds.right - halfWidth),
+      pos.dy.clamp(bounds.top + halfHeight, bounds.bottom - halfHeight),
+    );
   }
 
   void _floatingEnd() {
@@ -1264,6 +1259,23 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     return Rect.fromLTRB(vpRect.left, vpRect.top, vpRect.right, bottom);
   }
 
+  /// 正文实际布局与可见视口的交集，排除宿主标题、外侧留白和键盘。
+  /// 无滚动宿主时仍裁掉屏幕外及键盘遮挡的部分。
+  Rect? _visibleContentRect() {
+    final root = _rootKey.currentContext?.findRenderObject();
+    if (root is! RenderBox || !root.attached || !root.hasSize) return null;
+    var bounds = root.localToGlobal(Offset.zero) & root.size;
+    final viewport = _visibleViewportRect();
+    if (viewport != null) bounds = bounds.intersect(viewport);
+    final mq = MediaQuery.maybeOf(context);
+    if (mq != null) {
+      bounds = bounds.intersect(
+        Rect.fromLTRB(0, 0, mq.size.width, mq.size.height - mq.viewInsets.bottom),
+      );
+    }
+    return bounds;
+  }
+
   // -----------------------------------------------------------------
   // 手柄拖动边缘自动滚
   // -----------------------------------------------------------------
@@ -1282,8 +1294,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   double _autoScrollStep = 0;
 
   void _updateAutoScroll(Offset dragGlobal) {
-    final visible = _visibleViewportRect();
-    if (_scrollPosition == null || visible == null) {
+    final visible = _floatingCursor
+        ? _visibleContentRect()
+        : _visibleViewportRect();
+    if (_scrollPosition == null || visible == null || visible.isEmpty) {
       _stopAutoScroll();
       return;
     }

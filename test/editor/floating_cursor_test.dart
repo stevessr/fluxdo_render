@@ -101,6 +101,93 @@ void main() {
     await sendFloating(tester, 'end');
   });
 
+  for (final useVirtualPointer in [false, true]) {
+    testWidgets('${useVirtualPointer ? '虚拟' : '平台浮动'}光标限制在正文区域，不进入标题和留白',
+        (tester) async {
+      final state = EditorState.fromTexts(['hello world foo bar baz']);
+      addTearDown(state.dispose);
+      final pointer = FluxdoEditorVirtualPointer();
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 100),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(80, 12, 60, 24),
+                  child: SizedBox(
+                    height: 240,
+                    child: FluxdoEditor(
+                      state: state,
+                      autofocus: true,
+                      virtualPointer: pointer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      final paragraph = tester.getRect(find.textContaining('hello').first);
+      await tester.tapAt(Offset(paragraph.left + 4, paragraph.center.dy));
+      await tester.pump();
+      await tester.pump();
+      final content = tester.getRect(find.byType(FluxdoEditor));
+
+      if (useVirtualPointer) {
+        expect(pointer.start(), isTrue);
+        await tester.pump();
+      } else {
+        await sendFloating(tester, 'start');
+      }
+      final startGhost = tester.getRect(find.byKey(kFloatingCursorGhostKey));
+      expect(startGhost.left, greaterThanOrEqualTo(content.left));
+      expect(startGhost.top, greaterThanOrEqualTo(content.top));
+
+      if (useVirtualPointer) {
+        pointer.moveBy(const Offset(9999, 9999));
+        await tester.pump();
+      } else {
+        await sendFloating(tester, 'update', offset: const Offset(9999, 9999));
+      }
+      final bottomRight = tester.getRect(find.byKey(kFloatingCursorGhostKey));
+      expect(bottomRight.right, closeTo(content.right, 0.01));
+      expect(bottomRight.bottom, closeTo(content.bottom, 0.01));
+
+      if (useVirtualPointer) {
+        pointer.moveBy(const Offset(-19998, -19998));
+        await tester.pump();
+      } else {
+        await sendFloating(tester, 'update', offset: const Offset(-9999, -9999));
+      }
+      final topLeft = tester.getRect(find.byKey(kFloatingCursorGhostKey));
+      expect(topLeft.left, closeTo(content.left, 0.01));
+      expect(topLeft.top, closeTo(content.top, 0.01));
+      if (useVirtualPointer) {
+        pointer.end();
+        await tester.pump();
+      } else {
+        await sendFloating(tester, 'end');
+      }
+    });
+  }
+
+  testWidgets('行首起步时幽灵本体也不能伸出正文左边缘', (tester) async {
+    final state = await pumpEditor(tester);
+    state.updateSelection(EditorSelection.collapsed(
+      EditorPosition(blockId: state.selection!.extent.blockId, offset: 0),
+    ));
+    await tester.pump();
+    final content = tester.getRect(find.byType(FluxdoEditor));
+    await sendFloating(tester, 'start');
+    final ghost = tester.getRect(find.byKey(kFloatingCursorGhostKey));
+    expect(ghost.left, closeTo(content.left, 0.01));
+    expect(ghost.top, greaterThanOrEqualTo(content.top));
+    await sendFloating(tester, 'end');
+  });
+
   testWidgets('范围选区时 Start 忽略(不出幽灵不炸)', (tester) async {
     final state = await pumpEditor(tester);
     state.selectAll();
@@ -121,9 +208,15 @@ void main() {
     addTearDown(scroll.dispose);
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: SingleChildScrollView(
-          controller: scroll,
-          child: FluxdoEditor(state: state, autofocus: true),
+        body: Padding(
+          padding: const EdgeInsets.fromLTRB(40, 80, 40, 100),
+          child: SingleChildScrollView(
+            controller: scroll,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: FluxdoEditor(state: state, autofocus: true),
+            ),
+          ),
         ),
       ),
     ));
@@ -136,6 +229,10 @@ void main() {
     await sendFloating(tester, 'start');
     // 大幅向下:钳到视口底缘(56px 边缘带内)→ ticker 每帧滚
     await sendFloating(tester, 'update', offset: const Offset(0, 5000));
+    final ghost = tester.getRect(find.byKey(kFloatingCursorGhostKey));
+    final viewport = tester.getRect(find.byType(SingleChildScrollView));
+    expect(ghost.bottom, closeTo(viewport.bottom, 0.01),
+        reason: '长文按正文与视口交集限位，不落到屏幕底部');
     final atEdge = scroll.offset;
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 16));
