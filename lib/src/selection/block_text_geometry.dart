@@ -2,10 +2,12 @@
 ///
 /// 抽象目的:解开选区体系对 [RenderParagraph] 的硬依赖,让"缓存
 /// ui.Paragraph 直绘"的自定义 RenderObject(笔3 直绘路径)也能承载选区。
-/// 两个实现:
+/// 实现:
 /// - [ParagraphGeometry]:包 RenderParagraph(RichText 路径,现状全量);
 /// - 直绘路径的 RenderObject 自实现本接口(持缓存 ui.Paragraph,几何原语
 ///   ui.Paragraph 全有:getPositionForOffset/getBoxesForRange/getWordBoundary)。
+///
+/// 非文本块由 SelectableObjectBlock 提供 before/after 两个边界。
 ///
 /// 与句柄同约定:**不缓存实例**,每次经 handle 实时取(虚拟化安全)。
 library;
@@ -18,6 +20,12 @@ abstract mixin class BlockTextGeometry {
   /// 宿主 RenderBox:坐标变换(localToGlobal/globalToLocal/size/attached)
   /// 与框架 hit-test 匹配都经它。
   RenderBox get renderBox;
+
+  /// Text in rendered-offset coordinates, including placeholder characters.
+  String get plainText;
+
+  /// A non-text block with only before/after positions.
+  bool get isAtomic => false;
 
   /// 局部坐标 → 文本位置。
   TextPosition getPositionForOffset(Offset local);
@@ -55,6 +63,10 @@ class ParagraphGeometry with BlockTextGeometry {
   RenderBox get renderBox => paragraph;
 
   @override
+  String get plainText =>
+      paragraph.text.toPlainText(includeSemanticsLabels: false);
+
+  @override
   TextPosition getPositionForOffset(Offset local) =>
       paragraph.getPositionForOffset(local);
 
@@ -67,8 +79,7 @@ class ParagraphGeometry with BlockTextGeometry {
     TextSelection selection, {
     ui.BoxHeightStyle boxHeightStyle = ui.BoxHeightStyle.tight,
   }) =>
-      paragraph.getBoxesForSelection(selection,
-          boxHeightStyle: boxHeightStyle);
+      paragraph.getBoxesForSelection(selection, boxHeightStyle: boxHeightStyle);
 
   @override
   Rect caretRectAt(int offset) {

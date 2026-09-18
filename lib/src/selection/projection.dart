@@ -42,6 +42,7 @@ enum ProjectionKind {
   /// mentionText 两侧的 NBSP 粘性内边距,语义同 [codePad]。
   mentionPad,
   image,
+  blockObject,
 
   /// hashtag 药丸(`#分类`/`#标签`):渲染层是一个 WidgetSpan,
   /// 投影文本取 `#ref`(与 cooked 锚文本一致,引用/复制能匹配上)。
@@ -80,6 +81,7 @@ class ProjectionEntry {
     required this.renderLen,
     required this.logicalText,
     required this.kind,
+    this.copyText,
   });
 
   final int renderStart;
@@ -87,11 +89,16 @@ class ProjectionEntry {
   final String logicalText;
   final ProjectionKind kind;
 
+  /// Clipboard fallback for objects without textual alt; quote matching keeps
+  /// using logicalText, which follows the original cooked text.
+  final String? copyText;
+
   /// 渲染偏移区间末端(不含)。
   int get renderEnd => renderStart + renderLen;
 
   /// 占位类(￼,原子,不可按字符切)。
-  bool get isAtomic => kind != ProjectionKind.text &&
+  bool get isAtomic =>
+      kind != ProjectionKind.text &&
       kind != ProjectionKind.inlineCode &&
       kind != ProjectionKind.mentionText &&
       kind != ProjectionKind.lineBreak;
@@ -105,8 +112,8 @@ class ProjectionEntry {
 @immutable
 class RenderTextProjection {
   RenderTextProjection(List<ProjectionEntry> entries)
-      : entries = List.unmodifiable(entries),
-        renderLength = entries.isEmpty ? 0 : entries.last.renderEnd;
+    : entries = List.unmodifiable(entries),
+      renderLength = entries.isEmpty ? 0 : entries.last.renderEnd;
 
   /// 按 renderStart 升序、连续覆盖整段(无空洞、无重叠)。
   final List<ProjectionEntry> entries;
@@ -132,7 +139,7 @@ class RenderTextProjection {
   /// - 占位类(￼ 原子):只要区间与该条目有任何交集,就整条写入 [logicalText]。
   ///
   /// 入参越界自动 clamp;start >= end 返回空串。
-  String project(int renderStart, int renderEnd) {
+  String project(int renderStart, int renderEnd, {bool forCopy = false}) {
     var start = renderStart;
     var end = renderEnd;
     if (start > end) {
@@ -151,7 +158,7 @@ class RenderTextProjection {
 
       if (e.isAtomic) {
         // ￼ 原子:相交即整条。
-        buf.write(e.logicalText);
+        buf.write(forCopy ? e.copyText ?? e.logicalText : e.logicalText);
         continue;
       }
 
@@ -196,31 +203,31 @@ class RenderTextProjection {
 
   /// 单个 entry 的内容空间宽度。
   static int _contentLenOfEntry(ProjectionEntry e) => switch (e.kind) {
-        // localDate/image 同 emoji/mention:编辑模型是一个 FFFC 哨兵原子
-        // (M5/行内图);投影文本(预渲染串/alt)只用于复制/引用,
-        // 不参与编辑坐标。
-        // hashtag 药丸:编辑模型里是一个 FFFC 原子(投影文本 `#ref`
-        // 只给复制/引用用)。漏了这条光标会被算进药丸内部。
-        ProjectionKind.hashtag ||
-        ProjectionKind.emoji ||
-        ProjectionKind.mention ||
-        ProjectionKind.localDate ||
-        ProjectionKind.image =>
-          1,
-        // **mentionText 同样宽 1**:无状态 emoji 的 mention 走纯 TextSpan
-        // 路径(药丸底色由 painter 自绘),渲染占 '@username' 那么多字符,
-        // 但编辑模型里仍旧只是一个 FFFC 原子。漏了这条就会按字符计长 ——
-        // 光标被算进药丸内部(真机症状:@arch_linux 的光标停在 "ar|ch"),
-        // 且原子之后的所有偏移全部错位。
-        ProjectionKind.mentionText => 1,
-        // 药丸内边距:同 codePad,不属于内容,光标不停。
-        ProjectionKind.mentionPad => 0,
-        // sup/sub 原子:渲染 1 个 ￼,内容空间是子文本全长(编辑模型里
-        // sup/sub 是普通 mark,逐字可编辑)。ZWSP 软换行点剔除。
-        ProjectionKind.styledAtom => _contentLenOf(e.logicalText),
-        _ when e.isAtomic => e.logicalText.length,
-        _ => _contentLenOf(e.logicalText),
-      };
+    // localDate/image 同 emoji/mention:编辑模型是一个 FFFC 哨兵原子
+    // (M5/行内图);投影文本(预渲染串/alt)只用于复制/引用,
+    // 不参与编辑坐标。
+    // hashtag 药丸:编辑模型里是一个 FFFC 原子(投影文本 `#ref`
+    // 只给复制/引用用)。漏了这条光标会被算进药丸内部。
+    ProjectionKind.hashtag ||
+    ProjectionKind.emoji ||
+    ProjectionKind.mention ||
+    ProjectionKind.localDate ||
+    ProjectionKind.image ||
+    ProjectionKind.blockObject => 1,
+    // **mentionText 同样宽 1**:无状态 emoji 的 mention 走纯 TextSpan
+    // 路径(药丸底色由 painter 自绘),渲染占 '@username' 那么多字符,
+    // 但编辑模型里仍旧只是一个 FFFC 原子。漏了这条就会按字符计长 ——
+    // 光标被算进药丸内部(真机症状:@arch_linux 的光标停在 "ar|ch"),
+    // 且原子之后的所有偏移全部错位。
+    ProjectionKind.mentionText => 1,
+    // 药丸内边距:同 codePad,不属于内容,光标不停。
+    ProjectionKind.mentionPad => 0,
+    // sup/sub 原子:渲染 1 个 ￼,内容空间是子文本全长(编辑模型里
+    // sup/sub 是普通 mark,逐字可编辑)。ZWSP 软换行点剔除。
+    ProjectionKind.styledAtom => _contentLenOf(e.logicalText),
+    _ when e.isAtomic => e.logicalText.length,
+    _ => _contentLenOf(e.logicalText),
+  };
 
   /// 内容空间的原子性:内容↔渲染换算时**不可按渲染字符切**的 entry。
   ///
@@ -233,8 +240,7 @@ class RenderTextProjection {
       e.isAtomic || e.kind == ProjectionKind.mentionText;
 
   /// 内容空间总长度。
-  int get contentLength =>
-      entries.fold(0, (n, e) => n + _contentLenOfEntry(e));
+  int get contentLength => entries.fold(0, (n, e) => n + _contentLenOfEntry(e));
 
   /// 内容偏移 → 渲染偏移。
   ///

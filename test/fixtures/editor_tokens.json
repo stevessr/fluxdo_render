@@ -1,0 +1,2435 @@
+{
+  "basic": {
+    "raw": "# mock标题\n\n**粗体** 与 [链接](https://mock.example.com/a) https://mock.example.com/b\n\n3. 项目\n4. 下一项",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "heading_open",
+        "tag": "h1",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "#",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock标题",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock标题",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "heading_close",
+        "tag": "h1",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "#",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "**粗体** 与 [链接](https://mock.example.com/a) https://mock.example.com/b",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "strong_open",
+            "tag": "strong",
+            "nesting": 1,
+            "attrs": null,
+            "content": "",
+            "markup": "**",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "粗体",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "strong_close",
+            "tag": "strong",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "**",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 与 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "https://mock.example.com/a"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "链接",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "https://mock.example.com/b"
+              ]
+            ],
+            "content": "",
+            "markup": "linkify",
+            "info": "auto",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "https://mock.example.com/b",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "linkify",
+            "info": "auto",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_open",
+        "tag": "ol",
+        "nesting": 1,
+        "attrs": [
+          [
+            "start",
+            3
+          ]
+        ],
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          6
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "3",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "项目",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "项目",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "4",
+        "children": null,
+        "meta": null,
+        "map": [
+          5,
+          6
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          5,
+          6
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "下一项",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "下一项",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          5,
+          6
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_close",
+        "tag": "ol",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "image": {
+    "raw": "![mock图片|640x480,50%](upload://mockPicture.png)",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "![mock图片|640x480,50%](upload://mockPicture.png)",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "image",
+            "tag": "img",
+            "nesting": 0,
+            "attrs": [
+              [
+                "src",
+                "/images/transparent.png"
+              ],
+              [
+                "alt",
+                ""
+              ],
+              [
+                "data-orig-src",
+                "upload://mockPicture.png"
+              ],
+              [
+                "index-image",
+                0
+              ],
+              [
+                "scale",
+                "50"
+              ]
+            ],
+            "content": "mock图片|640x480,50%",
+            "markup": "",
+            "info": "",
+            "children": [
+              {
+                "type": "text",
+                "tag": "",
+                "nesting": 0,
+                "attrs": null,
+                "content": "mock图片|640x480,50%",
+                "markup": "",
+                "info": "",
+                "children": null,
+                "meta": null,
+                "map": null,
+                "block": false,
+                "hidden": false
+              }
+            ],
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "details": {
+    "raw": "[details=\"mock摘要\"]\n正文\n[/details]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bbcode_open",
+        "tag": "details",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 3,
+            "tokenCount": 8,
+            "root": true
+          }
+        },
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_open",
+        "tag": "summary",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock摘要",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "summary",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "正文",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "正文",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "details",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "grid": {
+    "raw": "[grid]\n![甲](upload://mockA.png)\n![乙](upload://mockB.png)\n[/grid]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bbcode_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "d-image-grid"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 4,
+            "tokenCount": 5,
+            "root": true
+          }
+        },
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "![甲](upload://mockA.png)\n![乙](upload://mockB.png)",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "image",
+            "tag": "img",
+            "nesting": 0,
+            "attrs": [
+              [
+                "src",
+                "/images/transparent.png"
+              ],
+              [
+                "alt",
+                ""
+              ],
+              [
+                "data-orig-src",
+                "upload://mockA.png"
+              ]
+            ],
+            "content": "甲",
+            "markup": "",
+            "info": "",
+            "children": [
+              {
+                "type": "text",
+                "tag": "",
+                "nesting": 0,
+                "attrs": null,
+                "content": "甲",
+                "markup": "",
+                "info": "",
+                "children": null,
+                "meta": null,
+                "map": null,
+                "block": false,
+                "hidden": false
+              }
+            ],
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "softbreak",
+            "tag": "br",
+            "nesting": 0,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "image",
+            "tag": "img",
+            "nesting": 0,
+            "attrs": [
+              [
+                "src",
+                "/images/transparent.png"
+              ],
+              [
+                "alt",
+                ""
+              ],
+              [
+                "data-orig-src",
+                "upload://mockB.png"
+              ]
+            ],
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": [
+              {
+                "type": "text",
+                "tag": "",
+                "nesting": 0,
+                "attrs": null,
+                "content": "乙",
+                "markup": "",
+                "info": "",
+                "children": null,
+                "meta": null,
+                "map": null,
+                "block": false,
+                "hidden": false
+              }
+            ],
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "quote": {
+    "raw": "[quote=\"mock_user, post:2, topic:42\"]\nmock引用\n[/quote]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bbcode_open",
+        "tag": "aside",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "quote no-group"
+          ],
+          [
+            "data-username",
+            "mock_user"
+          ],
+          [
+            "data-post",
+            2
+          ],
+          [
+            "data-topic",
+            42
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 3,
+            "tokenCount": 12,
+            "root": true
+          }
+        },
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_header_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "title"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_controls_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "quote-controls"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_controls_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": " mock_user:",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_header_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_open",
+        "tag": "blockquote",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock引用",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock引用",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "blockquote",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "aside",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "spoiler": {
+    "raw": "[spoiler]mock隐藏[/spoiler]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "wrap_bbcode",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "spoiler"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 1,
+            "tokenCount": 5,
+            "root": true
+          }
+        },
+        "map": [
+          0,
+          0
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          0
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock隐藏",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock隐藏",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          0
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "wrap_bbcode",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "poll": {
+    "raw": "[poll type=regular results=always chartType=bar]\n* mock甲\n* mock乙\n[/poll]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "poll_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll"
+          ],
+          [
+            "data-poll-chartType",
+            "bar"
+          ],
+          [
+            "data-poll-name",
+            "poll"
+          ],
+          [
+            "data-poll-results",
+            "always"
+          ],
+          [
+            "data-poll-status",
+            "open"
+          ],
+          [
+            "data-poll-type",
+            "regular"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 4,
+            "tokenCount": 28,
+            "root": true
+          }
+        },
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_container_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-container"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_open",
+        "tag": "ul",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": [
+          [
+            "data-poll-option-id",
+            "b8913372031ca24baec56150418a525b"
+          ]
+        ],
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock甲",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock甲",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": [
+          [
+            "data-poll-option-id",
+            "df55fb9432543cc3193709f5a0acede3"
+          ]
+        ],
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock乙",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_close",
+        "tag": "ul",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_container_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info_counts"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_count_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info_counts-count"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_number_open",
+        "tag": "span",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "info-number"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "0",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_number_close",
+        "tag": "span",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_label_open",
+        "tag": "span",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "info-label"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "poll.voters",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_label_close",
+        "tag": "span",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_count_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "date": {
+    "raw": "[date=2027-03-12 time=09:30:00 timezone=\"Asia/Shanghai\"]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[date=2027-03-12 time=09:30:00 timezone=\"Asia/Shanghai\"]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "span_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "discourse-local-date"
+              ],
+              [
+                "data-date",
+                "2027-03-12"
+              ],
+              [
+                "data-email-preview",
+                "2027-03-12T01:30:00+00:00"
+              ],
+              [
+                "data-time",
+                "09:30:00"
+              ],
+              [
+                "data-timezone",
+                "Asia/Shanghai"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "2027-03-12T01:30:00Z",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "emoji": {
+    "raw": ":smile: 😀",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": ":smile: 😀",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "emoji",
+            "tag": "img",
+            "nesting": 0,
+            "attrs": [
+              [
+                "src",
+                "/images/emoji/twitter/smile.png?v=15"
+              ],
+              [
+                "title",
+                ":smile:"
+              ],
+              [
+                "class",
+                "emoji only-emoji"
+              ],
+              [
+                "alt",
+                ":smile:"
+              ],
+              [
+                "loading",
+                "lazy"
+              ],
+              [
+                "width",
+                "20"
+              ],
+              [
+                "height",
+                "20"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "emoji",
+            "tag": "img",
+            "nesting": 0,
+            "attrs": [
+              [
+                "src",
+                "/images/emoji/twitter/grinning_face.png?v=15"
+              ],
+              [
+                "title",
+                ":grinning_face:"
+              ],
+              [
+                "class",
+                "emoji only-emoji"
+              ],
+              [
+                "alt",
+                ":grinning_face:"
+              ],
+              [
+                "loading",
+                "lazy"
+              ],
+              [
+                "width",
+                "20"
+              ],
+              [
+                "height",
+                "20"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "mention": {
+    "raw": "@mock_user",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "@mock_user",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "mention_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "mention"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "@mock_user",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "mention_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "html": {
+    "raw": "<section data-mock=\"x\">\n正文\n</section>\n\n前 <kbd>后</kbd>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "html_block",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "<section data-mock=\"x\">\n正文\n</section>\n",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 <kbd>后</kbd>",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "raw": {
+    "raw": "[unknown]mock[/unknown]",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[unknown]mock[/unknown]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "[unknown]mock[/unknown]",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "fence": {
+    "raw": "```html\n<div> mock </div>  \n\n```",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "fence",
+        "tag": "code",
+        "nesting": 0,
+        "attrs": null,
+        "content": "<div> mock </div>  \n\n",
+        "markup": "```",
+        "info": "html",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      }
+    ]
+  }
+}

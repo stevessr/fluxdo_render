@@ -11,18 +11,27 @@
 library;
 
 import 'dart:ui' as ui show BoxHeightStyle;
+import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart'
     show
         LongPressGestureRecognizer,
-        PanGestureRecognizer,
+        TapDragDownDetails,
+        TapDragUpDetails,
+        TapDragStartDetails,
+        TapDragUpdateDetails,
+        TapDragEndDetails,
+        DragStartBehavior,
         PointerDeviceKind,
+        PointerDownEvent,
         TapGestureRecognizer,
-        kDoubleTapTimeout,
-        kDoubleTapSlop;
+        kDoubleTapTimeout;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderMetaData;
+import '../../render/selectable_object_block.dart';
+import 'package:flutter/rendering.dart'
+    show BoxHitTestResult, RenderMetaData, RenderParagraph, ScrollDirection;
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 
@@ -33,13 +42,18 @@ import '../../node/node.dart'
         ImageRun,
         InlineNode,
         LocalDateRun,
+        LinkRun,
         TableNode;
 import '../../render/block_text_styles.dart';
 import '../../render/node_factory.dart';
 import '../../selection/hit_tester.dart';
+import '../../selection/block_text_geometry.dart';
+import '../../selection/text_selection_rules.dart';
 import '../../selection/selection_exporter.dart';
 import '../../selection/selection_geometry.dart';
 import '../../selection/selection_handles.dart';
+import '../../selection/selection_highlight_painter.dart'
+    show mergeSelectionBoxesByLine;
 import '../../selection/selection_magnifier.dart';
 import '../../selection/selection_registry.dart';
 import '../../selection/selection_scope.dart';
@@ -48,8 +62,12 @@ import '../input/editor_key_handler.dart';
 import '../input/three_finger_gestures.dart';
 import '../model/editor_image_commands.dart';
 import '../model/editor_state.dart';
+import '../model/editable_text_content.dart';
+import '../model/editor_object.dart';
+import 'editor_object_frame.dart';
 import 'editable_paragraph.dart';
 import 'editor_caret.dart';
+import 'editor_caret_reveal.dart';
 import 'editor_code_block.dart';
 import 'editor_collapsed_handle.dart';
 import 'editor_container_shell.dart';
@@ -119,7 +137,7 @@ class IslandSelection {
   int get hashCode => Object.hash(island, globalRect);
 }
 
-/// collapsed 光标落在链接内的上下文(宿主链接工具条锚定/编辑用)。
+/// collapsed 光标落在 mark 链接内或整选链接原子的上下文(宿主链接工具条锚定/编辑用)。
 ///
 /// [rangeGlobal] = 链接文本区间的全局包围矩形(帧后计算,跟随滚动
 /// 刷新);[start]/[end] = 块内编辑偏移(原位替换用)。
@@ -260,6 +278,52 @@ class FluxdoEditorContentActions {
   void cut() => _state?._clipboardCut();
 
   void paste() => _state?._clipboardPaste();
+
+  void selectObject(EditorObjectTarget target, {bool showMenu = false}) {
+    _state?._selectObject(target);
+    if (showMenu) _state?._requestObjectMenu();
+  }
+
+  /// 宿主滚动层暂时屏蔽正文时，仍可按全局鼠标位置打开对象菜单。
+  void showObjectMenuAt(Offset position) => _state?._onSecondaryTapUp(
+    TapUpDetails(globalPosition: position, kind: PointerDeviceKind.mouse),
+  );
+
+  /// Visible painted content in global coordinates, measured only on demand.
+  /// Line and image bounds leave usable blank space beside short content.
+  List<Rect> visibleContentRects() =>
+      _state?._visiblePaintedRects() ?? const [];
+
+  Rect? visibleViewportRect() => _state?._visibleViewportRect();
+
+  EditorObjectSelection? get objectSelection =>
+      _state?._computeObjectSelection();
+
+  void continueAfterDocument() => _state?._continueAfterDocument();
+
+  /// The outer block, including the paragraph/grid that contains an image.
+  Rect? objectBounds(EditorObjectTarget target) {
+    final state = _state;
+    if (state == null) return null;
+    final object = resolveEditorObject(state.widget.state, target);
+    if (object == null) return null;
+    final key = target is EditorContainerTarget
+        ? state._containerKeys[(target.groupId, object.blocks.first.id)]
+        : state._blockKeys[target.blockId];
+    return state._objectRect(key);
+  }
+
+  /// Block/container hit testing for desktop hover affordances. Read-only:
+  /// never modifies the text selection, focus, or document revision.
+  EditorObjectSelection? blockAt(Offset position, {double leadingSlop = 0}) =>
+      _state?._blockAt(position, leadingSlop: leadingSlop);
+
+  void clearObjectSelection() {
+    _state?._explicitObjectTarget = null;
+    _state?._setGridImageSelection(null);
+    _editorState?.updateSelection(null);
+    _state?._ime.syncFromState(show: false);
+  }
 }
 
 class FluxdoEditor extends StatefulWidget {
@@ -272,6 +336,8 @@ class FluxdoEditor extends StatefulWidget {
     this.nodeFactory,
     this.markdownImporter,
     this.richPasteImporter,
+    this.semanticMarkdownInserter,
+    this.semanticRichPasteInserter,
     this.onCalloutTypeTrigger,
     this.onIslandEditRequest,
     this.onContainerTitleEdit,
@@ -282,15 +348,51 @@ class FluxdoEditor extends StatefulWidget {
     this.onImageAtomOpenRequest,
     this.onGridImageSelectionChanged,
     this.onGridImageOpenRequest,
+    this.onAddGridImages,
+    this.addingImageGrids = const {},
+    this.gridPendingUploadsBuilder,
+    this.transientBlockBuilder,
+    this.gridControlSurfaceBuilder,
     this.onCaretRectChanged,
+    this.onEditingActivity,
+    this.caretViewportInsets = EdgeInsets.zero,
     this.onLinkCaret,
     this.onIslandSelected,
     this.keyEventInterceptor,
     this.virtualPointer,
     this.contentActions,
+    this.objectToolbarManaged = false,
+    this.emptyParagraphHint,
+    this.emptyParagraphHintKey,
+    this.showTrailingParagraph = false,
+    this.onObjectContextMenuRequest,
+    this.onObjectSelectionChanged,
+    this.onObjectMenuRequested,
   });
 
   final EditorState state;
+  final Widget? Function(BuildContext, EditorBlock)? transientBlockBuilder;
+  final ValueChanged<String>? onAddGridImages;
+  final Set<String> addingImageGrids;
+  final List<Widget> Function(BuildContext, String)? gridPendingUploadsBuilder;
+  final Widget Function(BuildContext, Widget)? gridControlSurfaceBuilder;
+
+  /// Host overlays measured inward from the scroll viewport (including any
+  /// keyboard space they occupy). Combined with the platform keyboard bounds,
+  /// so one coordinator handles caret visibility without double subtraction.
+  final EdgeInsets caretViewportInsets;
+
+  /// Confirmed text interaction or platform text input, including undocked IME.
+  final VoidCallback? onEditingActivity;
+
+  /// 宿主提供统一对象工具栏时，隐藏块内重复的操作浮层。
+  final bool objectToolbarManaged;
+  final String? emptyParagraphHint;
+  final Key? emptyParagraphHintKey;
+  final bool showTrailingParagraph;
+  final VoidCallback? onObjectContextMenuRequest;
+  final ValueChanged<EditorObjectSelection?>? onObjectSelectionChanged;
+  final ValueChanged<EditorObjectMenuRequest>? onObjectMenuRequested;
 
   final TextStyle? baseTextStyle;
 
@@ -316,6 +418,20 @@ class FluxdoEditor extends StatefulWidget {
   /// 空 = 剪贴板无富内容或转换失败,回落 [markdownImporter] 纯文本路径;
   /// 抛异常同回落。null = 不启用富粘贴。
   final Future<List<EditorBlock>?> Function()? richPasteImporter;
+
+  /// 语义宿主直接导入并插入片段；true 表示已消费，不再调用旧块导入器。
+  /// selection 在异步操作前捕获；宿主须在自己的 await 前建立书签，
+  /// 并在目标失效时取消插入。false 或异常仅在文档版本与选区均未变化时
+  /// 回落旧导入器/原始纯文本；读取纯文本期间目标变化则不调用此入口。
+  final Future<bool> Function(String markdown, EditorSelection? selection)?
+  semanticMarkdownInserter;
+
+  /// 富粘贴原数据入口：宿主自行读取系统 HTML 等原格式并插入语义片段。
+  /// 在读取剪贴板前调用，便于宿主立即建立书签；true 阻断所有后续粘贴，
+  /// false 或异常仅在文档版本与选区均未变化时继续旧富格式及
+  /// Markdown/纯文本路径。语义宿主可将旧导入器设为 null。
+  final Future<bool> Function(EditorSelection? selection)?
+  semanticRichPasteInserter;
 
   /// input rule `[!type] ` 命中(callout 手打)时的完整内容征集回调:
   /// 宿主弹标题/折叠态对话框(同"+"菜单插入共用一个对话框),返回完整
@@ -411,6 +527,21 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   /// 岛容器 key(整选矩形上抛用;按块 id 稳定)。
   final Map<String, GlobalKey> _islandKeys = {};
+  final Map<String, GlobalKey> _blockKeys = {};
+  final Map<(String, String), GlobalKey> _containerKeys = {};
+  final Map<String, GlobalKey<EditorImageGridState>> _gridKeys = {};
+  EditorObjectTarget? _explicitObjectTarget;
+  EditorObjectSelection? _lastObjectSelection;
+  bool _objectGeometryScheduled = false;
+
+  void _scheduleObjectGeometry() {
+    if (_lastObjectSelection == null || _objectGeometryScheduled) return;
+    _objectGeometryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _objectGeometryScheduled = false;
+      if (mounted) _afterFrame();
+    });
+  }
 
   /// 编辑器局部坐标系的光标矩形 + 配对修订号(帧后由 hit_tester 计算)。
   ///
@@ -448,6 +579,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   @override
   void didUpdateWidget(covariant FluxdoEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.caretViewportInsets != widget.caretViewportInsets) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _afterFrame();
+      });
+    }
     if (oldWidget.contentActions != widget.contentActions) {
       if (oldWidget.contentActions?._state == this) {
         oldWidget.contentActions!._state = null;
@@ -461,16 +597,12 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     super.didChangeDependencies();
     _ime.updateViewId(View.of(context).viewId);
     _bindScrollPosition();
-    // 键盘 inset 变化(弹出/收起动画每帧):清 ensure key + 帧后重算,
-    // 光标跟着键盘上沿浮起(MediaQuery 依赖由这次读取建立)。
-    final inset = MediaQuery.maybeOf(context)?.viewInsets.bottom ?? 0;
-    if (inset != _lastViewInsetBottom) {
-      _lastViewInsetBottom = inset;
-      _lastEnsuredKey = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _afterFrame();
-      });
-    }
+    // Keyboard/window changes only reveal a caret we were already following.
+    // Recompute geometry after layout; the tracker preserves reading elsewhere.
+    MediaQuery.maybeOf(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _afterFrame();
+    });
   }
 
   @override
@@ -518,12 +650,42 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   void _onStateChanged() {
     if (!mounted) return;
+    final explicit = _explicitObjectTarget;
+    if (explicit != null) {
+      final object = resolveEditorObject(widget.state, explicit);
+      if (object == null || object.selection != widget.state.selection) {
+        _explicitObjectTarget = null;
+      }
+    }
+    final gridSelection = _gridImageSel;
+    final selectedImage = _lastGridImageSel?.image;
+    if (gridSelection != null && selectedImage != null) {
+      final index = widget.state.indexOfBlock(gridSelection.$1);
+      final block = index < 0 ? null : widget.state.blocks[index];
+      if (block is IslandBlock && block.node is ImageGridNode) {
+        final images = (block.node as ImageGridNode).images;
+        final moved = images.indexWhere(
+          (image) => identical(image, selectedImage),
+        );
+        if (moved >= 0) {
+          _gridImageSel = (gridSelection.$1, moved);
+        } else if (gridSelection.$2 >= images.length ||
+            images[gridSelection.$2].src != selectedImage.src) {
+          _setGridImageSelection(null);
+        }
+      }
+    }
     if (kDebugMode) _editFrameWatch = Stopwatch()..start();
     // 打字/退格(IME 平台增量应用中)→ 收触摸选区 UI(系统同款:输入
     // 即隐手柄;实际显隐由帧后 _syncHandlesAndContextBar 收敛)。
     if (_ime.isApplyingPlatformUpdate) {
-      _touchSelection = false;
-      _wantCollapsedBar = false;
+      widget.onEditingActivity?.call();
+      // A replacement can remove selected paragraphs in this frame. Retire
+      // handles before their RenderParagraphs disappear, rather than waiting
+      // for the post-frame selection mirror.
+      _dismissTouchSelection();
+      _magnifier?.hide();
+      _controller.selection = null;
     }
     // 外部变更(undo/redo 按钮、程序化改文档)→ IME 的 diff 基准已过期,
     // 必须重喂;IME 自身回调引发的通知、以及拖选/长按扩选/手柄拖动进行
@@ -544,13 +706,17 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   /// 上一次观察到的 primary 焦点态(区分三态迁移用)。
   bool _hadPrimaryFocus = false;
+  bool _hasHadPrimaryFocus = false;
 
   void _onFocusChanged() {
     final primary = _focusNode.hasPrimaryFocus;
     if (primary) {
-      // 聚焦编辑器正文(Tab / 点击 / 从 cell 输入框回来):恢复光标可编辑。
-      // 无选区时落到文档末尾(常规编辑器语义)。
-      if (widget.state.selection == null) {
+      // 仅首次聚焦初始化光标。选中网格图片/关闭对象菜单会主动清空
+      // 文字选区，路由恢复焦点不能把这种空选区重新解释为「跳到文末」。
+      if (!_hasHadPrimaryFocus &&
+          widget.state.selection == null &&
+          _gridImageSel == null &&
+          _explicitObjectTarget == null) {
         final last = widget.state.blocks.last;
         widget.state.updateSelection(
           EditorSelection.collapsed(
@@ -558,6 +724,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
           ),
         );
       }
+      _hasHadPrimaryFocus = true;
       _ime.syncFromState();
     } else if (_hadPrimaryFocus) {
       // 焦点离开编辑器正文(→ 子输入框如表格 cell,或 → 编辑器外):
@@ -587,7 +754,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
     // 失焦时高亮层也清掉(选区数据保留在 EditorState,聚焦回来即恢复);
     // 焦点在 cell 输入框时同理(hasPrimaryFocus)。
-    _controller.selection = _focusNode.hasPrimaryFocus
+    final imageSelection = _computeImageAtomSelection();
+    _controller.outlineSelection = imageSelection != null;
+    _controller.selection =
+        (_focusNode.hasPrimaryFocus || imageSelection != null) &&
+            _explicitObjectTarget == null
         ? _toDocumentSelection(widget.state.selection)
         : null;
 
@@ -615,7 +786,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
 
     // 图片原子选中态上抛(变化才通知;rect 变化也算 —— 浮层跟随)
-    final imgSel = _computeImageAtomSelection();
+    final imgSel = imageSelection;
     if (imgSel != _lastImageAtomSel) {
       _lastImageAtomSel = imgSel;
       widget.onImageAtomSelectionChanged?.call(imgSel);
@@ -651,6 +822,22 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       }
     }
 
+    final currentGrid = _gridImageSel;
+    if (currentGrid != null) {
+      final snapshot = _gridKeys[currentGrid.$1]?.currentState?.selectionFor(
+        currentGrid.$2,
+      );
+      if (snapshot != null && snapshot != _lastGridImageSel) {
+        _lastGridImageSel = snapshot;
+        widget.onGridImageSelectionChanged?.call(snapshot);
+      }
+    }
+
+    final objectSelection = _computeObjectSelection();
+    if (objectSelection != _lastObjectSelection) {
+      _lastObjectSelection = objectSelection;
+      widget.onObjectSelectionChanged?.call(objectSelection);
+    }
     _syncHandlesAndContextBar();
   }
 
@@ -685,6 +872,12 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   /// 帧后统一收敛手柄/动作条显隐(唯一真源:state.selection + 触摸来源)。
   void _syncHandlesAndContextBar() {
+    if (_explicitObjectTarget != null || _gridImageSel != null) {
+      _handles?.hide();
+      _collapsedHandle?.hide();
+      _contextBar?.hide();
+      return;
+    }
     final sel = widget.state.selection;
     final touchReady = _touchSelection && _focusNode.hasPrimaryFocus;
     final showRange =
@@ -704,7 +897,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         onDragMove: _onRangeHandleDragMoved,
         onDragEnd: _onHandleDragFinished,
       )).show();
-      if (!_handleDragging && !_longPressing) {
+      if (!_handleDragging &&
+          !_longPressing &&
+          _dragBase == null &&
+          !_touchToolbarSuppressed) {
         _showContextBarForSelection();
       }
     } else {
@@ -716,25 +912,26 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // iOS 无此形态 —— 系统绘制即空盒,platformHasHandle 挡掉)。
     final caretLocal = _caretInfo.value.$1;
     final rootBox = _rootKey.currentContext?.findRenderObject();
-    final showCollapsed =
+    final collapsedReady =
         !showRange &&
         touchReady &&
         sel != null &&
         sel.isCollapsed &&
         caretLocal != null &&
         rootBox is RenderBox &&
-        rootBox.attached &&
-        CollapsedHandleController.platformHasHandle(context);
-    if (showCollapsed) {
+        rootBox.attached;
+    if (collapsedReady && _wantCollapsedBar && !_handleDragging) {
+      _showCollapsedContextBar(
+        rootBox.localToGlobal(caretLocal.topLeft) & caretLocal.size,
+      );
+    }
+    if (collapsedReady &&
+        CollapsedHandleController.platformHasHandle(context)) {
       final caretGlobal =
           rootBox.localToGlobal(caretLocal.topLeft) & caretLocal.size;
-      // 长按落光标那次:配「粘贴 | 全选」动作条(拖手柄中不显示)
-      if (_wantCollapsedBar && !_handleDragging) {
-        _showCollapsedContextBar(caretGlobal);
-      }
       (_collapsedHandle ??= CollapsedHandleController(
         context: context,
-        tapRegionGroupId: _controller,
+        tapRegionGroupId: EditableText,
         onDragStart: () {
           _handleDragging = true; // IME 三门复用(拖动高频变化 end 时统一喂)
           _wantCollapsedBar = false;
@@ -857,8 +1054,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// 统一回喂;期间 setEditingState 会打断系统手势)。
   bool _floatingCursor = false;
 
-  /// Start 时的光标中心(全局;Update 的 offset 以此为基准累加)。
-  Offset? _floatingBase;
+  /// 上次平台/虚拟指针累计输入；转为增量后从限位位置继续移动，
+  /// 不积攒越界位移，保证贴边后反向立即响应。
+  Offset _floatingLastOffset = Offset.zero;
   Offset _floatingPos = Offset.zero;
   OverlayEntry? _floatingGhost;
 
@@ -937,7 +1135,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (sel == null) return false;
     _floatingCursor = true;
     _floatingExtendBase = extend ? sel.base : null;
-    _floatingBase = rect.center;
+    _floatingLastOffset = initialOffset;
     _floatingPos = _clampFloatingPosition(rect.center + initialOffset, vp);
     widget.state.sealHistory();
     _collapsedHandle?.hide();
@@ -949,14 +1147,15 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   /// 浮动位置更新([accumulated] = 相对起步点的累计位移)。
   void _floatingUpdate(Offset accumulated) {
-    final base = _floatingBase;
-    if (!_floatingCursor || base == null) return;
+    if (!_floatingCursor) return;
+    final delta = accumulated - _floatingLastOffset;
+    _floatingLastOffset = accumulated;
     final visible = _visibleContentRect();
     if (visible == null || visible.isEmpty) {
       _stopAutoScroll();
       return;
     }
-    final pos = _clampFloatingPosition(base + accumulated, visible);
+    final pos = _clampFloatingPosition(_floatingPos + delta, visible);
     _floatingPos = pos;
     _floatingGhost?.markNeedsBuild();
     // 实光标就近吸附(EditableText 的灰色残影等价物:吸附位即落点)
@@ -981,7 +1180,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   void _floatingEnd() {
     if (!_floatingCursor) return;
     _floatingCursor = false;
-    _floatingBase = null;
+    _floatingLastOffset = Offset.zero;
     _floatingExtendBase = null;
     _stopAutoScroll();
     _removeFloatingGhost();
@@ -991,6 +1190,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 浮动拖动的延迟 ir 收口在此结算(落点补物化/离开折叠)。
     final beforeRev = widget.state.docRevision;
     widget.state.commitDeferredIrReconcile();
+    // 最后一帧吸附在布局后完成，下一帧不能再因同一落点启动 ensure 动画；
+    // 拖动滚动到此结束，后续编辑或键盘尺寸变化仍可正常触发避让。
+    _caretReveal.suppressNext(widget.state.caretRevealKey);
     _ime.syncFromState(
       show: false,
       force: widget.state.docRevision != beforeRev,
@@ -1070,16 +1272,18 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   }
 
   /// 按当前选区几何弹动作条(复制/剪切/粘贴/全选)。
-  void _showContextBarForSelection() {
+  void _showContextBarForSelection({Offset? anchor}) {
     final docSel = _controller.selection;
     if (docSel == null) return;
     final data = SelectionExporter(_controller.registry).export(docSel);
     if (data == null || data.globalRects.isEmpty) return;
     (_contextBar ??= EditorContextBar(
       context: context,
-      tapRegionGroupId: _controller,
+      tapRegionGroupId: EditableText,
     )).show(
-      selectionBounds: data.globalBounds,
+      selectionBounds: anchor == null
+          ? data.globalBounds
+          : Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
       items: [
         ContextMenuButtonItem(
           type: ContextMenuButtonType.copy,
@@ -1109,6 +1313,16 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             // 全选后保持触摸态,手柄/动作条按新选区重弹
           },
         ),
+        if (widget.onObjectSelectionChanged != null)
+          ContextMenuButtonItem(
+            label: '块操作',
+            onPressed: () {
+              final id = widget.state.selection?.extent.blockId;
+              if (id == null) return;
+              _selectObject(EditorBlockTarget(id));
+              _requestObjectMenu();
+            },
+          ),
       ],
     );
   }
@@ -1117,7 +1331,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   void _showCollapsedContextBar(Rect caretGlobal) {
     (_contextBar ??= EditorContextBar(
       context: context,
-      tapRegionGroupId: _controller,
+      tapRegionGroupId: EditableText,
     )).show(
       selectionBounds: caretGlobal,
       items: [
@@ -1135,6 +1349,16 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             _wantCollapsedBar = false;
           },
         ),
+        if (widget.onObjectSelectionChanged != null)
+          ContextMenuButtonItem(
+            label: '块操作',
+            onPressed: () {
+              final id = widget.state.selection?.extent.blockId;
+              if (id == null) return;
+              _selectObject(EditorBlockTarget(id));
+              _requestObjectMenu();
+            },
+          ),
       ],
     );
   }
@@ -1168,7 +1392,12 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (_collapsedHandle?.isShowing ?? false) {
       _collapsedHandle!.translate(delta);
     }
-    if (_lastImageAtomSel == null && _caretInfo.value.$1 == null) return;
+    if (_lastImageAtomSel == null &&
+        _caretInfo.value.$1 == null &&
+        _dragGlobal == null &&
+        !_longPressing) {
+      return;
+    }
     // coalesce:滚动一帧内 position listener 可触发多次,每次都排
     // postFrame 会让 _afterFrame(getBoxesForSelection + 事件比对)一帧
     // 跑 N 遍 —— 拖选/惯性滚动时白耗 CPU。
@@ -1176,7 +1405,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     _scrollRecomputeQueued = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollRecomputeQueued = false;
-      if (mounted) _afterFrame();
+      if (mounted) {
+        if (_dragGlobal != null) _applyPointerDrag(_dragGlobal!);
+        if (_longPressPoint != null) _applyLongPressSelection(_longPressPoint!);
+        _afterFrame();
+      }
     });
   }
 
@@ -1193,13 +1426,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   // 软键盘 ensureVisible(S5)
   // -----------------------------------------------------------------
 
-  /// 上次 ensure 的 (docRevision, selection) —— 同 key 不重滚(纯滚动帧
-  /// 不产生新 key,无"用户滚走又被拉回"的反馈环)。
-  (int, EditorSelection?)? _lastEnsuredKey;
-
-  /// 记录的键盘 inset —— 键盘弹出动画期间变化,清 key 让光标跟着键盘
-  /// 上沿浮起。
-  double _lastViewInsetBottom = 0;
+  final _caretReveal = EditorCaretRevealTracker();
 
   /// 光标越出可见区(视口 ∩ 键盘上方)时滚动到可见。仅折叠光标态
   /// (打字/点击);非折叠选区(手柄态)不自动滚 —— 用户在看选区。
@@ -1212,15 +1439,21 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (pos == null || !pos.hasContentDimensions) return;
     // 手柄拖动/浮动光标中光标由手指驱动,滚动交给边缘自动滚 —— ensure
     // 的 animateTo 会与 tick 的 jumpTo(或幽灵跟手)抢滚动位置(来回抖)。
-    if (_handleDragging || _floatingCursor) return;
+    if (_handleDragging || _floatingCursor || _dragBase != null) return;
     final sel = widget.state.selection;
     if (sel == null || !sel.isCollapsed) return;
-    final key = (widget.state.docRevision, sel);
-    if (key == _lastEnsuredKey) return;
-    _lastEnsuredKey = key;
-
-    final visible = _visibleViewportRect();
+    final visible = _visibleViewportRect(forCaret: true);
     if (visible == null) return;
+    final userScrolling = pos.userScrollDirection != ScrollDirection.idle;
+    if (!_caretReveal.shouldReveal(
+      key: widget.state.caretRevealKey,
+      caret: caretGlobal,
+      viewport: visible,
+      userScrolling: userScrolling,
+      autoScrolling: pos.isScrollingNotifier.value && !userScrolling,
+    )) {
+      return;
+    }
     const pad = 24.0;
     final visBottom = visible.bottom - pad;
     final visTop = visible.top + pad;
@@ -1246,11 +1479,14 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   }
 
   /// 宿主滚动视口的全局矩形(键盘遮挡部分已截掉)。
-  Rect? _visibleViewportRect() {
+  Rect? _visibleViewportRect({bool forCaret = false}) {
     final scrollableCtx = Scrollable.maybeOf(context)?.context;
     final vpBox = scrollableCtx?.findRenderObject();
     if (vpBox is! RenderBox || !vpBox.attached || !vpBox.hasSize) return null;
-    final vpRect = vpBox.localToGlobal(Offset.zero) & vpBox.size;
+    final bounds = vpBox.localToGlobal(Offset.zero) & vpBox.size;
+    final vpRect = forCaret
+        ? widget.caretViewportInsets.deflateRect(bounds)
+        : bounds;
     final mq = MediaQuery.maybeOf(context);
     final screenH = mq?.size.height ?? vpRect.bottom;
     final kbTop = screenH - (mq?.viewInsets.bottom ?? 0);
@@ -1265,12 +1501,17 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final root = _rootKey.currentContext?.findRenderObject();
     if (root is! RenderBox || !root.attached || !root.hasSize) return null;
     var bounds = root.localToGlobal(Offset.zero) & root.size;
-    final viewport = _visibleViewportRect();
+    final viewport = _visibleViewportRect(forCaret: true);
     if (viewport != null) bounds = bounds.intersect(viewport);
     final mq = MediaQuery.maybeOf(context);
     if (mq != null) {
       bounds = bounds.intersect(
-        Rect.fromLTRB(0, 0, mq.size.width, mq.size.height - mq.viewInsets.bottom),
+        Rect.fromLTRB(
+          0,
+          0,
+          mq.size.width,
+          mq.size.height - mq.viewInsets.bottom,
+        ),
       );
     }
     return bounds;
@@ -1325,8 +1566,14 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   void _onAutoScrollTick(Duration _) {
     final pos = _scrollPosition;
     // 拖拽点:手柄用 pan 上报的 _handleDragPoint,浮动光标用幽灵位置。
-    final drag = _floatingCursor ? _floatingPos : _handleDragPoint;
-    final dragging = _handleDragging || _floatingCursor;
+    final drag = _floatingCursor
+        ? _floatingPos
+        : _dragGlobal ?? _longPressPoint ?? _handleDragPoint;
+    final dragging =
+        _handleDragging ||
+        _floatingCursor ||
+        _dragBase != null ||
+        _longPressing;
     if (pos == null || drag == null || _autoScrollStep == 0 || !dragging) {
       _stopAutoScroll();
       return;
@@ -1344,7 +1591,30 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 拖拽点全局没动、内容滚过去了 → 用当前拖拽点重新命中,让被拖端
     // (或 collapsed 光标/浮动吸附点)随滚动继续走;否则只滚屏不扩选。
     if (_floatingCursor) {
-      _applyFloatingHit(drag);
+      // ticker 在布局前运行；图片加载或滚动可能已令段落布局失效。
+      // 等本帧布局完成再读取几何，同时按滚动后的正文范围重新限位。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_floatingCursor) return;
+        final visible = _visibleContentRect();
+        if (visible == null || visible.isEmpty) {
+          _stopAutoScroll();
+          return;
+        }
+        _floatingPos = _clampFloatingPosition(_floatingPos, visible);
+        _floatingGhost?.markNeedsBuild();
+        _applyFloatingHit(_floatingPos);
+        _updateAutoScroll(_floatingPos);
+      });
+    } else if (_dragGlobal != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _dragGlobal != null) _applyPointerDrag(_dragGlobal!);
+      });
+    } else if (_longPressPoint != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _longPressPoint != null) {
+          _applyLongPressSelection(_longPressPoint!);
+        }
+      });
     } else if (_handles?.isShowing ?? false) {
       _handles!.reapplyDrag();
     } else if (_collapsedHandle?.isShowing ?? false) {
@@ -1362,7 +1632,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// 当前恰好整选的单岛(选区 = 岛 0..1)→ 岛块 + 全局矩形;其余 null。
   IslandSelection? _computeIslandSelection() {
     final norm = widget.state.normalizedSelection();
-    if (norm == null || !_focusNode.hasPrimaryFocus) return null;
+    if (norm == null) return null;
     final (from, to) = norm;
     if (from.blockId != to.blockId) return null;
     if (from.offset != 0 || to.offset != 1) return null;
@@ -1378,6 +1648,14 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   }
 
   /// 岛是否处于「整选」态(选区恰覆盖该岛 0..1)。
+  bool _isSingleIslandSelection(String id) {
+    final selection = widget.state.selection;
+    return selection != null &&
+        selection.base.blockId == id &&
+        selection.extent.blockId == id &&
+        _isIslandSelected(id);
+  }
+
   bool _isIslandSelected(String islandId) {
     final norm = widget.state.normalizedSelection();
     if (norm == null) return false;
@@ -1405,9 +1683,6 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   }) {
     final index = widget.state.indexOfBlock(pos.blockId);
     if (index < 0) return null;
-    // 岛不注册 RenderParagraph → 无 DocumentPosition(高亮/caret 均由
-    // EditorIsland 自绘选中态,不走选区几何)。
-    if (widget.state.blocks[index] is IslandBlock) return null;
     final id = _renderIdOf(index);
     final proj = _controller.registry.logicalById(id)?.projection;
     // ir 大一统后光标坐标全是真实文本坐标(mark 内 = 物化字面),
@@ -1432,37 +1707,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     );
   }
 
-  /// 跨岛选区的高亮镜像:端点在岛上时收缩到岛外邻文本块(文本部分高亮,
-  /// 岛的选中态由 EditorIsland 自绘)。
+  /// Preserve direction and object endpoints in the shared selection mirror.
   DocumentSelection? _toDocumentSelection(EditorSelection? sel) {
     if (sel == null || sel.isCollapsed) return null;
-    final norm = widget.state.normalizedSelection();
-    if (norm == null) return null;
-    var (from, to) = norm;
-
-    final blocks = widget.state.blocks;
-    var fi = widget.state.indexOfBlock(from.blockId);
-    var ti = widget.state.indexOfBlock(to.blockId);
-    if (fi < 0 || ti < 0) return null;
-
-    // from 端在岛上 → 前进到下一个文本块头
-    while (fi <= ti && blocks[fi] is IslandBlock) {
-      fi++;
-      if (fi > ti) return null; // 纯岛选区:无文本高亮
-      from = EditorPosition(blockId: blocks[fi].id, offset: 0);
-    }
-    // to 端在岛上 → 回退到上一个文本块尾
-    while (ti >= fi && blocks[ti] is IslandBlock) {
-      ti--;
-      if (ti < fi) return null;
-      to = EditorPosition(
-        blockId: blocks[ti].id,
-        offset: blocks[ti].selectionLength,
-      );
-    }
-
-    final base = _toDocumentPosition(from);
-    final extent = _toDocumentPosition(to);
+    final base = _toDocumentPosition(sel.base);
+    final extent = _toDocumentPosition(sel.extent);
     if (base == null || extent == null) return null;
     return DocumentSelection(base: base, extent: extent);
   }
@@ -1508,6 +1757,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   TextAffinity _caretAffinity = TextAffinity.downstream;
 
   Rect? _computeLocalCaretRect() {
+    if (_explicitObjectTarget != null) return null;
     final sel = widget.state.selection;
     // hasPrimaryFocus:焦点在表格 cell 等子输入框时编辑器光标必须消失
     // (否则与 TextField 自己的光标形成双光标)。浮动/虚拟指针进行中
@@ -1532,7 +1782,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   LinkCaretInfo? _lastLinkCaret;
 
-  /// collapsed 光标 ↔ 链接 mark 的进出检测(帧后;变化才通知)。
+  /// collapsed 光标/原子整选 ↔ 链接的进出检测(帧后;变化才通知)。
   /// 手势进行中(长按/拖手柄/浮动)不更新 —— end 后帧收敛时补。
   void _notifyLinkCaret() {
     final cb = widget.onLinkCaret;
@@ -1540,13 +1790,23 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     LinkCaretInfo? info;
     final sel = widget.state.selection;
     if (sel != null &&
-        sel.isCollapsed &&
         _focusNode.hasPrimaryFocus &&
         !_longPressing &&
         !_handleDragging &&
         !_floatingCursor) {
       final block = widget.state.textBlockById(sel.extent.blockId);
-      final range = block?.content.linkRangeAt(sel.extent.offset);
+      final norm = widget.state.normalizedSelection();
+      final startOffset = norm?.$1.offset;
+      final atom = block?.content.atoms[startOffset];
+      final selectedLink =
+          atom is LinkRun &&
+          norm!.$1.blockId == norm.$2.blockId &&
+          norm.$2.offset == startOffset! + 1;
+      final range = selectedLink
+          ? (startOffset, startOffset + 1, atom.origHref ?? atom.href)
+          : sel.isCollapsed
+          ? block?.content.linkRangeAt(sel.extent.offset)
+          : null;
       if (block != null && range != null) {
         final (start, end, href) = range;
         final rect = _linkRangeGlobalRect(sel.extent.blockId, start, end);
@@ -1556,7 +1816,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             start: start,
             end: end,
             href: href,
-            text: block.content.text.substring(start, end),
+            text: selectedLink
+                ? EditableTextContent.fromInlines(atom.children).text
+                : block.content.text.substring(start, end),
             rangeGlobal: rect,
           );
         }
@@ -1659,6 +1921,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// HorizontalRuleNode;importer 缺席时无操作(标记文本已被规则清空,
   /// 用户可用插入菜单)。
   Future<void> _insertHorizontalRule(String blockId) async {
+    if (widget.semanticMarkdownInserter != null) {
+      await _insertSemanticRule('---', widget.state.selection);
+      return;
+    }
     final importer = widget.markdownImporter;
     if (importer == null) return;
     List<EditorBlock>? frag;
@@ -1681,14 +1947,28 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     widget.state.pendingCalloutType = null;
     final trigger = widget.onCalloutTypeTrigger;
     final importer = widget.markdownImporter;
-    if (trigger == null || importer == null || type == null || type.isEmpty) {
+    final semantic = widget.semanticMarkdownInserter;
+    final selection = widget.state.selection;
+    final revision = widget.state.docRevision;
+    if (trigger == null ||
+        (importer == null && semantic == null) ||
+        type == null ||
+        type.isEmpty) {
       return;
     }
     final markdown = await trigger(type);
     if (!mounted || markdown == null || markdown.isEmpty) return;
+    if (semantic != null) {
+      if (revision != widget.state.docRevision ||
+          selection != widget.state.selection) {
+        return;
+      }
+      await _insertSemanticRule(markdown, selection);
+      return;
+    }
     List<EditorBlock>? frag;
     try {
-      frag = await importer(markdown);
+      frag = await importer!(markdown);
     } catch (_) {
       return;
     }
@@ -1697,8 +1977,75 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     _ime.syncFromState(show: false);
   }
 
+  /// 规则生成的源码也走同一语义入口，失败保留完整源码，不吞掉已清空标记。
+  Future<void> _insertSemanticRule(
+    String markdown,
+    EditorSelection? selection,
+  ) async {
+    final revision = widget.state.docRevision;
+    if (await _trySemanticMarkdown(markdown, selection)) return;
+    if (!mounted ||
+        revision != widget.state.docRevision ||
+        selection != widget.state.selection) {
+      return;
+    }
+    List<EditorBlock>? fragment;
+    try {
+      fragment = await widget.markdownImporter?.call(markdown);
+    } catch (_) {}
+    if (!mounted ||
+        revision != widget.state.docRevision ||
+        selection != widget.state.selection) {
+      return;
+    }
+    if (fragment != null && fragment.isNotEmpty) {
+      widget.state.pasteBlocks(fragment);
+    } else {
+      widget.state.pastePlainText(markdown);
+    }
+    _ime.syncFromState(show: false);
+  }
+
+  Future<bool> _trySemanticMarkdown(
+    String markdown,
+    EditorSelection? selection,
+  ) async {
+    try {
+      final consumed =
+          await widget.semanticMarkdownInserter?.call(markdown, selection) ??
+          false;
+      if (consumed && mounted) _ime.syncFromState(show: false);
+      return consumed;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _clipboardPaste() async {
     final ticket = ++_pasteTicket;
+    final selection = widget.state.selection;
+    final revision = widget.state.docRevision;
+    final semantic =
+        widget.semanticMarkdownInserter != null ||
+        widget.semanticRichPasteInserter != null;
+    // 未启用语义入口时保留旧行为；启用后迟到的回落绝不覆盖新输入。
+    bool valid() =>
+        mounted &&
+        ticket == _pasteTicket &&
+        (!semantic ||
+            (revision == widget.state.docRevision &&
+                selection == widget.state.selection));
+    final semanticRich = widget.semanticRichPasteInserter;
+    // 必须在本方法的首个 await 前调用，让宿主同步捕获语义书签。
+    if (semanticRich != null) {
+      try {
+        if (await semanticRich(selection)) {
+          if (mounted) _ime.syncFromState(show: false);
+          return;
+        }
+      } catch (_) {}
+      if (!valid()) return;
+    }
 
     // 富格式优先(text/html 等):宿主读剪贴板+转换,拿到块直接插;
     // 任何一步落空回落纯文本路径(不叠加插入)。
@@ -1710,7 +2057,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       } catch (_) {
         frag = null;
       }
-      if (!mounted || ticket != _pasteTicket) return;
+      if (!valid()) return;
       if (frag != null && frag.isNotEmpty) {
         widget.state.pasteBlocks(frag);
         _ime.syncFromState(show: false);
@@ -1721,8 +2068,12 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text;
     if (text == null || text.isEmpty) return;
-    if (!mounted || ticket != _pasteTicket) return;
+    if (!valid()) return;
 
+    if (widget.semanticMarkdownInserter != null) {
+      if (await _trySemanticMarkdown(text, selection)) return;
+      if (!valid()) return;
+    }
     final importer = widget.markdownImporter;
     List<EditorBlock>? fragment;
     if (importer != null) {
@@ -1731,7 +2082,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       } catch (_) {
         fragment = null; // 导入失败降级纯文本
       }
-      if (!mounted || ticket != _pasteTicket) return;
+      if (!valid()) return;
     }
 
     if (fragment != null && fragment.isNotEmpty) {
@@ -1809,9 +2160,15 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   // -----------------------------------------------------------------
 
   /// 命中 → 编辑位置;顺带带出命中侧 affinity(软换行行末/行首)。
-  (EditorPosition, TextAffinity)? _hitAtGlobal(Offset global) {
+  (EditorPosition, TextAffinity)? _hitAtGlobal(
+    Offset global, {
+    EditorPosition? selectionBase,
+  }) {
     final pos = _hitTester.positionAt(
       global,
+      selectionBase: selectionBase == null
+          ? null
+          : _toDocumentPosition(selectionBase),
       hitTestRoot: _rootKey.currentContext?.findRenderObject(),
     );
     if (pos == null) return null;
@@ -1820,23 +2177,59 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     return (editor, pos.affinity);
   }
 
-  EditorPosition? _positionAtGlobal(Offset global) => _hitAtGlobal(global)?.$1;
+  TextSelectionRules get _selectionRules =>
+      TextSelectionRules(defaultTargetPlatform, TextSelectionSurface.editable);
+  int _effectiveTapCount(int count) => _selectionRules.tapCount(count, null);
+  int _tapCount = 1;
+  bool _shiftPressed = false;
+  bool _focusedAtDown = false;
+  EditorSelection? _selectionBeforeTap;
+  (EditorPosition, TextAffinity)? _irTapAnchor;
+  Offset? _irTapPoint;
+  EditorSelection? _tapUnit;
 
-  /// 双击选词的连击检测(D3:不用 DoubleTapGestureRecognizer —— 它会让
-  /// 单击等 ~300ms 竞技场,落光标手感变肉;手动记时间/位置判连击)。
-  DateTime? _lastTapTime;
-  Offset? _lastTapGlobal;
+  void _onTapTrackStart() {
+    _shiftPressed = shiftModifierHeld();
+    _selectionBeforeTap = widget.state.selection;
+    _focusedAtDown = _focusNode.hasPrimaryFocus;
+  }
+
+  void _onTapTrackReset() {
+    _irTapAnchor = null;
+    _irTapPoint = null;
+  }
 
   /// 本次按下已被专用路径消费(自管区/岛区/图原子整选/双击选词/无命中)
   /// → 松手(tapUp)不再落光标。
   bool _tapUpConsumed = false;
+  Offset? _pendingImageTap;
+  PointerDeviceKind? _pendingImageKind;
+  DateTime? _lastImageClickTime;
+  (String, int)? _lastImageClick;
 
   /// tap 序列进行中(down 已落光标,等 up 结算展开 / cancel 作废)。
   /// 期间显形压住:down 落进 mark 不能当帧显形 —— 若随后长按/滚动
   /// 接管,闪出的定界符又缩回去(闪烁),回流还让手势命中坐标漂移。
   bool _tapPending = false;
+  TapDragDownDetails? _pendingTouchTap;
 
-  void _onTapDown(TapDownDetails details) {
+  void _onTapDown(TapDragDownDetails details) {
+    // 触屏的 tapDown 在竞技场裁决前就会触发。按住片刻再滚动时，
+    // 不得提前改选区、抢焦点或弹键盘；确认 tapUp 后再统一落光标。
+    if ((details.kind != PointerDeviceKind.mouse ||
+            defaultTargetPlatform == TargetPlatform.iOS) &&
+        _effectiveTapCount(details.consecutiveTapCount) == 1) {
+      _pendingTouchTap = details;
+      return;
+    }
+    _beginTap(details);
+  }
+
+  void _beginTap(TapDragDownDetails details) {
+    _tapCount = _effectiveTapCount(details.consecutiveTapCount);
+    _tapUnit = null;
+    _pendingImageTap = null;
+    _pendingImageKind = details.kind;
     _tapUpConsumed = false;
     // 点在表格网格等自管交互区:编辑器手势完全让路 —— 抢焦点/设选区/
     // 弹 IME 都不做(否则:选区兜底跳到邻块 + 编辑器光标与 cell
@@ -1845,17 +2238,14 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       _tapUpConsumed = true;
       return;
     }
-    // 岛区域同样让路(整选由岛自己的 GestureDetector.onTap 负责):
-    // onTapDown 在 down+deadline 就 fire、不等竞技场 —— 不让路的话
-    // 长按岛时编辑器先把光标落到**邻段**(岛无 RenderParagraph,命中
-    // 兜底到最近文本块),岛的 onTap 又不会跟着 fire(长按不是 tap),
-    // 光标就错停邻段。单击岛此前没暴露只是因为岛 onTap 随后覆盖了中间态。
+    // 岛的点击/长按由内部控件处理。共享几何仅用于从正文拖入的选区，
+    // 不抢岛内菜单、轮播和子编辑器的焦点。
     if (_hitsIslandRegion(details.globalPosition)) {
       _tapUpConsumed = true;
       return;
     }
     _wantCollapsedBar = false; // 新 tap:收 collapsed 粘贴条
-    final hit = _hitAtGlobal(details.globalPosition);
+    var hit = _hitAtGlobal(details.globalPosition);
     _focusNode.requestFocus();
     if (hit == null) {
       _tapUpConsumed = true;
@@ -1863,35 +2253,99 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
 
     // 图片原子探测(**先于落光标**,官方 NodeSelection 语义)
-    if (_trySelectImageAtomAt(hit.$1, details.globalPosition)) {
+    if (_trySelectImageAtomAt(hit.$1, details.globalPosition, select: false)) {
+      _pendingImageTap = details.globalPosition;
       _tapUpConsumed = true;
       return;
     }
 
-    // 双击选词(触摸类连击;鼠标双击桌面惯例同样适用)
-    final now = DateTime.now();
-    final isDoubleTap =
-        _lastTapTime != null &&
-        _lastTapGlobal != null &&
-        now.difference(_lastTapTime!) < kDoubleTapTimeout &&
-        (details.globalPosition - _lastTapGlobal!).distance < kDoubleTapSlop;
-    _lastTapTime = now;
-    _lastTapGlobal = details.globalPosition;
-    if (isDoubleTap &&
-        (_selectWordAtCaret() || _selectWordAtGlobal(details.globalPosition))) {
-      _touchSelection =
-          details.kind == PointerDeviceKind.touch ||
-          details.kind == PointerDeviceKind.stylus;
-      _ime.syncFromState(show: false);
-      _tapUpConsumed = true;
-      return;
+    if (_tapCount > 1) {
+      // Only retain the first click's logical location when IR expansion moved
+      // the text under an otherwise stationary pointer. Ordinary clicks always
+      // hit-test the new point, like RenderEditable.
+      final anchored =
+          _irTapAnchor != null &&
+          _irTapPoint != null &&
+          (details.globalPosition - _irTapPoint!).distance <= 1;
+      final target = anchored ? _irTapAnchor! : hit;
+      final unit = _selectionUnitAt(target.$1, target.$2, _tapCount);
+      if (unit != null) {
+        _tapUnit = unit;
+        _touchToolbarSuppressed = false;
+        _touchSelection = details.kind != PointerDeviceKind.mouse;
+        widget.state.sealHistory();
+        widget.state.updateSelection(unit, deferIrReconcile: true);
+        _ime.syncFromState(show: false);
+        _tapUpConsumed = true;
+        return;
+      }
     }
+
+    if (!_shiftPressed &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        (details.kind == PointerDeviceKind.touch ||
+            details.kind == PointerDeviceKind.unknown)) {
+      final previous = _selectionBeforeTap;
+      final position = _linearOffset(hit.$1);
+      final low = previous == null
+          ? -1
+          : math.min(
+              _linearOffset(previous.base),
+              _linearOffset(previous.extent),
+            );
+      final high = previous == null
+          ? -1
+          : math.max(
+              _linearOffset(previous.base),
+              _linearOffset(previous.extent),
+            );
+      final onSelection =
+          previous != null &&
+          (previous.isCollapsed
+              ? position == low && hit.$2 == _caretAffinity
+              : position > low && position < high);
+      if (_focusedAtDown && onSelection) {
+        final showing = _contextBar?.isShowing ?? false;
+        _touchToolbarSuppressed = showing;
+        _wantCollapsedBar = !showing;
+        if (showing) _contextBar?.hide();
+        _touchSelection = true;
+        _tapUpConsumed = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _afterFrame();
+        });
+        return;
+      }
+      final doc = _toDocumentPosition(hit.$1, affinity: hit.$2);
+      final paragraph = doc == null
+          ? null
+          : _controller.registry.byId(doc.blockId)?.paragraph;
+      if (paragraph != null && doc != null) {
+        final word = paragraph.getWordBoundary(
+          TextPosition(offset: doc.renderOffset, affinity: doc.affinity),
+        );
+        final trailing = doc.renderOffset > word.start;
+        final edge = _toEditorPosition(
+          DocumentPosition(
+            blockId: doc.blockId,
+            renderOffset: trailing ? word.end : word.start,
+          ),
+        );
+        if (edge != null) {
+          hit = (
+            edge,
+            trailing ? TextAffinity.upstream : TextAffinity.downstream,
+          );
+        }
+      }
+    }
+    _touchToolbarSuppressed = false;
 
     // 单击:**按下即落光标**(用户预期:点下去光标立刻出现在指位),
     // 但「展开」两件事延迟到松手(Vditor:落下后才展开):
     // - 物化(deferIrReconcile,tapUp 结算);
     // - 显形(_tapPending 压住 revealMarkdownAt,tapUp 放开)。
-    // 长按/滚动随后接管(tapCancel)时光标留在按下位,形态不变。
+    // 鼠标拖选随后接管(tapCancel)时形态不变；触屏到 tapUp 才走这里。
     _touchSelection =
         details.kind == PointerDeviceKind.touch ||
         details.kind == PointerDeviceKind.stylus;
@@ -1900,7 +2354,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     _tapPending = true;
     widget.state.sealHistory();
     widget.state.updateSelection(
-      EditorSelection.collapsed(hit.$1),
+      _shiftPressed && _selectionBeforeTap != null
+          ? _shiftSelection(_selectionBeforeTap!, hit.$1)
+          : EditorSelection.collapsed(hit.$1),
       deferIrReconcile: true,
     );
     _ime.syncFromState();
@@ -1909,7 +2365,34 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// tap 赢得竞技场且松手(确认单击)→ 结算展开:补跑延迟的 ir 收口
   /// (物化落点 mark 簇/折叠离开的字面)+ 放开显形。这是 ir 展开唯一
   /// 的指针触发点。
-  void _onTapUp(TapUpDetails details) {
+  void _onTapUp(TapDragUpDetails details) {
+    final touchTap = _pendingTouchTap;
+    _pendingTouchTap = null;
+    if (touchTap != null) _beginTap(touchTap);
+    final imageTap = _pendingImageTap;
+    _pendingImageTap = null;
+    if (imageTap != null) {
+      _tapUpConsumed = false;
+      final hit = _hitAtGlobal(details.globalPosition);
+      if (hit != null) _trySelectImageAtomAt(hit.$1, details.globalPosition);
+      if (_pendingImageKind == PointerDeviceKind.mouse) {
+        final selected = _computeImageAtomSelection();
+        if (selected != null) {
+          final now = DateTime.now();
+          final identity = (selected.blockId, selected.offset);
+          if (_lastImageClick == identity &&
+              _lastImageClickTime != null &&
+              now.difference(_lastImageClickTime!) < kDoubleTapTimeout) {
+            widget.onImageAtomOpenRequest?.call(selected);
+            _lastImageClickTime = null;
+          } else {
+            _lastImageClick = identity;
+            _lastImageClickTime = now;
+          }
+        }
+      }
+      return;
+    }
     final wasPending = _tapPending;
     _tapPending = false;
     if (_tapUpConsumed) {
@@ -1917,9 +2400,15 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       return;
     }
     if (!wasPending) return;
+    widget.onEditingActivity?.call();
     final before = widget.state.docRevision;
     widget.state.commitDeferredIrReconcile();
     if (widget.state.docRevision != before) {
+      final caret = widget.state.selection;
+      if (_tapCount == 1 && caret != null && caret.isCollapsed) {
+        _irTapAnchor = (caret.extent, _caretAffinity);
+        _irTapPoint = details.globalPosition;
+      }
       // 物化改了文本:IME 窗口强制重喂,防平台侧 diff 错位。
       _ime.syncFromState(show: false, force: true);
     } else {
@@ -1931,7 +2420,6 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 点击/工具栏弹 modal 改属性)。命中位置左右各探一格:tap 落点在
     // 原子字符两侧边界都算点中它。
     final onAtomTap = widget.onAtomTap;
-    if (onAtomTap == null) return;
     final sel = widget.state.selection;
     if (sel == null || !sel.isCollapsed) return;
     final block = widget.state.textBlockById(sel.extent.blockId);
@@ -1939,8 +2427,17 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     for (final off in [sel.extent.offset, sel.extent.offset - 1]) {
       if (off < 0) continue;
       final atom = block.content.atoms[off];
+      if (atom is LinkRun) {
+        widget.state.updateSelection(
+          EditorSelection(
+            base: EditorPosition(blockId: block.id, offset: off),
+            extent: EditorPosition(blockId: block.id, offset: off + 1),
+          ),
+        );
+        return;
+      }
       if (atom is LocalDateRun) {
-        onAtomTap(sel.extent.blockId, off, atom);
+        onAtomTap?.call(sel.extent.blockId, off, atom);
         return;
       }
     }
@@ -1949,6 +2446,18 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// tap 输给竞技场(长按/滚动/拖选接管)→ 不展开:光标留在按下位,
   /// 延迟收口作废(形态零变化;后续手势自己驱动选区)。
   void _onTapCancel() {
+    if (_dragBase != null) {
+      _magnifier?.hide();
+      _dragBase = null;
+      _dragUnit = null;
+      _dragGlobal = null;
+      _stopAutoScroll();
+    }
+    widget.state.cancelDeferredIrReconcile();
+    _pendingTouchTap = null;
+    _onTapTrackReset();
+    _pendingImageTap = null;
+    _lastImageClickTime = null;
     _tapUpConsumed = false;
     if (_tapPending) {
       _tapPending = false;
@@ -1963,7 +2472,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// 命中判定 = tap 点**落在图的渲染盒内**(getBoxesForSelection):
   /// 只按"最近文本位置左右一格"判会把图片行右侧整片空白都当图 ——
   /// 点空白误选图/误开查看器。
-  bool _trySelectImageAtomAt(EditorPosition pos, Offset global) {
+  bool _trySelectImageAtomAt(
+    EditorPosition pos,
+    Offset global, {
+    bool select = true,
+  }) {
     final tapBlock = widget.state.textBlockById(pos.blockId);
     if (tapBlock == null) return false;
     for (final off in [pos.offset, pos.offset - 1]) {
@@ -1971,11 +2484,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       final atom = tapBlock.content.atoms[off];
       if (atom is! ImageRun) continue;
       if (!_tapInsideAtomBox(tapBlock.id, off, global)) continue;
+      if (!select) return true;
       final already = _imageAtomSelectionAt(tapBlock.id, off) != null;
-      if (already) {
-        final sel = _lastImageAtomSel;
-        if (sel != null) widget.onImageAtomOpenRequest?.call(sel);
-      } else {
+      if (!already) {
         widget.state.sealHistory();
         widget.state.updateSelection(
           EditorSelection(
@@ -1990,49 +2501,321 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     return false;
   }
 
-  /// 双击第二击:按**当前光标**(第一击落好的编辑坐标)选词,不再按
-  /// 屏幕坐标重命中。ir 下第一击的收口可能已物化/折叠改写文本(布局
-  /// 回流),同一屏幕点在新布局下命中的是**别的字符**(实测:折叠回流
-  /// 后第二击命中落到词外,选中首字旁的空格)。光标坐标是第一击就
-  /// 换算好的内容坐标,与回流无关。
-  bool _selectWordAtCaret() {
-    final sel = widget.state.selection;
-    if (sel == null || !sel.isCollapsed) return false;
-    final docPos = _toDocumentPosition(sel.extent, affinity: _caretAffinity);
-    if (docPos == null) return false;
-    final wb = _hitTester.wordBoundaryAt(docPos);
-    if (wb == null || wb.start >= wb.end) return false;
-    final base = _toEditorPosition(
-      DocumentPosition(blockId: docPos.blockId, renderOffset: wb.start),
-    );
-    final extent = _toEditorPosition(
-      DocumentPosition(blockId: docPos.blockId, renderOffset: wb.end),
-    );
-    if (base == null || extent == null) return false;
+  void _selectObject(EditorObjectTarget target) {
+    final object = resolveEditorObject(widget.state, target);
+    if (object == null) return;
+    if (target is EditorGridImageTarget) {
+      final image = _gridKeys[target.blockId]?.currentState?.selectionFor(
+        target.index,
+      );
+      if (image != null) {
+        _explicitObjectTarget = null;
+        _setGridImageSelection(image);
+        _afterFrame();
+      }
+      return;
+    }
+    _explicitObjectTarget =
+        target is EditorBlockTarget || target is EditorContainerTarget
+        ? target
+        : null;
+    _setGridImageSelection(null);
+    _focusNode.requestFocus();
     widget.state.sealHistory();
-    widget.state.updateSelection(EditorSelection(base: base, extent: extent));
-    return true;
+    widget.state.updateSelection(object.selection);
+    _touchSelection = false;
+    _contextBar?.hide();
+    _ime.syncFromState(show: false);
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) => _afterFrame());
   }
 
-  /// [global] 处按词边界选词。命中失败/空词返回 false。
-  bool _selectWordAtGlobal(Offset global) {
-    final docPos = _hitTester.positionAt(
-      global,
-      hitTestRoot: _rootKey.currentContext?.findRenderObject(),
-    );
-    if (docPos == null) return false;
-    final wb = _hitTester.wordBoundaryAt(docPos);
-    if (wb == null || wb.start >= wb.end) return false;
-    final base = _toEditorPosition(
-      DocumentPosition(blockId: docPos.blockId, renderOffset: wb.start),
-    );
-    final extent = _toEditorPosition(
-      DocumentPosition(blockId: docPos.blockId, renderOffset: wb.end),
-    );
-    if (base == null || extent == null) return false;
-    widget.state.sealHistory();
-    widget.state.updateSelection(EditorSelection(base: base, extent: extent));
-    return true;
+  void _continueAfterDocument() {
+    _explicitObjectTarget = null;
+    _setGridImageSelection(null);
+    widget.state.continueAfterDocument();
+    _focusNode.requestFocus();
+    _ime.syncFromState();
+  }
+
+  EditorObjectSelection? _computeObjectSelection() {
+    final grid = _gridImageSel;
+    if (grid != null) {
+      final image = _gridKeys[grid.$1]?.currentState?.selectionFor(grid.$2);
+      if (image != null) {
+        return EditorObjectSelection(
+          target: EditorGridImageTarget(grid.$1, grid.$2, image.image.src),
+          globalRect: image.globalRect,
+          revision: widget.state.docRevision,
+        );
+      }
+    }
+    final explicit = _explicitObjectTarget;
+    if (explicit != null) {
+      final object = resolveEditorObject(widget.state, explicit);
+      if (object == null) return null;
+      final key = explicit is EditorContainerTarget
+          ? _containerKeys[(explicit.groupId, object.blocks.first.id)]
+          : _blockKeys[explicit.blockId];
+      final rect = _objectRect(key);
+      return rect == null
+          ? null
+          : EditorObjectSelection(
+              target: explicit,
+              globalRect: rect,
+              revision: widget.state.docRevision,
+            );
+    }
+    final image = _computeImageAtomSelection();
+    if (image != null) {
+      return EditorObjectSelection(
+        target: EditorImageTarget(image.blockId, image.offset, image.image.src),
+        globalRect: image.globalRect,
+        revision: widget.state.docRevision,
+      );
+    }
+    final island = _computeIslandSelection();
+    return island == null
+        ? null
+        : EditorObjectSelection(
+            target: EditorBlockTarget(island.island.id),
+            globalRect:
+                _objectRect(_blockKeys[island.island.id]) ?? island.globalRect,
+            revision: widget.state.docRevision,
+          );
+  }
+
+  Rect? _objectRect(GlobalKey? key) {
+    final box = key?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  List<Rect> _visiblePaintedRects() {
+    final viewport = _visibleViewportRect();
+    final result = <Rect>[];
+    void add(Rect? rect) {
+      if (rect == null || !rect.isFinite || rect.isEmpty) return;
+      final visible = viewport == null ? rect : rect.intersect(viewport);
+      if (!visible.isEmpty) result.add(visible);
+    }
+
+    // Header rows stretch across their container, but only their title/icons
+    // occupy that space. Inspect painted glyphs, not the row's layout width.
+    void addHeader(GlobalKey? key, Rect bounds) {
+      final root = key?.currentContext?.findRenderObject();
+      if (root == null) return;
+      final header = Rect.fromLTRB(
+        bounds.left,
+        bounds.top,
+        bounds.right,
+        (bounds.top + 48).clamp(bounds.top, bounds.bottom),
+      );
+      void visit(RenderObject object) {
+        if (object is RenderBox && object.attached && object.hasSize) {
+          final rect = object.localToGlobal(Offset.zero) & object.size;
+          if (!rect.isFinite || !rect.overlaps(header)) return;
+          if (object is RenderParagraph) {
+            for (final line in mergeSelectionBoxesByLine(
+              object.getBoxesForSelection(
+                TextSelection(
+                  baseOffset: 0,
+                  extentOffset: object.text.toPlainText().length,
+                ),
+              ),
+            )) {
+              add(
+                line.shift(object.localToGlobal(Offset.zero)).intersect(header),
+              );
+            }
+          }
+        }
+        object.visitChildren(visit);
+      }
+
+      visit(root);
+    }
+
+    for (final entry in _blockKeys.entries) {
+      final rect = _objectRect(entry.value);
+      if (rect == null || (viewport != null && !rect.overlaps(viewport))) {
+        continue;
+      }
+      final index = widget.state.indexOfBlock(entry.key);
+      if (index < 0) continue;
+      final block = widget.state.blocks[index];
+      if (block is TextBlock) {
+        final paragraph = _controller.registry
+            .byId(_renderIdOf(index))
+            ?.paragraph;
+        if (paragraph == null || !paragraph.attached || !paragraph.hasSize) {
+          add(rect);
+          continue;
+        }
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(
+            baseOffset: 0,
+            extentOffset: paragraph.text.toPlainText().length,
+          ),
+        );
+        final origin = paragraph.localToGlobal(Offset.zero);
+        for (final line in mergeSelectionBoxesByLine(boxes)) {
+          add(line.shift(origin));
+        }
+      } else if (block is IslandBlock && block.node is ImageGridNode) {
+        final grid = _gridKeys[block.id]?.currentState;
+        if (grid == null) {
+          add(rect);
+          continue;
+        }
+        final node = block.node as ImageGridNode;
+        for (var i = 0; i < node.images.length; i++) {
+          add(grid.selectionFor(i)?.globalRect.intersect(rect));
+        }
+        addHeader(entry.value, rect);
+      } else {
+        add(rect);
+      }
+    }
+    for (final key in _containerKeys.values) {
+      final rect = _objectRect(key);
+      if (rect != null && (viewport == null || rect.overlaps(viewport))) {
+        addHeader(key, rect);
+      }
+    }
+    return result;
+  }
+
+  EditorObjectSelection? _blockAt(Offset position, {double leadingSlop = 0}) {
+    final viewport = _visibleViewportRect();
+    if (viewport != null && !viewport.contains(position)) return null;
+    EditorObjectSelection snapshot(EditorObjectTarget target, Rect rect) =>
+        EditorObjectSelection(
+          target: target,
+          globalRect: rect,
+          revision: widget.state.docRevision,
+        );
+    final blocks = <(String, Rect)>[];
+    for (final entry in _blockKeys.entries) {
+      final rect = _objectRect(entry.value);
+      if (rect == null || !rect.isFinite || rect.isEmpty) continue;
+      if (rect.contains(position)) {
+        return snapshot(EditorBlockTarget(entry.key), rect);
+      }
+      if (leadingSlop > 0 &&
+          Rect.fromLTRB(
+            rect.left - leadingSlop,
+            rect.top,
+            rect.right,
+            rect.bottom,
+          ).contains(position)) {
+        blocks.add((entry.key, rect));
+      }
+    }
+    EditorObjectSelection? containerAt(double slop) {
+      EditorObjectSelection? closest;
+      var area = double.infinity;
+      for (final entry in _containerKeys.entries) {
+        final rect = _objectRect(entry.value);
+        if (rect == null || !rect.isFinite || rect.isEmpty) continue;
+        if (!Rect.fromLTRB(
+          rect.left - slop,
+          rect.top,
+          rect.right,
+          rect.bottom,
+        ).contains(position)) {
+          continue;
+        }
+        if (rect.width * rect.height < area) {
+          closest = snapshot(
+            EditorContainerTarget(entry.key.$2, entry.key.$1),
+            rect,
+          );
+          area = rect.width * rect.height;
+        }
+      }
+      return closest;
+    }
+
+    // Text belongs to its paragraph; a header/border selects the surrounding
+    // container. The leading gutter also reaches the outer container as a unit.
+    final container =
+        containerAt(0) ?? (leadingSlop > 0 ? containerAt(leadingSlop) : null);
+    if (container != null) return container;
+    if (blocks.isEmpty) return null;
+    final block = blocks.first;
+    return snapshot(EditorBlockTarget(block.$1), block.$2);
+  }
+
+  void _requestObjectMenu() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _afterFrame();
+      final object = _lastObjectSelection;
+      if (object != null && widget.onObjectMenuRequested != null) {
+        widget.onObjectMenuRequested!(
+          EditorObjectMenuRequest(target: object.target),
+        );
+      } else {
+        widget.onObjectContextMenuRequest?.call();
+      }
+    });
+  }
+
+  void _secondaryObjectMenu(EditorObjectTarget target, Offset global) {
+    final object = resolveEditorObject(widget.state, target);
+    if (object == null) return;
+    if (target is! EditorGridImageTarget) _selectObject(target);
+    if (widget.onObjectMenuRequested != null) {
+      widget.onObjectMenuRequested!(
+        EditorObjectMenuRequest(
+          target: target,
+          globalPosition: global,
+          transient: true,
+        ),
+      );
+    } else {
+      _requestObjectMenu();
+    }
+  }
+
+  void _onSecondaryTapUp(TapUpDetails details) {
+    final global = details.globalPosition;
+    final hit = _hitAtGlobal(global);
+    if (hit != null && _trySelectImageAtomAt(hit.$1, global, select: false)) {
+      _trySelectImageAtomAt(hit.$1, global);
+      final image = _computeImageAtomSelection();
+      if (image != null) {
+        _secondaryObjectMenu(
+          EditorImageTarget(image.blockId, image.offset, image.image.src),
+          global,
+        );
+      }
+      return;
+    }
+    if (widget.onObjectMenuRequested == null) return;
+    for (final entry in _blockKeys.entries) {
+      if (_objectRect(entry.value)?.contains(global) != true) continue;
+      if (_explicitObjectTarget == null &&
+          widget.state.selection?.isCollapsed == false &&
+          widget.state.textBlockById(entry.key) != null) {
+        _showContextBarForSelection(anchor: global);
+      } else {
+        _secondaryObjectMenu(EditorBlockTarget(entry.key), global);
+      }
+      return;
+    }
+    // 标题/边框没有文本命中时，选择覆盖指针的最内层容器。
+    (EditorContainerTarget, double)? closest;
+    for (final entry in _containerKeys.entries) {
+      final rect = _objectRect(entry.value);
+      if (rect == null || !rect.contains(global)) continue;
+      final area = rect.width * rect.height;
+      if (closest == null || area < closest.$2) {
+        closest = (EditorContainerTarget(entry.key.$2, entry.key.$1), area);
+      }
+    }
+    if (closest != null) _secondaryObjectMenu(closest.$1, global);
   }
 
   // -----------------------------------------------------------------
@@ -2041,6 +2824,9 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   /// 长按进行中(选区高频变化不逐帧重喂 IME,end 统一 sync)。
   bool _longPressing = false;
+  bool _longPressMovesCaret = false;
+  EditorSelection? _longPressUnit;
+  Offset? _longPressPoint;
 
   /// 本次 collapsed 光标是否该配动作条(仅"长按空白落光标"那次 true;
   /// 普通点击/打字/移动光标一概 false —— 否则每次点击都弹粘贴条)。
@@ -2049,15 +2835,13 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   /// 最近一次选区变化来自触摸(长按/双击/拖手柄)→ 手柄显示依据。
   bool _touchSelection = false;
+  bool _touchToolbarSuppressed = false;
 
   SelectionMagnifier? _magnifier;
 
   void _onLongPressStart(LongPressStartDetails details) {
-    // 长按序列不参与连击:TapGestureRecognizer 的 onTapDown 在 deadline
-    // 后即使输了竞技场也会 fire,已把本次 down 记进 _lastTapTime ——
-    // 不清的话长按松手后短时间内 tap 附近会被误判双击选词。
-    _lastTapTime = null;
-    _lastTapGlobal = null;
+    // The SDK tap recognizer resets its click sequence when long press wins.
+    _onTapTrackReset();
     final global = details.globalPosition;
     if (_hitsSelfManagedRegion(global) || _hitsIslandRegion(global)) return;
     final docPos = _hitTester.positionAt(
@@ -2065,46 +2849,47 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       hitTestRoot: _rootKey.currentContext?.findRenderObject(),
     );
     if (docPos == null) return;
+    _longPressMovesCaret =
+        _focusNode.hasPrimaryFocus &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS);
+    _longPressUnit = null;
+    _touchToolbarSuppressed = false;
     _focusNode.requestFocus();
 
     // 图片原子:长按 = tap 同款整选(不选词)
     final editorPos = _toEditorPosition(docPos);
     if (editorPos != null && _trySelectImageAtomAt(editorPos, global)) {
       _touchSelection = true;
+      _requestObjectMenu();
       return;
     }
 
+    if (editorPos == null) return;
     widget.state.sealHistory();
-    if (_selectWordAtGlobal(global)) {
-      HapticFeedback.selectionClick();
-    } else if (editorPos != null) {
-      // 空白/空段:落光标(系统长按空白同款)。延迟收口:长按后还可能
-      // 直接拖成扩选,松手(_onLongPressEnd)终态 collapsed 才补物化。
-      widget.state.updateSelection(
-        EditorSelection.collapsed(editorPos),
-        deferIrReconcile: true,
-      );
-    }
+    _longPressUnit = _longPressMovesCaret
+        ? null
+        : _selectionUnitAt(editorPos, docPos.affinity, 2);
+    widget.state.updateSelection(
+      _longPressUnit ?? EditorSelection.collapsed(editorPos),
+      deferIrReconcile: true,
+    );
+    if (_longPressUnit?.isCollapsed == false) HapticFeedback.selectionClick();
     _touchSelection = true;
     _longPressing = true;
+    _longPressPoint = global;
   }
 
   void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
     if (!_longPressing) return;
+    _longPressPoint = details.globalPosition;
+    _applyLongPressSelection(details.globalPosition);
+    _updateAutoScroll(details.globalPosition);
     final docPos = _hitTester.positionAt(
       details.globalPosition,
       hitTestRoot: _rootKey.currentContext?.findRenderObject(),
     );
     if (docPos == null) return;
-    final extent = _toEditorPosition(docPos);
-    final sel = widget.state.selection;
-    if (extent == null || sel == null) return;
-    // 按住直接拖 = 扩选(字符粒度,base 不动;阅读端长按拖同语义)。
-    // 延迟收口:拖动路过 collapsed 瞬间不物化(闪烁),松手结算。
-    widget.state.updateSelection(
-      EditorSelection(base: sel.base, extent: extent),
-      deferIrReconcile: true,
-    );
     // 放大镜跟手
     final caret = _hitTester.editingCaretRectAt(
       docPos,
@@ -2119,12 +2904,40 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
   }
 
-  void _onLongPressEnd(LongPressEndDetails details) {
+  void _applyLongPressSelection(Offset global) {
+    final hit = _hitAtGlobal(global);
+    if (hit == null) return;
+    final anchor = _longPressUnit;
+    final target = anchor == null
+        ? null
+        : _selectionUnitAtPoint(hit, global, 2);
+    final range = anchor == null || target == null
+        ? null
+        : TextSelectionRules.extendUnit(
+            anchorStart: anchor.base,
+            anchorEnd: anchor.extent,
+            targetStart: target.base,
+            targetEnd: target.extent,
+            compare: (EditorPosition a, EditorPosition b) =>
+                _linearOffset(a).compareTo(_linearOffset(b)),
+          );
+    final selection = range == null
+        ? EditorSelection.collapsed(hit.$1)
+        : EditorSelection(base: range.base, extent: range.extent);
+    widget.state.updateSelection(selection, deferIrReconcile: true);
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) => _finishLongPress();
+
+  void _finishLongPress() {
     if (!_longPressing) {
       _magnifier?.hide();
       return;
     }
     _longPressing = false;
+    _longPressPoint = null;
+    _longPressUnit = null;
+    _stopAutoScroll();
     _magnifier?.hide();
     // 长按序列的延迟 ir 收口结算:终态 collapsed(长按空白落光标)补
     // 物化;终态 range(选词/拖扩)收口守卫 no-op,选择保持不展开。
@@ -2146,8 +2959,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   }
 
   /// [global] 是否落在孤岛区域内(EditorIsland 的 MetaData 标记)。
-  /// 长按让路用:岛不注册 RenderParagraph,positionAt 的最近块兜底会把
-  /// 岛上的长按吸到**邻段文本**选词 —— 必须在命中前挡掉。
+  /// 岛内起手时让路给对象操作；从正文起手的跨块拖选仍访问岛的几何。
   bool _hitsIslandRegion(Offset global) {
     final rootBox = _rootKey.currentContext?.findRenderObject();
     if (rootBox is! RenderBox || !rootBox.attached) return false;
@@ -2207,13 +3019,16 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   EditorSelection? _gridSelBaseline;
 
   void _setGridImageSelection(GridImageSelection? sel) {
+    final previous = _gridImageSel;
+    // 子选图时清掉旧文字选区，避免复制/退格仍作用于之前的内容。
+    if (sel != null) widget.state.updateSelection(null);
     _gridImageSel = sel == null ? null : (sel.islandId, sel.imageIndex);
     _gridSelBaseline = sel == null ? null : widget.state.selection;
     if (sel != _lastGridImageSel) {
       _lastGridImageSel = sel;
       widget.onGridImageSelectionChanged?.call(sel);
     }
-    if (sel != null) setState(() {}); // 瓦片描边
+    if (previous != _gridImageSel) setState(() {}); // 瓦片描边
   }
 
   /// grid 内瓦片 alt 原位编辑保存:images[index] copyWith(alt) 后
@@ -2241,8 +3056,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// grid 内瓦片拖拽排序落地:结构命令重排 + 子选中下标跟随(被拖图
   /// 落位 to;from→to 之间的图让位漂移一格)。
   void _onGridReorder(String islandId, int from, int to) {
-    if (!reorderImageInGrid(widget.state, islandId, from, to)) return;
     final sel = _gridImageSel;
+    if (!reorderImageInGrid(widget.state, islandId, from, to)) return;
     if (sel == null || sel.$1 != islandId) return;
     var s = sel.$2;
     if (s == from) {
@@ -2312,35 +3127,345 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     return false;
   }
 
-  EditorPosition? _dragBase;
-
-  void _onPanStart(DragStartDetails details) {
-    // 自管交互区(表格网格)内不启动编辑器拖选
-    if (_hitsSelfManagedRegion(details.globalPosition)) return;
-    _touchSelection = false; // 鼠标路径:收触摸选区 UI
-    _dragBase = _positionAtGlobal(details.globalPosition);
-    _focusNode.requestFocus();
+  int _linearOffset(EditorPosition position) {
+    var offset = position.offset;
+    for (final block in widget.state.blocks) {
+      if (block.id == position.blockId) break;
+      offset += block.selectionLength + 1;
+    }
+    return offset;
   }
 
-  void _onPanUpdate(DragUpdateDetails details) {
-    final base = _dragBase;
-    if (base == null) return;
-    final extent = _positionAtGlobal(details.globalPosition);
-    if (extent == null) return;
-    // 拖选中途选区可能瞬间 collapsed(拖回起点):延迟收口,拖选期间
-    // 绝不物化/折叠(形态不变);松手时若终态是 collapsed 再补收口。
-    widget.state.updateSelection(
-      EditorSelection(base: base, extent: extent),
-      deferIrReconcile: true,
+  EditorSelection _shiftSelection(
+    EditorSelection previous,
+    EditorPosition target,
+  ) {
+    final apple =
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final nearBase =
+        (_linearOffset(target) - _linearOffset(previous.base)).abs() <
+        (_linearOffset(target) - _linearOffset(previous.extent)).abs();
+    return EditorSelection(
+      base: apple && nearBase ? previous.extent : previous.base,
+      extent: target,
     );
   }
 
-  void _onPanEnd(DragEndDetails details) {
+  EditorSelection? _selectionUnitAtPoint(
+    (EditorPosition, TextAffinity) hit,
+    Offset global,
+    int count,
+  ) {
+    final atom = _hitTester.atomicRangeAt(
+      global,
+      position: _toDocumentPosition(hit.$1),
+    );
+    if (atom != null) {
+      final base = _toEditorPosition(atom.start);
+      final extent = _toEditorPosition(atom.end);
+      if (base != null && extent != null) {
+        return EditorSelection(base: base, extent: extent);
+      }
+    }
+    return _selectionUnitAt(hit.$1, hit.$2, count);
+  }
+
+  EditorSelection? _selectionUnitAt(
+    EditorPosition position,
+    TextAffinity affinity,
+    int count,
+  ) {
+    final blockIndex = widget.state.indexOfBlock(position.blockId);
+    if (blockIndex >= 0 && widget.state.blocks[blockIndex] is IslandBlock) {
+      return EditorSelection(
+        base: EditorPosition(blockId: position.blockId, offset: 0),
+        extent: EditorPosition(blockId: position.blockId, offset: 1),
+      );
+    }
+    final block = widget.state.textBlockById(position.blockId);
+    if (block == null) return null;
+    final index = widget.state.indexOfBlock(block.id);
+    final hasNext = index + 1 < widget.state.blocks.length;
+    EditorPosition local(int offset) => offset > block.content.length && hasNext
+        ? EditorPosition(blockId: widget.state.blocks[index + 1].id, offset: 0)
+        : EditorPosition(
+            blockId: block.id,
+            offset: offset.clamp(0, block.content.length),
+          );
+    if (count == 3 && !_selectionRules.tripleSelectsLine) {
+      final text = block.content.text + (hasNext ? '\n' : '');
+      final range = _selectionRules.paragraphBoundary(
+        text,
+        TextPosition(offset: position.offset, affinity: affinity),
+      );
+      return EditorSelection(
+        base: local(range.start),
+        extent: local(range.end),
+      );
+    }
+    final doc = _toDocumentPosition(position, affinity: affinity);
+    if (doc == null) return null;
+    final paragraph = _controller.registry.byId(doc.blockId)?.paragraph;
+    if (paragraph == null || !paragraph.attached) return null;
+    final geometry = ParagraphGeometry(paragraph);
+    final plain = geometry.plainText;
+    final at = TextPosition(offset: doc.renderOffset, affinity: affinity);
+    if (count == 2 && at.offset >= plain.length && !hasNext) {
+      return EditorSelection.collapsed(position);
+    }
+    if (count == 2 && plain.isEmpty && hasNext) {
+      if (defaultTargetPlatform == TargetPlatform.iOS && index > 0) {
+        final previous = _adjacentTextWord(index, -1);
+        if (previous != null) {
+          return EditorSelection(base: previous.base, extent: position);
+        }
+        final next = _adjacentTextWord(index, 1);
+        if (next != null) {
+          return EditorSelection(base: position, extent: next.extent);
+        }
+      }
+      return EditorSelection(base: position, extent: local(1));
+    }
+    var boundary = _selectionRules.wordBoundary(
+      geometry,
+      at,
+      endOfDocument: !hasNext,
+    );
+    if (count == 3) {
+      final caret = paragraph.getOffsetForCaret(
+        at,
+        const Rect.fromLTWH(0, 0, 2, 20),
+      );
+      final lineY = caret.dy + _caretLineHeight / 2;
+      final left = paragraph
+          .getPositionForOffset(Offset(-1000000, lineY))
+          .offset;
+      final right = paragraph
+          .getPositionForOffset(Offset(1000000, lineY))
+          .offset;
+      boundary = TextRange(
+        start: math.min(left, right),
+        end: math.max(left, right),
+      );
+    }
+    if (count == 2 && defaultTargetPlatform == TargetPlatform.iOS) {
+      final effective = at.offset - (affinity == TextAffinity.upstream ? 1 : 0);
+      if ((effective > 0 || index > 0) &&
+          effective >= 0 &&
+          effective < plain.length &&
+          TextLayoutMetrics.isWhitespace(plain.codeUnitAt(effective))) {
+        TextRange? previous;
+        var cursor = boundary.start;
+        while (cursor > 0) {
+          final candidate = paragraph.getWordBoundary(
+            TextPosition(offset: cursor - 1),
+          );
+          if (candidate.start >= cursor) break;
+          if (plain
+              .substring(candidate.start, candidate.end)
+              .trim()
+              .isNotEmpty) {
+            previous = candidate;
+            break;
+          }
+          cursor = candidate.start;
+        }
+        if (previous != null) {
+          boundary = TextRange(start: previous.start, end: at.offset);
+        } else {
+          final previousBlockWord = _adjacentTextWord(index, -1);
+          if (previousBlockWord != null) {
+            return EditorSelection(
+              base: previousBlockWord.base,
+              extent: position,
+            );
+          }
+          var end = boundary.end;
+          while (end < plain.length) {
+            final next = paragraph.getWordBoundary(TextPosition(offset: end));
+            if (next.end <= end) break;
+            end = next.end;
+            if (plain.substring(next.start, next.end).trim().isNotEmpty) break;
+          }
+          boundary = TextRange(start: at.offset, end: end);
+        }
+      }
+    }
+    final base = _toEditorPosition(
+      DocumentPosition(blockId: doc.blockId, renderOffset: boundary.start),
+    );
+    final extent = _toEditorPosition(
+      DocumentPosition(blockId: doc.blockId, renderOffset: boundary.end),
+    );
+    return base == null || extent == null
+        ? null
+        : EditorSelection(base: base, extent: extent);
+  }
+
+  EditorSelection? _adjacentTextWord(int index, int direction) {
+    final blocks = widget.state.blocks;
+    for (
+      var i = index + direction;
+      i >= 0 && i < blocks.length;
+      i += direction
+    ) {
+      final block = blocks[i];
+      if (block is! TextBlock) return null;
+      final text = block.content.text;
+      if (text.trim().isEmpty) continue;
+      final offset = direction < 0
+          ? text.trimRight().length - 1
+          : text.length - text.trimLeft().length;
+      return _selectionUnitAt(
+        EditorPosition(blockId: block.id, offset: offset),
+        TextAffinity.downstream,
+        2,
+      );
+    }
+    return null;
+  }
+
+  EditorPosition? _dragBase;
+  EditorSelection? _dragUnit;
+  EditorSelection? _dragStartSelection;
+  Offset? _dragGlobal;
+  PointerDeviceKind? _dragKind;
+
+  void _onPanStart(TapDragStartDetails details) {
+    _pendingTouchTap = null;
+    _tapPending = false;
+    widget.state.cancelDeferredIrReconcile();
+    _tapCount = _effectiveTapCount(details.consecutiveTapCount);
+    _dragKind = details.kind;
+    final precise =
+        details.kind == PointerDeviceKind.mouse ||
+        details.kind == PointerDeviceKind.stylus ||
+        details.kind == PointerDeviceKind.invertedStylus;
+    if (!precise &&
+        _tapCount == 1 &&
+        (!_focusedAtDown || defaultTargetPlatform == TargetPlatform.iOS)) {
+      return;
+    }
+    if (!precise && _tapCount == 3) {
+      return; // Native mobile triple-tap has no drag extension.
+    }
+    _touchSelection = details.kind != PointerDeviceKind.mouse;
+    final hit = _hitAtGlobal(details.globalPosition);
+    if (hit == null) return;
+    if (details.kind != PointerDeviceKind.mouse &&
+        _trySelectImageAtomAt(hit.$1, details.globalPosition, select: false)) {
+      _pendingImageTap = null;
+      return;
+    }
+    _dragBase = _shiftPressed ? widget.state.selection?.base ?? hit.$1 : hit.$1;
+    _dragUnit = _tapCount > 1
+        ? _tapUnit ?? _selectionUnitAt(hit.$1, hit.$2, _tapCount)
+        : null;
+    _dragStartSelection = widget.state.selection;
+    _contextBar?.hide();
+    _focusNode.requestFocus();
+    _dragGlobal = details.globalPosition;
+    _applyPointerDrag(details.globalPosition);
+  }
+
+  void _applyPointerDrag(Offset global) {
+    final base = _dragBase;
+    final hit = _hitAtGlobal(global, selectionBase: base);
+    if (base == null || hit == null) return;
+    final unit = _dragUnit;
+    EditorSelection next;
+    if (!_shiftPressed && unit != null) {
+      final target = _selectionUnitAtPoint(hit, global, _tapCount);
+      if (target == null) return;
+      final range = TextSelectionRules.extendUnit(
+        anchorStart: unit.base,
+        anchorEnd: unit.extent,
+        targetStart: target.base,
+        targetEnd: target.extent,
+        compare: (EditorPosition a, EditorPosition b) =>
+            _linearOffset(a).compareTo(_linearOffset(b)),
+      );
+      next = EditorSelection(base: range.base, extent: range.extent);
+    } else if (_shiftPressed) {
+      final start = _dragStartSelection;
+      final current = widget.state.selection;
+      final apple =
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.iOS;
+      var anchor = current?.base ?? base;
+      if (apple && start != null && !start.isCollapsed) {
+        final forward = _linearOffset(start.base) < _linearOffset(start.extent);
+        final inverted = forward
+            ? _linearOffset(hit.$1) < _linearOffset(start.base)
+            : _linearOffset(hit.$1) > _linearOffset(start.base);
+        if (inverted && anchor == start.base) {
+          anchor = start.extent;
+        } else if (!inverted && hit.$1 != start.base && anchor != start.base) {
+          anchor = start.base;
+        }
+      }
+      next = EditorSelection(base: anchor, extent: hit.$1);
+    } else if (_dragKind == PointerDeviceKind.touch) {
+      next = EditorSelection.collapsed(hit.$1);
+    } else {
+      next = EditorSelection(base: base, extent: hit.$1);
+    }
+    _caretAffinity = hit.$2;
+    widget.state.updateSelection(next, deferIrReconcile: true);
+  }
+
+  void _onPanUpdate(TapDragUpdateDetails details) {
+    if (_dragBase == null) return;
+    _dragGlobal = details.globalPosition;
+    _applyPointerDrag(details.globalPosition);
+    _updateAutoScroll(details.globalPosition);
+    if (details.kind != PointerDeviceKind.mouse) {
+      final doc = _hitTester.positionAt(
+        details.globalPosition,
+        hitTestRoot: _rootKey.currentContext?.findRenderObject(),
+      );
+      final caret = doc == null
+          ? null
+          : _hitTester.editingCaretRectAt(doc, lineHeight: _caretLineHeight);
+      if (doc != null && caret != null) {
+        _showEditorMagnifier(
+          gestureGlobal: details.globalPosition,
+          caret: caret,
+          docPos: doc,
+        );
+      }
+    }
+  }
+
+  void _onPanEnd(TapDragEndDetails details) {
     _dragBase = null;
-    // 终态 collapsed(原地拖/拖回起点)= 等价单击 → 补收口;
-    // 终态 range → 收口内部的 range 守卫自然 no-op,形态保持。
+    _dragUnit = null;
+    _dragGlobal = null;
+    _magnifier?.hide();
+    _stopAutoScroll();
     widget.state.commitDeferredIrReconcile();
     _ime.syncFromState(show: false);
+    if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _afterFrame();
+    });
+  }
+
+  void _onEditingTapOutside(PointerDownEvent event) {
+    if (!_focusNode.hasPrimaryFocus) return;
+    final mobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.fuchsia;
+    if (mobile && event.kind == PointerDeviceKind.touch && !kIsWeb) return;
+    _dismissTouchSelection();
+    // Leaving the editing surface also closes IR's temporary source view.
+    // Its offsets are no longer meaningful after delimiters are folded.
+    if (widget.state.mode == EditorMode.ir) {
+      widget.state.updateSelection(null);
+    }
+    _focusNode.unfocus();
   }
 
   // -----------------------------------------------------------------
@@ -2449,7 +3574,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     /// child 类型不同导致岛整棵 deactivate 重建(真机 hover/滚动态下
     /// 深层 InheritedElement dependents 清理时序炸 _dependents 断言,
     /// 红屏)。全 keyed 后 diff 恒按身份匹配,块只随真实删除而摘除。
-    Widget buildBlock(int i) {
+    Widget buildBlockBody(int i) {
       final block = state.blocks[i];
       // 表格岛 + 宿主接了 onTableEdited:cell 级原位编辑网格
       // (不走 EditorIsland 的 AbsorbPointer 只读壳)
@@ -2460,23 +3585,20 @@ class _FluxdoEditorState extends State<FluxdoEditor>
           key: ValueKey('blk_${block.id}'),
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: EditorTableGrid(
-            key: ValueKey('table_${block.id}'),
+            key: _islandKeys.putIfAbsent(block.id, GlobalKey.new),
             node: block.node as TableNode,
+            autoEdit: widget.state.consumeIslandEditRequest(block.id),
+            onContextMenu: widget.objectToolbarManaged
+                ? _requestObjectMenu
+                : null,
             onChanged: (md) => widget.onTableEdited!(block, md),
-            selected: _isIslandSelected(block.id),
+            onNodeChanged: (node) => widget.state.updateIslandNode(block.id, node),
+            selected:
+                !widget.objectToolbarManaged &&
+                _isSingleIslandSelection(block.id),
             // 左上角选择柄:整选表格块(选中后退格/Delete 删整表)。
             // cell 区自管让路后,这是表格作为"块"的唯一选择入口。
-            onSelectRequest: () {
-              _focusNode.requestFocus();
-              widget.state.sealHistory();
-              widget.state.updateSelection(
-                EditorSelection(
-                  base: EditorPosition(blockId: block.id, offset: 0),
-                  extent: EditorPosition(blockId: block.id, offset: 1),
-                ),
-              );
-              _ime.syncFromState(show: false);
-            },
+            onSelectRequest: () => _selectObject(EditorBlockTarget(block.id)),
           ),
         );
       }
@@ -2491,24 +3613,19 @@ class _FluxdoEditorState extends State<FluxdoEditor>
           key: ValueKey('blk_${block.id}'),
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: EditorCodeBlock(
-            key: ValueKey('code_${block.id}'),
+            key: _islandKeys.putIfAbsent(block.id, GlobalKey.new),
             node: block.node as CodeBlockNode,
+            onContextMenu: widget.objectToolbarManaged
+                ? _requestObjectMenu
+                : null,
             onChanged: (code, lang) =>
                 widget.onCodeBlockEdited!(block, code, lang),
-            selected: _isIslandSelected(block.id),
+            selected:
+                !widget.objectToolbarManaged &&
+                _isSingleIslandSelection(block.id),
             autoEdit: widget.state.consumeIslandEditRequest(block.id),
             highlightBuilder: _islandFactory.codeBlockHighlighter,
-            onSelectRequest: () {
-              _focusNode.requestFocus();
-              widget.state.sealHistory();
-              widget.state.updateSelection(
-                EditorSelection(
-                  base: EditorPosition(blockId: block.id, offset: 0),
-                  extent: EditorPosition(blockId: block.id, offset: 1),
-                ),
-              );
-              _ime.syncFromState(show: false);
-            },
+            onSelectRequest: () => _selectObject(EditorBlockTarget(block.id)),
           ),
         );
       }
@@ -2551,18 +3668,17 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             key: _islandKeys.putIfAbsent(ib.id, GlobalKey.new),
             node: ib.node,
             nodeFactory: _islandFactory,
-            selected: _isIslandSelected(ib.id),
-            onTapSelect: () {
-              _focusNode.requestFocus();
-              widget.state.sealHistory();
-              widget.state.updateSelection(
-                EditorSelection(
-                  base: EditorPosition(blockId: ib.id, offset: 0),
-                  extent: EditorPosition(blockId: ib.id, offset: 1),
-                ),
-              );
-              _ime.syncFromState(show: false);
-            },
+            selected:
+                !widget.objectToolbarManaged && _isSingleIslandSelection(ib.id),
+            showInsertHandles: !widget.objectToolbarManaged,
+            onContextMenu:
+                (widget.onObjectContextMenuRequest == null &&
+                    widget.onObjectMenuRequested == null)
+                ? null
+                : _requestObjectMenu,
+            onSecondaryMenu: (position) =>
+                _secondaryObjectMenu(EditorBlockTarget(ib.id), position),
+            onTapSelect: () => _selectObject(EditorBlockTarget(ib.id)),
             onEditRequest: widget.onIslandEditRequest == null
                 ? null
                 : () => widget.onIslandEditRequest!(ib),
@@ -2571,7 +3687,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             onInsertParagraph: ({required bool before}) {
               final idx = widget.state.indexOfBlock(ib.id);
               if (idx < 0) return;
-              widget.state.insertParagraphNearIsland(ib.id, after: !before);
+              widget.state.placeCaretBesideObject(ib.id, after: !before);
               _ime.syncFromState();
             },
             // grid 岛内容换官方 composer 内聚交互视图:模式切换/移除
@@ -2579,8 +3695,65 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             // 查看器);瓦片单击子选中
             contentOverride: ib.node is ImageGridNode
                 ? EditorImageGrid(
+                    key: _gridKeys.putIfAbsent(
+                      ib.id,
+                      () => GlobalKey<EditorImageGridState>(),
+                    ),
+                    onSecondaryMenu: widget.onObjectMenuRequested == null
+                        ? null
+                        : (image, position) => _secondaryObjectMenu(
+                            EditorGridImageTarget(
+                              ib.id,
+                              image.imageIndex,
+                              image.image.src,
+                            ),
+                            position,
+                          ),
                     node: ib.node as ImageGridNode,
+                    onAddImages: widget.onAddGridImages == null
+                        ? null
+                        : () => widget.onAddGridImages!(ib.id),
+                    addingImages: widget.addingImageGrids.contains(ib.id),
+                    pendingUploads:
+                        widget.gridPendingUploadsBuilder?.call(
+                          context,
+                          ib.id,
+                        ) ??
+                        const [],
+                    controlSurfaceBuilder: widget.gridControlSurfaceBuilder,
+                    onImageMenu: widget.onObjectMenuRequested == null
+                        ? null
+                        : (image, anchor) {
+                            _setGridImageSelection(image);
+                            if (widget.onObjectMenuRequested != null) {
+                              widget.onObjectMenuRequested!(
+                                EditorObjectMenuRequest(
+                                  target: EditorGridImageTarget(
+                                    ib.id,
+                                    image.imageIndex,
+                                    image.image.src,
+                                  ),
+                                  globalAnchorRect: anchor,
+                                  transient: true,
+                                ),
+                              );
+                            } else {
+                              _requestObjectMenu();
+                            }
+                          },
                     islandId: ib.id,
+                    showSelectionControls: !widget.objectToolbarManaged,
+                    onContextMenu:
+                        widget.onObjectMenuRequested != null ||
+                            widget.onObjectContextMenuRequest != null
+                        ? _requestObjectMenu
+                        : null,
+                    onSelectGrid: widget.objectToolbarManaged
+                        ? () {
+                            _selectObject(EditorBlockTarget(ib.id));
+                            _requestObjectMenu();
+                          }
+                        : null,
                     nodeFactory: _islandFactory,
                     selectedIndex: (_gridImageSel?.$1 == ib.id)
                         ? _gridImageSel!.$2
@@ -2602,6 +3775,91 @@ class _FluxdoEditorState extends State<FluxdoEditor>
                 : null,
           ),
         },
+      );
+    }
+
+    Widget buildBlockContent(int i) {
+      final block = state.blocks[i];
+      final transient = widget.transientBlockBuilder?.call(context, block);
+      if (transient != null) return transient;
+      final content = buildBlockBody(i);
+      if (block is! IslandBlock) return content;
+      return SelectableObjectBlock(
+        key: ValueKey('blk_${block.id}'),
+        documentOrder: i,
+        text: '\uFFFC',
+        isolateChildren: true,
+        paintSelection: !_isSingleIslandSelection(block.id),
+        child: content,
+      );
+    }
+
+    Widget buildBlock(int i) {
+      final block = state.blocks[i];
+      final selected =
+          widget.objectToolbarManaged &&
+          (_explicitObjectTarget == EditorBlockTarget(block.id) ||
+              _explicitObjectTarget == null &&
+                  block is IslandBlock &&
+                  _isSingleIslandSelection(block.id));
+      return EditorObjectFrame(
+        onLayout: _scheduleObjectGeometry,
+        key: _blockKeys.putIfAbsent(block.id, GlobalKey.new),
+        selected: selected,
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            buildBlockContent(i),
+            if (widget.emptyParagraphHint != null &&
+                block is TextBlock &&
+                block.content.length == 0 &&
+                _focusNode.hasFocus &&
+                state.selection?.isCollapsed == true &&
+                state.selection?.extent.blockId == block.id)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      top:
+                          4 +
+                          (block.isHeading
+                              ? (baseStyle.fontSize ?? 16) *
+                                    kHeadingMargin[block.headingLevel - 1] /
+                                    2
+                              : 0),
+                      left: block.isListItem
+                          ? (baseStyle.fontSize ?? 16) * 1.5 * (block.depth + 1)
+                          : 0,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: KeyedSubtree(
+                        key: widget.emptyParagraphHintKey,
+                        child: Text(
+                          widget.emptyParagraphHint!,
+                          key: const ValueKey('editor-empty-paragraph-hint'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              (block.isHeading
+                                      ? headingStyleFor(
+                                          baseStyle,
+                                          block.headingLevel,
+                                        )
+                                      : baseStyle)
+                                  .copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
+                                  ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       );
     }
 
@@ -2631,16 +3889,44 @@ class _FluxdoEditorState extends State<FluxdoEditor>
               // 容器壳自身与外界的间距(块本体的 vertical 4 在壳内)。
               // key 在 Padding 上(children 列表的直接成员必须 keyed,
               // 见 buildBlock 注释)。
-              key: ValueKey('shell_${frame.groupId}_$level'),
+              // 同一容器被孤岛分割后可能有多个不连续片段；身份需与
+              // 下方 _containerKeys 一致，不能只按 groupId 复用。
+              key: ValueKey(
+                'shell_${frame.groupId}_${state.blocks[runStart].id}_$level',
+              ),
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: EditorContainerShell(
-                frame: frame,
-                onTitleTap:
-                    widget.onContainerTitleEdit != null &&
-                        (frame is DetailsFrame || frame is CalloutFrame)
-                    ? () => widget.onContainerTitleEdit!(frame)
-                    : null,
-                children: buildLevel(runStart, i, level + 1),
+              child: EditorObjectFrame(
+                onLayout: _scheduleObjectGeometry,
+                key: _containerKeys.putIfAbsent((
+                  frame.groupId,
+                  state.blocks[runStart].id,
+                ), GlobalKey.new),
+                selected:
+                    _explicitObjectTarget is EditorContainerTarget &&
+                    (_explicitObjectTarget as EditorContainerTarget).groupId ==
+                        frame.groupId &&
+                    resolveEditorObject(state, _explicitObjectTarget!)?.start ==
+                        runStart,
+                child: EditorContainerShell(
+                  frame: frame,
+                  onContextMenu: widget.onObjectSelectionChanged == null
+                      ? null
+                      : () {
+                          _selectObject(
+                            EditorContainerTarget(
+                              state.blocks[runStart].id,
+                              frame.groupId,
+                            ),
+                          );
+                          _requestObjectMenu();
+                        },
+                  onTitleTap:
+                      widget.onContainerTitleEdit != null &&
+                          (frame is DetailsFrame || frame is CalloutFrame)
+                      ? () => widget.onContainerTitleEdit!(frame)
+                      : null,
+                  children: buildLevel(runStart, i, level + 1),
+                ),
               ),
             ),
           );
@@ -2653,8 +3939,38 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
 
     final children = buildLevel(0, state.blocks.length, 0);
+    if (widget.showTrailingParagraph) {
+      children.add(
+        MouseRegion(
+          key: const ValueKey('editor-trailing-paragraph'),
+          cursor: SystemMouseCursors.text,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _continueAfterDocument,
+            child: Semantics(
+              button: true,
+              label: '继续输入',
+              child: SizedBox(
+                height: 72,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '点击此处继续输入',
+                    style: baseStyle.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: .65),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
-    return Focus(
+    final content = Focus(
       focusNode: _focusNode,
       autofocus: widget.autofocus,
       onKeyEvent: _editorOnKeyEvent,
@@ -2663,7 +3979,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         // RawGestureDetector 按输入设备分流(阅读端 selection_gesture_layer
         // 同款口径):
         // - tap:全设备(落光标/图原子选中/双击选词);
-        // - pan 拖选:**仅鼠标/触控板** —— 触摸的 pan 根本不进竞技场,
+        // - pan 拖选:**仅鼠标按键拖动** —— 触控板双指 pan/zoom 和
+        //   触摸的 pan 不进竞技场，触控板按住点击拖动仍上报 mouse。
         //   竖向滑动完全让给宿主滚动(此前触屏滚页面被编辑器拦成拖选);
         //   回调里判 kind 早退没用,recognizer 赢了竞技场滚动照样被劫持,
         //   必须构造期 supportedDevices 分流;
@@ -2674,24 +3991,65 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             TapGestureRecognizer:
                 GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
                   () => TapGestureRecognizer(debugOwner: this),
-                  (r) => r
-                    ..onTapDown = _onTapDown
-                    ..onTapUp = _onTapUp
-                    ..onTapCancel = _onTapCancel,
+                  (r) => r..onSecondaryTapUp = _onSecondaryTapUp,
                 ),
-            PanGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
-                  () => PanGestureRecognizer(
+            RegionTapAndPanGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  RegionTapAndPanGestureRecognizer
+                >(
+                  () => RegionTapAndPanGestureRecognizer(
                     debugOwner: this,
-                    supportedDevices: const {
-                      PointerDeviceKind.mouse,
-                      PointerDeviceKind.trackpad,
-                    },
+                    supportedDevices:
+                        defaultTargetPlatform == TargetPlatform.iOS
+                        ? const {}
+                        : const {PointerDeviceKind.mouse},
+                    canStartAt: (point) =>
+                        !_hitsSelfManagedRegion(point) &&
+                        !_hitsIslandRegion(point),
                   ),
                   (r) => r
-                    ..onStart = _onPanStart
-                    ..onUpdate = _onPanUpdate
-                    ..onEnd = _onPanEnd,
+                    ..dragStartBehavior = DragStartBehavior.down
+                    ..eagerVictoryOnDrag =
+                        defaultTargetPlatform != TargetPlatform.iOS
+                    ..onTapTrackStart = _onTapTrackStart
+                    ..onTapTrackReset = _onTapTrackReset
+                    ..onTapDown = _onTapDown
+                    ..onTapUp = _onTapUp
+                    ..onCancel = _onTapCancel
+                    ..onDragStart = _onPanStart
+                    ..onDragUpdate = _onPanUpdate
+                    ..onDragEnd = _onPanEnd,
+                ),
+            RegionTapAndHorizontalDragGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  RegionTapAndHorizontalDragGestureRecognizer
+                >(
+                  () => RegionTapAndHorizontalDragGestureRecognizer(
+                    debugOwner: this,
+                    supportedDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.stylus,
+                      PointerDeviceKind.invertedStylus,
+                      PointerDeviceKind.unknown,
+                      if (defaultTargetPlatform == TargetPlatform.iOS)
+                        PointerDeviceKind.mouse,
+                    },
+                    canStartAt: (point) =>
+                        !_hitsSelfManagedRegion(point) &&
+                        !_hitsIslandRegion(point),
+                  ),
+                  (r) => r
+                    ..dragStartBehavior = DragStartBehavior.down
+                    ..eagerVictoryOnDrag =
+                        defaultTargetPlatform != TargetPlatform.iOS
+                    ..onTapTrackStart = _onTapTrackStart
+                    ..onTapTrackReset = _onTapTrackReset
+                    ..onTapDown = _onTapDown
+                    ..onTapUp = _onTapUp
+                    ..onCancel = _onTapCancel
+                    ..onDragStart = _onPanStart
+                    ..onDragUpdate = _onPanUpdate
+                    ..onDragEnd = _onPanEnd,
                 ),
             LongPressGestureRecognizer:
                 GestureRecognizerFactoryWithHandlers<
@@ -2708,7 +4066,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
                   (r) => r
                     ..onLongPressStart = _onLongPressStart
                     ..onLongPressMoveUpdate = _onLongPressMoveUpdate
-                    ..onLongPressEnd = _onLongPressEnd,
+                    ..onLongPressEnd = _onLongPressEnd
+                    ..onLongPressCancel = _finishLongPress,
                 ),
             // 三指文本编辑手势(撤销/重做/复制/剪切/粘贴)。
             // 源码模式走原生 TextField 白拿这些,富文本自绘必须自己识别。
@@ -2757,6 +4116,10 @@ class _FluxdoEditorState extends State<FluxdoEditor>
           ),
         ),
       ),
+    );
+    return TextFieldTapRegion(
+      onTapOutside: _onEditingTapOutside,
+      child: content,
     );
   }
 }

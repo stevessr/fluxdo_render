@@ -31,6 +31,7 @@ class EditorCodeBlock extends StatefulWidget {
     this.selected = false,
     this.autoEdit = false,
     this.onSelectRequest,
+    this.onContextMenu,
     this.highlightBuilder,
   });
 
@@ -47,10 +48,11 @@ class EditorCodeBlock extends StatefulWidget {
 
   /// 左上角选择柄点击 → 编辑器整选本块(选中后退格/Delete 删除)。
   final VoidCallback? onSelectRequest;
+  final VoidCallback? onContextMenu;
 
   /// 展示态代码渲染(宿主注入语法高亮;null 用 monospace 纯文本)。
   final Widget Function(BuildContext context, String code, String? language)?
-      highlightBuilder;
+  highlightBuilder;
 
   @override
   State<EditorCodeBlock> createState() => _EditorCodeBlockState();
@@ -60,10 +62,12 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
   bool _editing = false;
   bool _hover = false;
 
-  late final TextEditingController _codeController =
-      TextEditingController(text: widget.node.code);
-  late final TextEditingController _langController =
-      TextEditingController(text: widget.node.language ?? '');
+  late final TextEditingController _codeController = TextEditingController(
+    text: widget.node.code,
+  );
+  late final TextEditingController _langController = TextEditingController(
+    text: widget.node.language ?? '',
+  );
   final FocusNode _codeFocus = FocusNode(debugLabel: 'codeblock-code');
   final FocusNode _langFocus = FocusNode(debugLabel: 'codeblock-lang');
 
@@ -160,7 +164,7 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
       padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
       child: Row(
         children: [
-          if (_editing)
+          if (_editing && !widget.node.rawHtml && !widget.node.rawMarkdown)
             SizedBox(
               width: 120,
               child: TextField(
@@ -179,8 +183,10 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
                     fontSize: 11,
                     color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
                   ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(color: scheme.outlineVariant),
@@ -191,7 +197,11 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
             )
           else
             Text(
-              (widget.node.language ?? 'TEXT').toUpperCase(),
+              widget.node.rawHtml
+                  ? 'HTML 源码'
+                  : widget.node.rawMarkdown
+                  ? 'Markdown 源码'
+                  : (widget.node.language ?? 'TEXT').toUpperCase(),
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -200,6 +210,16 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
               ),
             ),
           const Spacer(),
+          if (widget.onContextMenu != null)
+            IconButton(
+              tooltip: '代码块操作',
+              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+              onPressed: () {
+                widget.onSelectRequest?.call();
+                widget.onContextMenu!();
+              },
+              icon: const Icon(Icons.more_horiz_rounded, size: 20),
+            ),
           if (_editing)
             Text(
               'Esc 取消 · 点击外部保存',
@@ -251,7 +271,8 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
         ),
       );
     } else {
-      final display = widget.highlightBuilder?.call(
+      final display =
+          widget.highlightBuilder?.call(
             context,
             widget.node.code,
             widget.node.language,
@@ -288,8 +309,8 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
             color: widget.selected
                 ? scheme.primary
                 : _editing
-                    ? scheme.primary.withValues(alpha: 0.6)
-                    : scheme.outlineVariant.withValues(alpha: 0.5),
+                ? scheme.primary.withValues(alpha: 0.6)
+                : scheme.outlineVariant.withValues(alpha: 0.5),
             width: widget.selected || _editing ? 1.5 : 1,
           ),
         ),
@@ -317,11 +338,11 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
           Padding(padding: const EdgeInsets.only(top: 4), child: body),
           // 左上角块级选择柄(表格同款;自管区外走编辑器整选)。
           // 触屏无 hover:编辑态常显(否则手机上无入口整选删块)
-          if (widget.onSelectRequest != null &&
+          if (widget.onContextMenu == null &&
+              widget.onSelectRequest != null &&
               (_hover ||
                   widget.selected ||
-                  (!RendererBinding
-                          .instance.mouseTracker.mouseIsConnected &&
+                  (!RendererBinding.instance.mouseTracker.mouseIsConnected &&
                       _editing)))
             Positioned(
               left: -2,

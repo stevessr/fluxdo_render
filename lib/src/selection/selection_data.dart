@@ -40,11 +40,15 @@ class SelectionData {
     required this.globalBounds,
     required this.globalRects,
     this.code,
+    this.copyText,
   });
 
   /// 已按投影规则拼好的纯文本(emoji→`:name:`、块间 `\n`、clickCount 排除)。
   /// 直接喂主项目 HtmlTextMapper.extractHtml(post.cooked, plainText)。
   final String plainText;
+
+  final String? copyText;
+  String get clipboardText => copyText ?? plainText;
 
   /// 选区所有高亮矩形的外接框(全局坐标),给 toolbar 定位。
   final Rect globalBounds;
@@ -63,10 +67,8 @@ class SelectionData {
 
 /// 选区变化回调(选区稳定/清除时触发,null = 清除)。
 /// [fromTouch] = 本次选区是否由触摸产生(决定是否显示移动端拖拽手柄)。
-typedef SelectionResultCallback = void Function(
-  SelectionData? data, {
-  bool fromTouch,
-});
+typedef SelectionResultCallback =
+    void Function(SelectionData? data, {bool fromTouch});
 
 /// 引用请求回调 —— toolbar 点「引用」时调,把选区 plainText 交回主项目。
 typedef QuoteRequestCallback = void Function(String plainText);
@@ -81,7 +83,5 @@ typedef DecryptRequestCallback = void Function(String plainText);
 /// 决定「解密」按钮是否对当前选区显示。
 /// [codeLanguage] 为选区所在代码块的 fence 语言标记(如 ```enc),
 /// 主项目可据此把整块标记内容视为可解密(哪怕只选中了片段)。
-typedef DecryptTextDetector = bool Function(
-  String plainText, {
-  String? codeLanguage,
-});
+typedef DecryptTextDetector =
+    bool Function(String plainText, {String? codeLanguage});

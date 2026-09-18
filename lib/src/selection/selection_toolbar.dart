@@ -15,7 +15,7 @@
 ///
 /// 定位:anchors 按 SDK TextSelectionToolbarAnchors.fromSelection 语义取
 /// 可见选区外接框的 top/bottom 中点,flip/夹边交给 SDK layout delegate。
-/// 用 OverlayEntry 浮在内容上方,避免被滚动裁剪。
+/// 用 SDK ContextMenuController 管理根浮层及菜单互斥，避免复制官方生命周期。
 library;
 
 import 'dart:math' as math;
@@ -75,7 +75,7 @@ class SelectionToolbar {
   final String quoteLabel;
   final String decryptLabel;
 
-  OverlayEntry? _entry;
+  final ContextMenuController _menu = ContextMenuController();
 
   /// 当前选区数据(可变)—— 滚动时由 [reposition] 更新,builder 内读最新值
   /// 实时算坐标,markNeedsBuild 即重定位。
@@ -91,30 +91,27 @@ class SelectionToolbar {
     _yComp = 0;
     // Android:首次触发 ProcessText 动作查询;就绪后若还在显示则补进按钮。
     SelectionProcessText.ensureLoaded().then((_) {
-      if (_entry != null) _entry!.markNeedsBuild();
+      if (_menu.isShown) _menu.markNeedsBuild();
     });
-    if (_entry != null) {
-      _entry!.markNeedsBuild();
+    if (_menu.isShown) {
+      _menu.markNeedsBuild();
       return;
     }
-    final overlay = Overlay.maybeOf(context);
-    if (overlay == null) return;
-
-    _entry = OverlayEntry(builder: _build);
-    overlay.insert(_entry!);
+    if (Overlay.maybeOf(context, rootOverlay: true) == null) return;
+    _menu.show(context: context, contextMenuBuilder: _build);
   }
 
   /// 滚动时调:更新选区几何并重定位。[yCompensation] = 本帧 scroll delta,
   /// 用于抵消 export 几何的一帧滞后(消抖,见 SelectionContentLayer._onScroll)。
   void reposition(SelectionData? data, {double yCompensation = 0}) {
-    if (_entry == null) return;
+    if (!_menu.isShown) return;
     if (data == null) {
       hide();
       return;
     }
     _data = data;
     _yComp = yCompensation;
-    _entry!.markNeedsBuild();
+    _menu.markNeedsBuild();
   }
 
   Widget _build(BuildContext ctx) {
@@ -123,15 +120,19 @@ class SelectionToolbar {
     // 选区完全滚出视口(无可见块 → 无几何)→ 不显示(滚回视口再现),
     // 避免工具栏空浮在视口顶与可见内容脱节。
     if (data.globalRects.isEmpty) return const SizedBox.shrink();
-    final overlay = Overlay.maybeOf(context);
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
     final overlayBox = overlay?.context.findRenderObject() as RenderBox?;
     if (overlayBox == null) return const SizedBox.shrink();
 
     // 可见选区外接框 → overlay 局部坐标;减 _yComp 抵消滚动一帧滞后(消抖)。
     final bounds = data.globalBounds;
     final tl = overlayBox.globalToLocal(bounds.topLeft);
-    final selRect =
-        Rect.fromLTWH(tl.dx, tl.dy - _yComp, bounds.width, bounds.height);
+    final selRect = Rect.fromLTWH(
+      tl.dx,
+      tl.dy - _yComp,
+      bounds.width,
+      bounds.height,
+    );
 
     // anchors 语义对齐 SDK TextSelectionToolbarAnchors.fromSelection:
     // primary = 外接框顶边中点、secondary = 底边中点,竖直方向夹进 overlay。
@@ -180,7 +181,9 @@ class SelectionToolbar {
               for (var i = 0; i < items.length; i++)
                 TextSelectionToolbarTextButton(
                   padding: TextSelectionToolbarTextButton.getPadding(
-                      i, items.length),
+                    i,
+                    items.length,
+                  ),
                   onPressed: items[i].onPressed,
                   // TextSelectionToolbarTextButton 用 styleFrom(textStyle:)
                   // 把按钮文字样式整体覆盖成不带 fontFamily 的固定样式,
@@ -189,15 +192,14 @@ class SelectionToolbar {
                   // 进来 —— 不能整个套 bodyMedium(inherit: false,会连
                   // color/height 一起顶掉 SDK 按钮的前景色/禁用态语义)。
                   child: Text(
-                    AdaptiveTextSelectionToolbar.getButtonLabel(
-                        ctx, items[i]),
+                    AdaptiveTextSelectionToolbar.getButtonLabel(ctx, items[i]),
                     style: TextStyle(
-                      fontFamily:
-                          Theme.of(ctx).textTheme.bodyMedium?.fontFamily,
-                      fontFamilyFallback: Theme.of(ctx)
-                          .textTheme
-                          .bodyMedium
-                          ?.fontFamilyFallback,
+                      fontFamily: Theme.of(
+                        ctx,
+                      ).textTheme.bodyMedium?.fontFamily,
+                      fontFamilyFallback: Theme.of(
+                        ctx,
+                      ).textTheme.bodyMedium?.fontFamilyFallback,
                     ),
                   ),
                 ),
@@ -205,10 +207,7 @@ class SelectionToolbar {
           );
 
     return Positioned.fill(
-      child: TapRegion(
-        groupId: tapRegionGroupId,
-        child: toolbar,
-      ),
+      child: TapRegion(groupId: tapRegionGroupId, child: toolbar),
     );
   }
 
@@ -237,7 +236,7 @@ class SelectionToolbar {
             hide();
           },
         ),
-      if (onCopyQuote != null)
+      if (onCopyQuote != null && data.plainText.trim().isNotEmpty)
         ContextMenuButtonItem(
           label: copyQuoteLabel,
           onPressed: () {
@@ -245,7 +244,7 @@ class SelectionToolbar {
             hide();
           },
         ),
-      if (onQuote != null)
+      if (onQuote != null && data.plainText.trim().isNotEmpty)
         ContextMenuButtonItem(
           label: quoteLabel,
           onPressed: () {
@@ -255,7 +254,9 @@ class SelectionToolbar {
         ),
       // Android 用户应用工具(翻译/搜索等)。执行后收 toolbar + 通知上层清选区
       // (对齐 SDK _textProcessingActionButtonItems :1752-1774)。
-      for (final action in SelectionProcessText.actions)
+      for (final action in data.plainText.trim().isEmpty
+          ? const <ProcessTextAction>[]
+          : SelectionProcessText.actions)
         ContextMenuButtonItem(
           label: action.label,
           onPressed: () async {
@@ -266,6 +267,7 @@ class SelectionToolbar {
         ),
     ];
   }
+
   /// 「解密」按钮显隐：回调注入且选中文本命中密文特征(ENC1/OpenSSL/
   /// 纯 Base64/Hex/摩斯)。特征逻辑由主项目注入,子包不重复实现。
   bool _showDecrypt(SelectionData data) {
@@ -278,8 +280,7 @@ class SelectionToolbar {
   }
 
   void hide() {
-    _entry?.remove();
-    _entry = null;
+    _menu.remove();
     _data = null;
   }
 
@@ -287,7 +288,7 @@ class SelectionToolbar {
     final code = data.code;
     final text = code != null
         ? '```${code.language ?? ''}\n${data.plainText}\n```'
-        : data.plainText;
+        : data.clipboardText;
     Clipboard.setData(ClipboardData(text: text));
     onCopied?.call();
   }

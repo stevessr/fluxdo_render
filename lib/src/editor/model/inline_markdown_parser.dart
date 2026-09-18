@@ -57,7 +57,8 @@ EditableTextContent parseInlineMarkdown(String source) {
     content = content
         .delete(start, searchFrom + m.end)
         .insert(start, label)
-        .applyMark(start, start + label.length, MarkKind.link, attr: href);
+        .applyMark(start, start + label.length, MarkKind.link,
+            attr: href, isAutoLink: false);
     searchFrom = start + label.length;
   }
 

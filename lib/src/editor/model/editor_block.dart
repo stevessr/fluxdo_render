@@ -201,6 +201,7 @@ class TextBlock extends EditorBlock {
     this.ordered = false,
     this.depth = 0,
     this.listStart = 1,
+    this.listLoose = false,
     List<ContainerFrame> containers = const [],
     int quoteDepth = 0,
   })  : assert(headingLevel >= 1 && headingLevel <= 6),
@@ -225,8 +226,12 @@ class TextBlock extends EditorBlock {
   final bool ordered;
   final int depth;
 
-  /// `<ol start="N">` 还原用(连续 listItem run 的首项生效)。
+  /// `<ol start="N">` 还原用：每层、每个父项下的新列表首项生效。
+  /// 同层后续项按计数递增，不受其默认值 1 影响。
   final int listStart;
+
+  /// 所属列表是否保留段落包装；所有同级项共享该语义。
+  final bool listLoose;
 
   /// 容器栈(外→内):本块被哪些可进入容器包裹(M5-B)。
   /// 空 = 顶层。相邻块的公共前缀 = 同一容器实例(渲染分组画壳,
@@ -252,6 +257,7 @@ class TextBlock extends EditorBlock {
     bool? ordered,
     int? depth,
     int? listStart,
+    bool? listLoose,
     List<ContainerFrame>? containers,
   }) =>
       TextBlock(
@@ -262,6 +268,7 @@ class TextBlock extends EditorBlock {
         ordered: ordered ?? this.ordered,
         depth: depth ?? this.depth,
         listStart: listStart ?? this.listStart,
+        listLoose: listLoose ?? this.listLoose,
         containers: containers ?? this.containers,
       );
 
@@ -280,7 +287,7 @@ class TextBlock extends EditorBlock {
         containers: containers,
       );
 
-  TextBlock asListItem({required bool ordered, int depth = 0, int listStart = 1}) =>
+  TextBlock asListItem({required bool ordered, int depth = 0, int listStart = 1, bool? listLoose}) =>
       TextBlock(
         id: id,
         content: content,
@@ -288,6 +295,7 @@ class TextBlock extends EditorBlock {
         ordered: ordered,
         depth: depth,
         listStart: listStart,
+        listLoose: listLoose ?? (isListItem && this.listLoose),
         containers: containers,
       );
 
@@ -302,12 +310,13 @@ class TextBlock extends EditorBlock {
           ordered == other.ordered &&
           depth == other.depth &&
           listStart == other.listStart &&
+          listLoose == other.listLoose &&
           listEquals(containers, other.containers) &&
           content == other.content;
 
   @override
   int get hashCode => Object.hash(id, kind, headingLevel, ordered, depth,
-      listStart, Object.hashAll(containers), content);
+      listStart, listLoose, Object.hashAll(containers), content);
 
   @override
   String toString() {

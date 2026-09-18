@@ -5,7 +5,7 @@
 /// 「serialize 产物再 cook 与原 cooked 等价」已经离线三步法全绿验证
 /// (12 组:regular/multiple+标题/number/close+name/富文本选项/status=closed
 /// +groups/正文夹杂/多行选项/带空格 name/最小属性/同帖双 poll),此处固化
-/// 结构断言防回归 —— 语义级等价由主项目 composer_doc_codec 导入门禁运行时兜底。
+/// 结构断言防回归 —— 语义级等价由主项目 semantic_composer_codec 导入门禁运行时兜底。
 library;
 
 import 'package:flutter_test/flutter_test.dart';

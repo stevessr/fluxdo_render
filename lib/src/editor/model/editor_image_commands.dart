@@ -14,9 +14,7 @@
 /// **模式切换**(setMode,grid ⇄ carousel):改 node attr,序列化写
 /// `[grid mode=carousel]`。
 ///
-/// **grid 内图不可单选**:grid 是原子岛(AbsorbPointer 整体只读),
-/// 官方"图挪出网格"(moveOutsideGrid)无触发入口 —— 等价能力 =
-/// 移除网格后重新组合;要 1:1 需 grid 岛内图片子选中机制,另立项。
+/// 图片组内单图支持移出、删除和重排；追加图片按组标识提交，不依赖光标。
 library;
 
 import '../../node/node.dart';
@@ -35,14 +33,13 @@ bool addImageAtomToGrid(EditorState state, String blockId, int offset) {
 
   final removed = block.content.delete(offset, offset + 1);
   // 删原子后是否还有实际内容(纯空段丢弃;非段落属性/容器帧保留块)
-  final textRemains = removed.length > 0 ||
-      !block.isParagraph ||
-      block.containers.isNotEmpty;
+  final textRemains =
+      removed.length > 0 || !block.isParagraph || block.containers.isNotEmpty;
 
   EditorSelection selectIsland(String id) => EditorSelection(
-        base: EditorPosition(blockId: id, offset: 0),
-        extent: EditorPosition(blockId: id, offset: 1),
-      );
+    base: EditorPosition(blockId: id, offset: 0),
+    extent: EditorPosition(blockId: id, offset: 1),
+  );
 
   // ---- 分支 1:前邻是 grid 岛 → append ----
   final prev = i > 0 ? state.blocks[i - 1] : null;
@@ -57,12 +54,10 @@ bool addImageAtomToGrid(EditorState state, String blockId, int offset) {
         mode: grid.mode,
       ),
     );
-    state.replaceBlockRange(
-      i - 1,
-      i,
-      [newGrid, if (textRemains) block.copyWith(content: removed)],
-      selection: selectIsland(newGrid.id),
-    );
+    state.replaceBlockRange(i - 1, i, [
+      newGrid,
+      if (textRemains) block.copyWith(content: removed),
+    ], selection: selectIsland(newGrid.id));
     return true;
   }
 
@@ -79,12 +74,10 @@ bool addImageAtomToGrid(EditorState state, String blockId, int offset) {
         mode: grid.mode,
       ),
     );
-    state.replaceBlockRange(
-      i,
-      i + 1,
-      [if (textRemains) block.copyWith(content: removed), newGrid],
-      selection: selectIsland(newGrid.id),
-    );
+    state.replaceBlockRange(i, i + 1, [
+      if (textRemains) block.copyWith(content: removed),
+      newGrid,
+    ], selection: selectIsland(newGrid.id));
     return true;
   }
 
@@ -93,31 +86,24 @@ bool addImageAtomToGrid(EditorState state, String blockId, int offset) {
   final islandId = state.nextBlockId();
   final newGrid = IslandBlock(
     id: islandId,
-    node: ImageGridNode(
-      id: 'b_grid_$islandId',
-      images: [img],
-    ),
+    node: ImageGridNode(id: 'b_grid_$islandId', images: [img]),
   );
-  state.replaceBlockRange(
-    i,
-    i,
-    [
-      if (before.length > 0) block.copyWith(content: before),
-      newGrid,
-      if (after.length > 0)
-        TextBlock(
-          id: state.nextBlockId(),
-          content: after,
-          kind: block.kind,
-          headingLevel: block.headingLevel,
-          ordered: block.ordered,
-          depth: block.depth,
-          listStart: block.listStart,
-          containers: block.containers,
-        ),
-    ],
-    selection: selectIsland(islandId),
-  );
+  state.replaceBlockRange(i, i, [
+    if (before.length > 0) block.copyWith(content: before),
+    newGrid,
+    if (after.length > 0)
+      TextBlock(
+        id: state.nextBlockId(),
+        content: after,
+        kind: block.kind,
+        headingLevel: block.headingLevel,
+        ordered: block.ordered,
+        depth: block.depth,
+        listStart: block.listStart,
+        listLoose: block.listLoose,
+        containers: block.containers,
+      ),
+  ], selection: selectIsland(islandId));
   return true;
 }
 
@@ -247,8 +233,7 @@ bool moveImageOutsideGrid(EditorState state, String islandId, int imageIndex) {
 /// grid 内图片重排(瓦片拖拽排序):第 [from] 张抽出插到 [to] 位
 /// (插入语义,官方 ProseMirror 拖放同款)。岛节点原位形变不经 cook,
 /// undo 一步。返回 false = 不是 grid 岛或下标越界。
-bool reorderImageInGrid(
-    EditorState state, String islandId, int from, int to) {
+bool reorderImageInGrid(EditorState state, String islandId, int from, int to) {
   final i = state.indexOfBlock(islandId);
   if (i < 0) return false;
   final block = state.blocks[i];
@@ -266,6 +251,31 @@ bool reorderImageInGrid(
     ImageGridNode(
       id: grid.id,
       images: images,
+      columns: grid.columns,
+      mode: grid.mode,
+    ),
+  );
+  return true;
+}
+
+/// Append to a captured group, independently of the caret. Merge with the
+/// current group so uploads completing after a reorder do not overwrite it.
+bool appendImagesToGrid(
+  EditorState state,
+  String islandId,
+  List<ImageRun> images,
+) {
+  if (images.isEmpty) return false;
+  final index = state.indexOfBlock(islandId);
+  if (index < 0) return false;
+  final block = state.blocks[index];
+  if (block is! IslandBlock || block.node is! ImageGridNode) return false;
+  final grid = block.node as ImageGridNode;
+  state.updateIslandNode(
+    islandId,
+    ImageGridNode(
+      id: grid.id,
+      images: [...grid.images, ...images],
       columns: grid.columns,
       mode: grid.mode,
     ),

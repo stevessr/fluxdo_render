@@ -32,23 +32,28 @@ RenderTextProjection buildInlineProjection(List<InlineNode> inlines) {
 
   void addText(String text, ProjectionKind kind) {
     if (text.isEmpty) return;
-    entries.add(ProjectionEntry(
-      renderStart: cursor,
-      renderLen: text.length,
-      logicalText: text,
-      kind: kind,
-    ));
+    entries.add(
+      ProjectionEntry(
+        renderStart: cursor,
+        renderLen: text.length,
+        logicalText: text,
+        kind: kind,
+      ),
+    );
     cursor += text.length;
   }
 
   // 占位符:渲染层占 1 个 ￼,逻辑投影为 [logical](可空)。
-  void addPlaceholder(String logical, ProjectionKind kind) {
-    entries.add(ProjectionEntry(
-      renderStart: cursor,
-      renderLen: 1,
-      logicalText: logical,
-      kind: kind,
-    ));
+  void addPlaceholder(String logical, ProjectionKind kind, {String? copyText}) {
+    entries.add(
+      ProjectionEntry(
+        renderStart: cursor,
+        renderLen: 1,
+        logicalText: logical,
+        copyText: copyText,
+        kind: kind,
+      ),
+    );
     cursor += 1;
   }
 
@@ -63,12 +68,14 @@ RenderTextProjection buildInlineProjection(List<InlineNode> inlines) {
         // text.length 个字符、逻辑投影空串(零内容宽,同 codePad ——
         // 复制/编辑坐标不带出,光标进不了定界符内部)。
         case EditingDelimiterRun(:final text):
-          entries.add(ProjectionEntry(
-            renderStart: cursor,
-            renderLen: text.length,
-            logicalText: '',
-            kind: ProjectionKind.editingDelimiter,
-          ));
+          entries.add(
+            ProjectionEntry(
+              renderStart: cursor,
+              renderLen: text.length,
+              logicalText: '',
+              kind: ProjectionKind.editingDelimiter,
+            ),
+          );
           cursor += text.length;
         case TextRun(:final text):
           addText(insertSoftBreaks(text), ProjectionKind.text);
@@ -96,7 +103,9 @@ RenderTextProjection buildInlineProjection(List<InlineNode> inlines) {
             case InlineStyleKind.superscript:
             case InlineStyleKind.subscript:
               addPlaceholder(
-                  concatLogical(children), ProjectionKind.styledAtom);
+                concatLogical(children),
+                ProjectionKind.styledAtom,
+              );
             default:
               walk(children);
           }
@@ -137,8 +146,12 @@ RenderTextProjection buildInlineProjection(List<InlineNode> inlines) {
           } else {
             addPlaceholder('@$username', ProjectionKind.mention);
           }
-        case ImageRun(:final alt):
-          addPlaceholder(alt, ProjectionKind.image);
+        case ImageRun(:final alt, :final src):
+          addPlaceholder(
+            alt,
+            ProjectionKind.image,
+            copyText: alt.isEmpty ? src : null,
+          );
         case SpoilerRun(:final children):
           // 渲染层是 1 个 WidgetSpan(￼),投影成子文本全文(对齐 cooked)。
           addPlaceholder(concatLogical(children), ProjectionKind.spoiler);

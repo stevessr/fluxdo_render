@@ -6,7 +6,7 @@
 ///   与上次喂给平台的值做三段式 diff(公共前缀/后缀)得出变更。这是
 ///   Flutter EditableText 自身的路径,各平台 CJK 修复最充分。
 /// - **IME 窗口 = 当前段落**:attach/setEditingState 只喂光标所在段落,
-///   跨段操作(合并/跨段删)走键盘/手势,不走 IME。
+///   跨段选区临时提供完整选中文本，首次输入整体替换后回到单段窗口。
 /// - **pad 前缀**:移动端 IME 不上报 offset 0 的退格 —— 喂给平台的文本
 ///   前垫 [_padChar],全部坐标 +1;收到的值先 [_unformat] 剥掉再进文档。
 ///   检测到 pad 被删 = 段首退格 → 触发与上段合并。坐标换算**只**存在于
@@ -83,6 +83,7 @@ class EditorImeClient with TextInputClient {
 
   /// 当前 attach 的段落 id(IME 窗口)。
   String? _attachedBlockId;
+  bool _crossSelectionWindow = false;
 
   /// 上次喂给平台的值(**pad 后**坐标;diff 基准)。
   TextEditingValue _lastSent = TextEditingValue.empty;
@@ -143,26 +144,61 @@ class EditorImeClient with TextInputClient {
   /// 偏离我们发出的 _lastSent,`value != _lastSent` 判不出来)。
   void syncFromState({bool show = true, bool force = false}) {
     final sel = state.selection;
-    if (sel == null || !sel.isSingleBlock) {
-      // 无光标/跨段选区:M1 简化 —— 保持连接但不喂值更新;
-      // 跨段删除由键盘路径处理后回到单段,再走这里同步。
+    if (sel == null) {
+      _suspendTextTarget();
       return;
     }
-    final block = state.textBlockById(sel.extent.blockId);
-    if (block == null) return; // 岛/幽灵块:IME 窗口不喂值
-
-    final value = _format(
-      TextEditingValue(
-        text: block.content.text,
-        selection: TextSelection(
-          baseOffset: sel.base.blockId == sel.extent.blockId
-              ? sel.base.offset
-              : sel.extent.offset,
-          extentOffset: sel.extent.offset,
+    late final String targetBlockId;
+    late final TextEditingValue value;
+    _crossSelectionWindow = !sel.isSingleBlock;
+    if (_crossSelectionWindow) {
+      final range = state.normalizedSelection()!;
+      final from = state.indexOfBlock(range.$1.blockId);
+      final to = state.indexOfBlock(range.$2.blockId);
+      final pieces = <String>[];
+      for (var i = from; i <= to; i++) {
+        final block = state.blocks[i];
+        final text = block is TextBlock ? block.content.text : '\uFFFC';
+        pieces.add(
+          text.substring(
+            i == from ? range.$1.offset : 0,
+            i == to ? range.$2.offset : text.length,
+          ),
+        );
+      }
+      final text = pieces.join('\n');
+      targetBlockId =
+          (state.textBlockById(sel.base.blockId) ??
+                  state.blocks.whereType<TextBlock>().first)
+              .id;
+      final reversed = sel.base != range.$1;
+      value = _format(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection(
+            baseOffset: reversed ? text.length : 0,
+            extentOffset: reversed ? 0 : text.length,
+          ),
         ),
-        composing: state.composing,
-      ),
-    );
+      );
+    } else {
+      final block = state.textBlockById(sel.extent.blockId);
+      if (block == null) {
+        _suspendTextTarget();
+        return;
+      }
+      targetBlockId = block.id;
+      value = _format(
+        TextEditingValue(
+          text: block.content.text,
+          selection: TextSelection(
+            baseOffset: sel.base.offset,
+            extentOffset: sel.extent.offset,
+          ),
+          composing: state.composing,
+        ),
+      );
+    }
 
     if (_connection == null || !_connection!.attached) {
       _connection = TextInput.attach(
@@ -179,7 +215,7 @@ class EditorImeClient with TextInputClient {
           keyboardAppearance: Brightness.light,
         ),
       );
-      _attachedBlockId = sel.extent.blockId;
+      _attachedBlockId = targetBlockId;
       _connection!.setEditingState(value);
       _lastSent = value;
       _rememberSent(value);
@@ -188,9 +224,9 @@ class EditorImeClient with TextInputClient {
     }
 
     // 已连接:段落切换 or 文档/选区外部变化 → 重新喂值。
-    final blockChanged = _attachedBlockId != sel.extent.blockId;
+    final blockChanged = _attachedBlockId != targetBlockId;
     if (force || blockChanged || value != _lastSent) {
-      _attachedBlockId = sel.extent.blockId;
+      _attachedBlockId = targetBlockId;
       _log(
         'send text="${value.text}" sel=${value.selection.baseOffset}'
         '..${value.selection.extentOffset} comp=${value.composing}'
@@ -204,6 +240,7 @@ class EditorImeClient with TextInputClient {
   }
 
   void detach() {
+    _crossSelectionWindow = false;
     _connection?.close();
     _connection = null;
     _attachedBlockId = null;
@@ -308,9 +345,26 @@ class EditorImeClient with TextInputClient {
     }
   }
 
+  /// Keep an already visible keyboard during object/menu interaction, but
+  /// remove its document target so late input cannot edit the previous block.
+  void _suspendTextTarget() {
+    _crossSelectionWindow = false;
+    if (_attachedBlockId == null) return;
+    _attachedBlockId = null;
+    _recentSent.clear();
+    _lastSent = _format(
+      const TextEditingValue(selection: TextSelection.collapsed(offset: 0)),
+    );
+    if (_connection?.attached ?? false) _connection!.setEditingState(_lastSent);
+  }
+
   void _updateEditingValueImpl(TextEditingValue rawValue) {
     final blockId = _attachedBlockId;
     if (blockId == null) return;
+    if (state.selection == null) {
+      _suspendTextTarget();
+      return;
+    }
     _log(
       'recv text="${rawValue.text}" sel=${rawValue.selection.baseOffset}'
       '..${rawValue.selection.extentOffset} '
@@ -379,6 +433,28 @@ class EditorImeClient with TextInputClient {
           text: state.textBlockById(blockId)?.content.text ?? '',
         );
 
+    if (state.selection?.isSingleBlock == false) {
+      // Selection drags are not sent to the IME until they settle. Ignore late
+      // callbacks from the previous paragraph during that interval.
+      if (!_crossSelectionWindow || _isRecentEcho(rawValue)) return;
+      final edited =
+          value.text != prev.text ||
+          value.selection.isCollapsed ||
+          (value.composing.isValid && !value.composing.isCollapsed);
+      if (!edited) return;
+      if (state.replaceCrossBlockSelection(
+        value.text,
+        caretOffset: value.selection.extentOffset,
+        composing: value.composing,
+      )) {
+        _lastSent = rawValue;
+        final target = state.selection?.extent.blockId;
+        if (!state.hasComposing && target != null) _tryRulesAfterCommit(target);
+        syncFromState(show: false, force: true);
+      }
+      return;
+    }
+
     // '\n' 的语义要按**来源**区分:
     // - **新插入**的 '\n' = 回车(部分 IME 的回车路径不走 performAction),
     //   编辑器语义是分段,拦下来转 splitBlock;
@@ -396,11 +472,7 @@ class EditorImeClient with TextInputClient {
     // caret 跟随剥换行修正:剥掉的 '\n' 都在插入段内,caret 之前每剥一个
     // 就左移一位 —— 否则后续 diff 锚定与 imeReplace 落点全部右偏。
     var caret = value.selection.extentOffset;
-    final rawDiff = diffWithCaret(
-      prev.text,
-      sanitizedText,
-      caret,
-    );
+    final rawDiff = diffWithCaret(prev.text, sanitizedText, caret);
     if (rawDiff != null && rawDiff.inserted.contains('\n')) {
       final withoutBreaks = rawDiff.inserted.replaceAll('\n', '');
       if (withoutBreaks.isEmpty && rawDiff.oldEnd == rawDiff.start) {
@@ -410,7 +482,8 @@ class EditorImeClient with TextInputClient {
         return;
       }
       // 混合变更:只剥**插入段内**的换行,既有换行不动。
-      sanitizedText = sanitizedText.substring(0, rawDiff.start) +
+      sanitizedText =
+          sanitizedText.substring(0, rawDiff.start) +
           withoutBreaks +
           sanitizedText.substring(rawDiff.start + rawDiff.inserted.length);
       for (var i = 0; i < rawDiff.inserted.length; i++) {
@@ -421,11 +494,7 @@ class EditorImeClient with TextInputClient {
     }
 
     // 三段式 diff(对比上次值,caret 锚定):公共前缀/后缀 → 中段即变更。
-    final diff = diffWithCaret(
-      prev.text,
-      sanitizedText,
-      caret,
-    );
+    final diff = diffWithCaret(prev.text, sanitizedText, caret);
 
     var composing = value.composing;
     // macOS 中文 IME quirk(appflowy non_delta_input_service.dart L274):
@@ -525,8 +594,10 @@ class EditorImeClient with TextInputClient {
       diff.start,
       diff.oldEnd,
       cleanInserted,
-      caretOffset:
-          (caret - phantomCount).clamp(0, sanitizedText.length - phantomCount),
+      caretOffset: (caret - phantomCount).clamp(
+        0,
+        sanitizedText.length - phantomCount,
+      ),
       composing: composing,
     );
 

@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
 import 'selectable_block_handle.dart';
+import 'projection.dart';
 import 'selection_geometry.dart';
 import 'selection_registry.dart';
 
@@ -29,7 +30,63 @@ class SelectionHitTester {
   ///
   /// 框架 hit-test 取不到(点在 padding/空隙、或在别的 chunk 里 = 跨 chunk 拖拽
   /// 扩展)时,回退到 globalRect 包含/最近兜底(下方原逻辑)。
-  DocumentPosition? positionAt(Offset global, {RenderObject? hitTestRoot}) {
+  DocumentPosition? positionAt(
+    Offset global, {
+    RenderObject? hitTestRoot,
+    DocumentPosition? selectionBase,
+  }) {
+    final position = _positionAt(global, hitTestRoot: hitTestRoot);
+    if (position == null || selectionBase == null) return position;
+    final atom = atomicRangeAt(global, position: position);
+    if (atom == null) return position;
+    final order = selectionBase.blockId.compareTo(position.blockId);
+    if (order < 0 ||
+        (order == 0 && selectionBase.renderOffset <= atom.start.renderOffset)) {
+      return atom.end;
+    }
+    if (order > 0 ||
+        (order == 0 && selectionBase.renderOffset >= atom.end.renderOffset)) {
+      return atom.start;
+    }
+    return position;
+  }
+
+  /// A pointer inside an image/object selects that unit, even when the text
+  /// engine resolves the pointer to its trailing caret (the next word).
+  ({DocumentPosition start, DocumentPosition end})? atomicRangeAt(
+    Offset global, {
+    DocumentPosition? position,
+    RenderObject? hitTestRoot,
+  }) {
+    position ??= _positionAt(global, hitTestRoot: hitTestRoot);
+    if (position == null) return null;
+    final handle = registry.byId(position.blockId);
+    final geometry = handle?.geometry;
+    if (handle == null || geometry == null || !geometry.isLive) return null;
+    final bounds = handle.globalRect();
+    if (bounds == null || !bounds.contains(global)) return null;
+    final local = geometry.renderBox.globalToLocal(global);
+    for (final entry in handle.projection.entries) {
+      if (entry.kind != ProjectionKind.image &&
+          entry.kind != ProjectionKind.blockObject) {
+        continue;
+      }
+      final boxes = geometry.getBoxesForSelection(
+        TextSelection(
+          baseOffset: entry.renderStart,
+          extentOffset: entry.renderEnd,
+        ),
+      );
+      if (!boxes.any((box) => box.toRect().contains(local))) continue;
+      return (
+        start: position.copyWith(renderOffset: entry.renderStart),
+        end: position.copyWith(renderOffset: entry.renderEnd),
+      );
+    }
+    return null;
+  }
+
+  DocumentPosition? _positionAt(Offset global, {RenderObject? hitTestRoot}) {
     final framework = _frameworkHit(global, hitTestRoot);
     if (framework != null) return framework;
 
@@ -59,8 +116,8 @@ class SelectionHitTester {
       final dy = global.dy < r.top
           ? r.top - global.dy
           : global.dy > r.bottom
-              ? global.dy - r.bottom
-              : 0.0;
+          ? global.dy - r.bottom
+          : 0.0;
       if (dy < best) {
         best = dy;
         nearest = h;
@@ -149,8 +206,12 @@ class SelectionHitTester {
   Rect? editingCaretRectAt(DocumentPosition pos, {required double lineHeight}) {
     final p = registry.byId(pos.blockId)?.paragraph;
     if (p == null || !p.attached || !p.hasSize) return null;
-    final local =
-        editingCaretRectIn(p, pos.renderOffset, lineHeight, pos.affinity);
+    final local = editingCaretRectIn(
+      p,
+      pos.renderOffset,
+      lineHeight,
+      pos.affinity,
+    );
     final topLeft = p.localToGlobal(local.topLeft);
     if (!topLeft.dx.isFinite || !topLeft.dy.isFinite) return null;
     return topLeft & local.size;
@@ -184,9 +245,8 @@ class SelectionHitTester {
     );
     // 前一个字符是换行符时,它的选区盒画在**上一行**,拿它当基准会把
     // 光标按上一行去定位(上一行含大图时偏差就是整个图高)。
-    final afterLineBreak = offset > 0 &&
-        offset - 1 < plain.length &&
-        plain[offset - 1] == '\n';
+    final afterLineBreak =
+        offset > 0 && offset - 1 < plain.length && plain[offset - 1] == '\n';
 
     double top = local.dy;
     TextBox? nearest;

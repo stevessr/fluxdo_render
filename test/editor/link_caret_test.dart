@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart' show LinkRun, TextRun;
@@ -33,6 +34,67 @@ void main() {
     ));
     await tester.pump();
     return state;
+  }
+
+  for (final source in ['title', 'attachment', 'angle']) {
+    testWidgets('真实点击 $source 原子后链接工具可编辑并守恒来源', (tester) async {
+      const href = 'https://x.test/a';
+      final atom = LinkRun(
+        href: href,
+        children: [TextRun(source == 'angle' ? href : '文件')],
+        isAttachment: source == 'attachment',
+        filename: source == 'attachment' ? '文件' : '',
+        origHref: source == 'attachment' ? 'upload://old' : null,
+        editorLinkTitle: source == 'title' ? '原始标题' : null,
+        editorAngleLink: source == 'angle',
+      );
+      final state = EditorState(blocks: [TextBlock(id: 'atom',
+        content: EditableTextContent.fromInlines([atom]))]);
+      addTearDown(state.dispose);
+      LinkCaretInfo? info;
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: Column(children: [
+        Expanded(child: FluxdoEditor(state: state, autofocus: true,
+          onLinkCaret: (value) => info = value)),
+        TextButton(onPressed: () {
+          final selected = info!;
+          state.editLinkAtomAt(selected.blockId, selected.start,
+            text: '新文字', href: 'https://x.test/new');
+        }, child: const Text('编辑链接')),
+      ]))));
+      // 焦点在帧后收敛；光标持续闪烁，不能用 pumpAndSettle 等待静止。
+      await tester.pump();
+      final label = source == 'angle' ? href : '文件';
+      final rendered = find.byWidgetPredicate((w) =>
+        w is RichText && w.text.toPlainText().contains(label));
+      expect(rendered, findsWidgets);
+      final paragraph = tester.renderObject<RenderParagraph>(rendered.first);
+      final text = paragraph.text.toPlainText();
+      final start = text.indexOf(label);
+      final boxes = paragraph.getBoxesForSelection(TextSelection(
+        baseOffset: start, extentOffset: start + label.length));
+      expect(boxes, isNotEmpty);
+      // 使用实际排版的文字框，不能假定行高、字体基线或内边距。
+      await tester.tapAt(paragraph.localToGlobal(boxes.first.toRect().center));
+      await tester.pump();
+      await tester.pump();
+      expect(info, isNotNull);
+      expect(info!.text, label);
+      expect(state.selection!.isCollapsed, false);
+      await tester.tap(find.text('编辑链接'));
+      await tester.pump();
+      final updated = (state.blocks.first as TextBlock).content.atoms[0] as LinkRun;
+      expect(updated.href, 'https://x.test/new');
+      expect(updated.isAttachment, atom.isAttachment);
+      expect(updated.editorLinkTitle, atom.editorLinkTitle);
+      expect(updated.editorAngleLink, false);
+      final markdown = state.exportMarkdown();
+      expect(markdown, contains('新文字'));
+      expect(markdown, contains('https://x.test/new'));
+      if (source == 'attachment') expect(markdown, contains('|attachment'));
+      if (source == 'title') expect(markdown, contains('原始标题'));
+      state.undo();
+      expect((state.blocks.first as TextBlock).content.atoms[0], atom);
+    });
   }
 
   testWidgets('光标进链接 → 上抛 info;移出 → null;变化才通知',

@@ -20,6 +20,7 @@ export 'src/editor/model/doc_converter.dart';
 export 'src/editor/model/editable_text_content.dart';
 export 'src/editor/model/editor_block.dart';
 export 'src/editor/model/editor_image_commands.dart';
+export 'src/editor/model/editor_object.dart';
 export 'src/editor/model/editor_state.dart';
 export 'src/editor/model/markdown_serializer.dart';
 export 'src/editor/widget/editor_island.dart';
@@ -29,3 +30,4 @@ export 'src/editor/widget/editor_collapsed_handle.dart'
     show kCollapsedHandleKey;
 export 'src/editor/widget/editor_toolbar.dart';
 export 'src/editor/widget/fluxdo_editor.dart';
+export 'src/editor/widget/editor_caret_reveal.dart';

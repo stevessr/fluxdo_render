@@ -7,7 +7,7 @@
 /// 3. 文本内容守恒抽查:fixture 里的中文正文子串在序列化产物里仍然在。
 ///
 /// 语义级等价(serialize → 再 cook → cooked 结构对比)由主项目
-/// composer_doc_codec 的导入门禁在运行时兜底(cook 引擎在 JS bundle,
+/// semantic_composer_codec 的导入门禁在运行时兜底(cook 引擎在 JS bundle,
 /// 子包测试环境跑不了)。
 library;
 

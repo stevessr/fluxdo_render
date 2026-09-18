@@ -1,0 +1,1095 @@
+{
+  "angle": {
+    "raw": "<https://mock.example/path>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "<https://mock.example/path>",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "https://mock.example/path"
+              ]
+            ],
+            "content": "",
+            "markup": "autolink",
+            "info": "auto",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "https://mock.example/path",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "autolink",
+            "info": "auto",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "email": {
+    "raw": "<mock@example.test>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "<mock@example.test>",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "mailto:mock@example.test"
+              ]
+            ],
+            "content": "",
+            "markup": "autolink",
+            "info": "auto",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock@example.test",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "autolink",
+            "info": "auto",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "original": {
+    "raw": "[mock](upload://mock.pdf)",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[mock](upload://mock.pdf)",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "/404"
+              ],
+              [
+                "data-orig-href",
+                "upload://mock.pdf"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "titledAttachment": {
+    "raw": "[mock|attachment](upload://mock.pdf \"mock title\")",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[mock|attachment](upload://mock.pdf \"mock title\")",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "/404"
+              ],
+              [
+                "title",
+                "mock title"
+              ],
+              [
+                "data-orig-href",
+                "upload://mock.pdf"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock|attachment",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "parents": {
+    "raw": "- mock\n\n  3. child\n  4. next\n\n- other\n\n  7. child\n  8. next",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bullet_list_open",
+        "tag": "ul",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "-",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          9
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "-",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_open",
+        "tag": "ol",
+        "nesting": 1,
+        "attrs": [
+          [
+            "start",
+            3
+          ]
+        ],
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "3",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "child",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "child",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "4",
+        "children": null,
+        "meta": null,
+        "map": [
+          3,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          3,
+          4
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "next",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "next",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          3,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_close",
+        "tag": "ol",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "-",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "-",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          5,
+          9
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          5,
+          6
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "other",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "other",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          5,
+          6
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_open",
+        "tag": "ol",
+        "nesting": 1,
+        "attrs": [
+          [
+            "start",
+            7
+          ]
+        ],
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          7,
+          9
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "7",
+        "children": null,
+        "meta": null,
+        "map": [
+          7,
+          8
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          7,
+          8
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "child",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "child",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          7,
+          8
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "8",
+        "children": null,
+        "meta": null,
+        "map": [
+          8,
+          9
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          8,
+          9
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "next",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "next",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          8,
+          9
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_close",
+        "tag": "ol",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "-",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_close",
+        "tag": "ul",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "-",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  }
+}

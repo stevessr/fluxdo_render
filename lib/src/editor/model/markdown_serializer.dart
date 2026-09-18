@@ -10,15 +10,16 @@
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' show Color;
+import 'dart:ui' show TextAlign;
 
-import 'package:html/parser.dart' as html_parser;
+import 'island_inline_serializer.dart';
+import 'poll_codec.dart';
 
 import '../../node/node.dart';
-import '../../parser/paragraph_parser.dart';
 import 'doc_converter.dart';
 import 'editable_text_content.dart';
 import 'editor_block.dart';
+import 'raw_media_html.dart';
 
 /// 整篇文档 → markdown。
 ///
@@ -201,6 +202,8 @@ String _serializeListRun(List<TextBlock> run) {
   // (`1. ` 宽 3,2 空格缩进的"子项"会被解析回顶层 —— cook 实测)。
   // markerWidth[d] = 当前 depth d 项的 marker 宽;indent(d) = 前 d 级之和。
   final markerWidth = <int>[];
+  final looseAtDepth = <int, bool>{};
+  int? previousDepth;
   int indentOf(int depth) {
     var sum = 0;
     for (var d = 0; d < depth && d < markerWidth.length; d++) {
@@ -222,13 +225,29 @@ String _serializeListRun(List<TextBlock> run) {
       lines = <String>[];
       counters.clear();
       markerWidth.clear();
+      looseAtDepth.clear();
+      previousDepth = null;
     }
     if (b.depth == 0) topOrdered = b.ordered;
 
     final key = (b.ordered, b.depth);
     final ordinal = counters[key] ?? b.listStart;
     counters[key] = ordinal + 1;
-    counters.removeWhere((k, _) => k.$2 > b.depth);
+    // 同层 ul/ol 切换也结束旧列表，返回该类型时必须重新取起号。
+    counters.removeWhere((k, _) => k.$2 > b.depth ||
+        (k.$2 == b.depth && k.$1 != b.ordered));
+
+    // 进入子列表前由父列表决定段落间隔；返回同层则由本列表决定。
+    // 非 1 起号的有序子列表尤其不能直接打断父项段落。
+    if (lines.isNotEmpty && previousDepth != null &&
+        (b.depth > previousDepth
+            ? looseAtDepth[previousDepth] == true
+            : b.listLoose)) {
+      lines.add('');
+    }
+    looseAtDepth.removeWhere((depth, _) => depth > b.depth);
+    looseAtDepth[b.depth] = b.listLoose;
+    previousDepth = b.depth;
 
     final marker = b.ordered ? '$ordinal. ' : '- ';
     // 记录本级 marker 宽,裁掉更深层的过期记录
@@ -338,11 +357,11 @@ String _openTag(MarkSpan m, {required bool htmlEmphasis}) {
   final tag = _htmlTagNameFor(m.kind);
   if (tag != null) return '<$tag>';
   return switch (m.kind) {
-    MarkKind.strong => htmlEmphasis ? '<strong>' : '**',
-    MarkKind.em => htmlEmphasis ? '<em>' : '*',
+    MarkKind.strong => m.attr == 'b' ? '[b]' : htmlEmphasis ? '<strong>' : '**',
+    MarkKind.em => m.attr == 'i' ? '[i]' : htmlEmphasis ? '<em>' : '*',
     MarkKind.inlineCode => '`',
-    MarkKind.underline => '[u]',
-    MarkKind.lineThrough => '~~',
+    MarkKind.underline => m.attr == 'u' ? '<u>' : '[u]',
+    MarkKind.lineThrough => m.attr == 's' ? '[s]' : '~~',
     MarkKind.spoilerInline => '[spoiler]',
     MarkKind.link => '[',
     MarkKind.textColor => '[color=${m.attr ?? ''}]',
@@ -356,11 +375,11 @@ String _closeTag(MarkSpan m, {required bool htmlEmphasis}) {
   final tag = _htmlTagNameFor(m.kind);
   if (tag != null) return '</$tag>';
   return switch (m.kind) {
-    MarkKind.strong => htmlEmphasis ? '</strong>' : '**',
-    MarkKind.em => htmlEmphasis ? '</em>' : '*',
+    MarkKind.strong => m.attr == 'b' ? '[/b]' : htmlEmphasis ? '</strong>' : '**',
+    MarkKind.em => m.attr == 'i' ? '[/i]' : htmlEmphasis ? '</em>' : '*',
     MarkKind.inlineCode => '`',
-    MarkKind.underline => '[/u]',
-    MarkKind.lineThrough => '~~',
+    MarkKind.underline => m.attr == 'u' ? '</u>' : '[/u]',
+    MarkKind.lineThrough => m.attr == 's' ? '[/s]' : '~~',
     MarkKind.spoilerInline => '[/spoiler]',
     MarkKind.link => '](${m.attr ?? ''})',
     MarkKind.textColor => '[/color]',
@@ -413,16 +432,6 @@ bool _hasCrossingMarks(List<MarkSpan> marks) {
 /// `mailto:` 同 `http://` 待遇:裸邮箱被 linkify 成
 /// `href=mailto:user@example.com` + 无 scheme 锚文本,裸化写回后重 cook
 /// 仍产同一个 mailto 链接,往返稳定。
-bool _isBareUrlText(String text, String href) {
-  if (text == href) return true;
-  for (final scheme in const ['http://', 'mailto:']) {
-    if (href.startsWith(scheme) && href.substring(scheme.length) == text) {
-      return true;
-    }
-  }
-  return false;
-}
-
 String _inlineToMarkdown(EditableTextContent content) {
   final text = content.text;
   if (text.isEmpty) return '';
@@ -436,10 +445,7 @@ String _inlineToMarkdown(EditableTextContent content) {
   // `_` 等被转义即断链)。
   final bareLinks = <MarkSpan>{
     for (final m in content.marks)
-      if (m.kind == MarkKind.link &&
-          m.attr != null &&
-          m.attr!.isNotEmpty &&
-          _isBareUrlText(text.substring(m.start, m.end), m.attr!))
+      if (content.isBareLink(m))
         m,
   };
 
@@ -528,19 +534,29 @@ String _inlineToMarkdown(EditableTextContent content) {
         MentionRun(:final username) => '@$username',
         // hashtag 原子:写回 `#ref`(写 URL 会退化成死链接)
         LinkRun(:final hashtagRef) when hashtagRef != null => '#$hashtagRef',
-        final LocalDateRun d => _serializeLocalDate(d),
+        final LinkRun link => serializeIslandInlines([link]),
+        final LocalDateRun d => serializeLocalDate(d),
         // 行内图片原子(裸图):标准图片语法
-        final ImageRun img => _serializeImageRun(img),
+        final ImageRun img => serializeImageRun(img),
         // `[size=N]` 原子(编辑态固定块):写回 BBCode,连同内部文本
-        final SizedRun s => _serializeSized(s),
+        final SizedRun s => serializeSized(s),
         _ => '',
       });
     } else if (ch == '\n') {
-      // 硬换行:行尾双空格
-      buf.write('  \n');
+      // 来源软换行原样保留；手动回车/HTML br 仍写行尾双空格。
+      buf.write(content.softBreaks.contains(i) ? '\n' : '  \n');
     } else {
       final inBareLink = active.any(bareLinks.contains);
-      buf.write(inCode || inBareLink ? ch : _escapeInline(ch, i, text));
+      // 裸 URL 后的闭括号保持字面值；转义用的反斜杠会被 linkify
+      // 吞进 URL。其他上下文（例如显式链接的锚文本）仍正常转义。
+      final closesBareLink = ch == ']' &&
+          !activeHas(MarkKind.link) &&
+          (closes[i]?.any(bareLinks.contains) ?? false);
+      buf.write(inCode || inBareLink || closesBareLink
+          ? ch
+          : ch == '\\' && activeHas(MarkKind.link)
+              ? r'\\'
+              : _escapeInline(ch, i, text));
     }
   }
   // 收尾:未闭合的全部闭合(理论 marks 都有 end,防御)
@@ -643,7 +659,7 @@ String _escapeLineStarts(String text) {
 ///
 /// false 的类型(chat 客户端 cook 不支持 / policy 属性名不定):序列化
 /// 输出空串。**这不是静默丢内容**——编辑已有帖子的导入门禁(二次 cook
-/// 等价校验,见主项目 composer_doc_codec)会因 cooked 不等而拦下整帖,
+/// 等价校验,见主项目 semantic_composer_codec)会因 cooked 不等而拦下整帖,
 /// 降级源码模式;编辑器内新建内容不会产生这些岛。
 ///
 /// poll:cooked 里选项(li[data-poll-option-id])/属性(data-poll-*)/
@@ -665,11 +681,15 @@ bool islandSerializable(BlockNode node) => switch (node) {
 String serializeIslandNode(BlockNode node) {
   switch (node) {
     case ParagraphNode(:final inlines):
-      return _serializeIslandInlines(inlines);
+      return serializeIslandInlines(inlines);
     case HeadingNode(:final level, :final inlines):
-      return '${'#' * level} ${_serializeIslandInlines(inlines)}';
-    case CodeBlockNode(:final code, :final language):
-      final fence = code.contains('```') ? '````' : '```';
+      return '${'#' * level} ${serializeIslandInlines(inlines)}';
+    case CodeBlockNode(:final code, :final language, :final rawHtml, :final rawMarkdown):
+      if (rawHtml || rawMarkdown) return code;
+      // 围栏必须长于正文中任意反引号 run，而不只是固定加一枚。
+      final longest = RegExp(r'`+').allMatches(code).fold<int>(2,
+          (length, match) => math.max(length, match.end - match.start));
+      final fence = '`' * (longest + 1);
       return '$fence${language ?? ''}\n$code\n$fence';
     case HorizontalRuleNode():
       return '---';
@@ -717,7 +737,7 @@ String serializeIslandNode(BlockNode node) {
       return _serializeCallout(node);
     case ImageGridNode(:final images, :final mode):
       final body = images
-          .map((img) => _serializeImageRun(img))
+          .map((img) => serializeImageRun(img))
           .join('\n');
       final modeAttr =
           mode == ImageGridMode.carousel ? ' mode=carousel' : '';
@@ -725,7 +745,7 @@ String serializeIslandNode(BlockNode node) {
     case FootnotesSectionNode(:final entries):
       return entries
           .map((e) =>
-              '[^${e.number}]: ${_serializeIslandInlines(e.inlines)}')
+              '[^${e.markdownLabel ?? e.number}]: ${serializeIslandInlines(e.inlines).replaceAll('\n', '\n    ')}')
           .join('\n\n');
     case VideoNode(
         :final src,
@@ -734,6 +754,8 @@ String serializeIslandNode(BlockNode node) {
         :final width,
         :final height,
       ):
+      final rawMedia = serializeRawMediaHtml(node);
+      if (rawMedia != null) return rawMedia;
       // upload:// 上传 → `![|video](短链)`;短链路径/直链 = raw 手写
       // <video> 标签帖(媒体改名上传),写回标签本身(cook 原样保留,
       // 二次 cook 等价)—— 回裸 URL 会被 cook 成链接,毁形态。
@@ -754,6 +776,8 @@ String serializeIslandNode(BlockNode node) {
       }
       return src;
     case AudioNode(:final src, :final origSrc, :final mime, :final voice):
+      final rawMedia = serializeRawMediaHtml(node);
+      if (rawMedia != null) return rawMedia;
       final upload = origSrc ??
           (src.startsWith('upload://') ? src : null);
       if (upload != null) return '![|audio]($upload)';
@@ -783,113 +807,13 @@ String serializeIslandNode(BlockNode node) {
       // `* 选项` 行(number 型选项由 min/max/step 生成,不写选项行)。
       // rawHtml 缺失(手工构造的节点)时输出空串,islandSerializable
       // 同口径为 false,导入门禁拦整帖。
-      return _serializePoll(node);
+      return serializePollNode(node);
     case ChatTranscriptNode() || PolicyNode():
       // 已知不可序列化(islandSerializable=false):chat 客户端 cook 不
       // 支持 / policy 属性名不定。空串 —— 导入门禁负责拦整帖(编辑器内
       // 也不可能新建这些岛)。
       return '';
   }
-}
-
-/// `[poll ...]` BBCode 从 [PollNode.rawHtml](cooked div.poll)重建。
-///
-/// 属性形态经 cook 探针实测(见 tools/discourse-cook-bundle):
-/// - cooked 属性名恒小写:`chartType=pie` cook 后是 data-poll-charttype;
-///   BBCode 属性键大小写不敏感(`charttype=` 与 `chartType=` cook 等价),
-///   这里写回官方 builder 形态 `chartType=`。
-/// - `status=open` 是 cook 默认值(不写也产 data-poll-status="open"),
-///   为最小化 raw 仅在非 open 时写回。
-/// - name="poll" 是默认值,同样仅非默认时写回。
-/// - number 型:选项 li 由 min/max/step 派生,**不写选项行**(写了 cook
-///   会报错);标题行照写。
-/// - 属性顺序无关等价(cooked 输出按字母序重排),这里按官方
-///   poll-ui-builder 的输出顺序写,便于人读。
-///
-/// rawHtml 为空(手工构造节点)→ 返回空串,与 [islandSerializable]
-/// 同口径,导入门禁拦整帖。
-String _serializePoll(PollNode node) {
-  if (node.rawHtml.isEmpty) return '';
-  final root = html_parser.parseFragment(node.rawHtml).querySelector('div.poll');
-  if (root == null) return '';
-  final attrs = root.attributes;
-  String? attr(String key) {
-    final v = attrs[key]?.trim();
-    return (v == null || v.isEmpty) ? null : v;
-  }
-
-  final type = attr('data-poll-type');
-  final isNumber = type == 'number';
-
-  // 属性串:对齐官方 poll-ui-builder 的输出顺序(name/type/results/
-  // min/max/step/public/chartType/groups/close/status)。值不含空格时
-  // 裸写(与官方一致),含空格加引号(cook 两种形态等价)。
-  String fmt(String key, String value) =>
-      value.contains(' ') ? ' $key="$value"' : ' $key=$value';
-
-  final sb = StringBuffer('[poll');
-  final name = attr('data-poll-name');
-  if (name != null && name != 'poll') sb.write(fmt('name', name));
-  if (type != null) sb.write(fmt('type', type));
-  final results = attr('data-poll-results');
-  if (results != null) sb.write(fmt('results', results));
-  final min = attr('data-poll-min');
-  if (min != null) sb.write(fmt('min', min));
-  final max = attr('data-poll-max');
-  if (max != null) sb.write(fmt('max', max));
-  final step = attr('data-poll-step');
-  if (step != null) sb.write(fmt('step', step));
-  final public = attr('data-poll-public');
-  if (public != null) sb.write(fmt('public', public));
-  final chartType = attr('data-poll-charttype');
-  if (chartType != null) sb.write(fmt('chartType', chartType));
-  final groups = attr('data-poll-groups');
-  if (groups != null) sb.write(fmt('groups', groups));
-  final close = attr('data-poll-close');
-  if (close != null) sb.write(fmt('close', close));
-  final status = attr('data-poll-status');
-  if (status != null && status != 'open') sb.write(fmt('status', status));
-  sb.write(']');
-
-  // 标题行:.poll-title 内是富文本 HTML(粗体/emoji/链接),走
-  // parse + 岛 inline 序列化还原 markdown(纯 text 取文本会丢格式;
-  // typographer 弯引号等原样保留 —— cook 幂等,再 cook 不二次转换)。
-  final titleEl = root.querySelector('.poll-title');
-  if (titleEl != null) {
-    final title = _pollInnerMarkdown(titleEl.innerHtml);
-    if (title.isNotEmpty) sb.write('\n# $title');
-  }
-
-  // 选项行:number 型的 li 是 min/max/step 派生物,不写回。
-  if (!isNumber) {
-    for (final li in root.querySelectorAll('li[data-poll-option-id]')) {
-      final opt = _pollInnerMarkdown(li.innerHtml);
-      if (opt.isNotEmpty) {
-        // 选项内换行(cooked <br>)写回缩进续行,与 cook 输出等价
-        sb.write('\n* ${opt.replaceAll('\n', '\n  ')}');
-      }
-    }
-  }
-
-  sb.write('\n[/poll]');
-  return sb.toString();
-}
-
-/// poll 标题/选项的 inner HTML → 行内 markdown。
-///
-/// 包一层 `<p>` 走 [ParagraphParser.parse] 复用完整 inline 解析链
-/// (emoji/链接/mention/粗斜体…),再用岛 inline 序列化器写回。多段
-/// (含 <br> 的选项)由 LineBreakRun 序列化为 `  \n`,调用方再转续行缩进。
-String _pollInnerMarkdown(String innerHtml) {
-  final nodes = ParagraphParser().parse('<p>$innerHtml</p>');
-  final buf = StringBuffer();
-  for (final n in nodes) {
-    if (n is ParagraphNode) {
-      buf.write(_serializeIslandInlines(n.inlines));
-    }
-  }
-  // LineBreakRun 的两空格硬换行对 poll 选项无意义,规整成裸换行
-  return buf.toString().replaceAll('  \n', '\n').trim();
 }
 
 /// `[quote="user, post:N, topic:M, username:real, full:true"]` 重建。
@@ -974,7 +898,7 @@ String _serializeDefinitionList(List<DefinitionItem> items) {
   final buf = StringBuffer('<dl>');
   for (final item in items) {
     if (item.term.isNotEmpty) {
-      buf.write('<dt>${_serializeIslandInlines(item.term)}</dt>');
+      buf.write('<dt>${serializeIslandInlines(item.term)}</dt>');
     }
     for (final dd in item.definitions) {
       final inner = dd
@@ -992,193 +916,25 @@ String _serializeDefinitionList(List<DefinitionItem> items) {
 String _fmtNum(double v) =>
     v == v.roundToDouble() ? v.round().toString() : v.toString();
 
-/// 图片 → `![alt|WxH](src)` / 带缩放 `![alt|WxH, 75%](src)`。upload 图优先
-/// 写 origSrc 短链(raw 规范形态);lightbox 缩略图写原图短链/URL 而非
-/// `_2_690x52` 优化版。
-///
-/// 预览形态(scale 非 null)的 width/height 是 cook 乘过缩放的显示尺寸,
-/// 写回必须用 origWidth/origHeight(parser ceil 反推)+ `, N%` 后缀 ——
-/// 写乘过的尺寸会让缩放语义在往返中塌陷(再 cook 二次相乘)。
-/// scale=100(预览态无后缀图的规范档)不写后缀。
-String _serializeImageRun(ImageRun img) {
-  final src = img.origSrc ??
-      (img.src.startsWith('upload://') ? img.src : (img.lightboxUrl ?? img.src));
-  // origWidth/origHeight 一旦有值就是 raw 声明尺寸(parser 反推或宿主缩放
-  // 时固化),优先于(可能乘过 scale 的)显示尺寸。
-  final w = img.origWidth ?? img.width;
-  final h = img.origHeight ?? img.height;
-  final scale = img.scale;
-  var size = (w != null && h != null) ? '|${w.round()}x${h.round()}' : '';
-  if (scale != null && scale > 0 && scale != 100 && size.isNotEmpty) {
-    size = '$size, ${scale.round()}%';
-  }
-  return '![${img.alt}$size]($src)';
-}
-
-/// 岛化段落的 inline 序列化(可能含 LinkRun/ImageRun 等白名单外节点 ——
-/// 岛就是因它们而生)。每个类型写回 raw 规范语法(cook 探针实测)。
-String _serializeIslandInlines(List<InlineNode> inlines) {
-  final buf = StringBuffer();
-  for (final n in inlines) {
-    switch (n) {
-      case TextRun(:final text):
-        buf.write(text);
-      case LineBreakRun():
-        buf.write('  \n');
-      case EmRun(:final children):
-        buf.write('*${_serializeIslandInlines(children)}*');
-      case StrongRun(:final children):
-        buf.write('**${_serializeIslandInlines(children)}**');
-      case InlineCodeRun(:final text):
-        buf.write('`$text`');
-      case LinkRun(
-          :final href,
-          :final children,
-          :final isAttachment,
-          :final filename,
-          :final origHref,
-          :final hashtagRef,
-          :final isOneboxLink,
-        ):
-        if (hashtagRef != null) {
-          // hashtag 写回 `#{ref}`(写 URL 会退化成死链接)
-          buf.write('#$hashtagRef');
-        } else if (isAttachment) {
-          // `[name.pdf|attachment](upload://…)`;origHref 是预览形态的
-          // 短链,baked 形态 href 本身可能就是 /uploads 路径 —— 保持原样
-          final target = origHref ?? href;
-          final name =
-              filename.isNotEmpty ? filename : _serializeIslandInlines(children);
-          buf.write('[$name|attachment]($target)');
-        } else if (isOneboxLink) {
-          // onebox 系:raw 是裸 URL(行内标题动态取,不能固化)
-          buf.write(href);
-        } else {
-          buf.write('[${_serializeIslandInlines(children)}]($href)');
-        }
-      case ImageRun():
-        buf.write(_serializeImageRun(n));
-      case EmojiRun(:final name):
-        buf.write(name.isEmpty ? '' : ':$name:');
-      case MentionRun(:final username):
-        buf.write('@$username');
-      case SpoilerRun(:final children):
-        buf.write('[spoiler]${_serializeIslandInlines(children)}[/spoiler]');
-      case MathInlineRun(:final latex):
-        buf.write('\$$latex\$');
-      case FootnoteRefRun(:final number):
-        // 引用侧;脚注正文由 FootnotesSectionNode 输出 `[^N]: …`
-        buf.write('[^$number]');
-      case LocalDateRun():
-        buf.write(_serializeLocalDate(n));
-      case ColoredRun():
-        // [color]/[bgcolor]:服务端装了 discourse-bbcode-color 插件(认这
-        // 个语法),客户端预览 bundle 没打包它(cook 原样输出字面文本)。
-        // 门禁两侧都用客户端 bundle → attr 原样写回即可两侧一致。
-        buf.write(_serializeColored(n));
-      case SizedRun():
-        buf.write(_serializeSized(n));
-      case StyledRun(:final kind, :final children):
-        final inner = _serializeIslandInlines(children);
-        buf.write(switch (kind) {
-          InlineStyleKind.underline => '[u]$inner[/u]',
-          InlineStyleKind.lineThrough => '~~$inner~~',
-          InlineStyleKind.superscript => '<sup>$inner</sup>',
-          InlineStyleKind.subscript => '<sub>$inner</sub>',
-          InlineStyleKind.small => '<small>$inner</small>',
-          InlineStyleKind.big => '<big>$inner</big>',
-          InlineStyleKind.mark => '<mark>$inner</mark>',
-          InlineStyleKind.monospace => '<kbd>$inner</kbd>',
-        });
-      case ClickCountRun():
-        break; // 服务端注入的展示节点,raw 里不存在
-    }
-  }
-  return buf.toString();
-}
-
-/// `[date=… time=… timezone="…"]` BBCode 重建(cook 探针实测属性名)。
-String _serializeLocalDate(LocalDateRun n) {
-  final buf = StringBuffer('[date=${n.date}');
-  if (n.time != null) buf.write(' time=${n.time}');
-  if (n.timezone != null) buf.write(' timezone="${n.timezone}"');
-  if (n.format != null) buf.write(' format="${n.format}"');
-  if (n.timezones.isNotEmpty) {
-    buf.write(' timezones="${n.timezones.join('|')}"');
-  }
-  if (n.displayedTimezone != null) {
-    buf.write(' displayedTimezone="${n.displayedTimezone}"');
-  }
-  if (n.countdown) buf.write(' countdown="true"');
-  buf.write(']');
-  return buf.toString();
-}
-
-/// 着色重建 → **BBCode**(`[color=…]` / `[bgcolor=…]`)。
-///
-/// 事实链(cook bundle 探针 + 站内官方教程帖):
-/// - **服务端**装了 discourse-bbcode-color 插件,`[color=X]` 被认并把 X
-///   **原样**放进 `style="color:X"`(`red`/`#F00` 逐字透传);
-/// - **客户端预览 bundle** 没打包该插件,cook 把 `[color=X]` 当字面文本;
-/// - 往返门禁 = cook(原 raw) vs cook(docToRaw(导入)),两侧都是客户端
-///   bundle → 两侧都把 [color] 当字面文本,**attr 原样写回即字节一致**。
-///   任何规范化(小写化 / `#F00`→`#ff0000` / `red`→hex)都会失配,
-///   整帖降级源码模式。
-///
-/// 所以优先写 colorRaw/backgroundRaw(cooked 里的 CSS 原文 = 用户在
-/// [color=X] 里写的 X);程序化构造(raw 为 null)才按 Color 值写 hex。
-String _serializeColored(ColoredRun n) {
-  String hex(Color c) {
-    final v = c.toARGB32() & 0xFFFFFF;
-    return '#${v.toRadixString(16).padLeft(6, '0')}';
-  }
-
-  var out = _serializeIslandInlines(n.children);
-  // 前景包在里层、背景在外层(与解析侧的嵌套顺序一致)
-  if (n.color != null || n.colorRaw != null) {
-    final v = n.colorRaw ?? hex(n.color!);
-    out = '[color=$v]$out[/color]';
-  }
-  if (n.background != null || n.backgroundRaw != null) {
-    final v = n.backgroundRaw ?? hex(n.background!);
-    out = '[bgcolor=$v]$out[/bgcolor]';
-  }
-  return out;
-}
-
-/// 字号 → `[size=N]`。
-///
-/// 与 [_serializeColored] 同一条理由:N 的原文(pctRaw)原样写回才能过
-/// 往返门禁;程序化构造(pctRaw=null)才按 scale 计算(整数化防浮点
-/// 脏值,见下)。
-String _serializeSized(SizedRun n) {
-  if (n.pctRaw != null) {
-    return '[size=${n.pctRaw}]${_serializeIslandInlines(n.children)}[/size]';
-  }
-  // scale 由 `font-size:N%` / 100 而来,乘回 100 会带浮点脏值
-  // (`0.07 * 100 == 7.000000000000001`)—— 与最近整数差在浮点误差
-  // 量级(1e-6)内的按整数写,防止 raw 里出现 `[size=7.000000000000001]`。
-  final pct = n.scale * 100;
-  final rounded = pct.round();
-  final v = (pct - rounded).abs() < 1e-6 ? rounded.toString() : '$pct';
-  return '[size=$v]${_serializeIslandInlines(n.children)}[/size]';
-}
-
 String _serializeListNode(ListNode list, int depth) {
   final lines = <String>[];
   for (var i = 0; i < list.items.length; i++) {
     final item = list.items[i];
-    final indent = '  ' * depth;
+    final indent = ' ' * depth;
     final marker = list.ordered ? '${list.start + i}. ' : '- ';
-    lines.add('$indent$marker${_serializeIslandInlines(item.inlines)}');
+    if (i > 0 && list.loose) lines.add('');
+    lines.add('$indent$marker${serializeIslandInlines(item.inlines)}');
     for (final sub in item.children ?? const <ListNode>[]) {
-      lines.add(_serializeListNode(sub, depth + 1));
+      if (list.loose) lines.add('');
+      lines.add(_serializeListNode(sub, depth + marker.length));
     }
     // 块级子节点(岛化列表可能含):缩进后原样接
     for (final b in item.blocks ?? const <BlockNode>[]) {
       final s = serializeIslandNode(b);
       if (s.isNotEmpty) {
-        lines.add(s.split('\n').map((l) => '$indent  $l').join('\n'));
+        if (list.loose) lines.add('');
+        final continuation = '$indent${' ' * marker.length}';
+        lines.add(s.split('\n').map((l) => '$continuation$l').join('\n'));
       }
     }
   }
@@ -1196,7 +952,10 @@ String tableCellToMarkdown(TableCellData cell) => cell.children
 
 /// 纯文本网格 → markdown 表格(表格结构化编辑器确认后重建 raw 用)。
 /// [cells] 行×列;[hasHeader] 首行作表头。cell 内管道转义。
-String tableGridToMarkdown(List<List<String>> cells, {bool hasHeader = true}) {
+String tableGridToMarkdown(List<List<String>> cells, {
+  bool hasHeader = true,
+  List<TextAlign?> alignments = const [],
+}) {
   if (cells.isEmpty) return '';
   final cols = cells.map((r) => r.length).reduce(math.max);
   String esc(String s) =>
@@ -1205,7 +964,7 @@ String tableGridToMarkdown(List<List<String>> cells, {bool hasHeader = true}) {
         for (var c = 0; c < cols; c++) c < row.length ? esc(row[c]) : '',
       ].join(' | ')} |';
 
-  final divider = '| ${List.filled(cols, '---').join(' | ')} |';
+  final divider = '| ${List.generate(cols, (c) => _tableSeparator(c < alignments.length ? alignments[c] : null)).join(' | ')} |';
   final lines = <String>[];
   if (hasHeader) {
     lines.add(rowLine(cells.first));
@@ -1223,6 +982,13 @@ String tableGridToMarkdown(List<List<String>> cells, {bool hasHeader = true}) {
   return lines.join('\n');
 }
 
+String _tableSeparator(TextAlign? alignment) => switch (alignment) {
+  TextAlign.left => ':---',
+  TextAlign.center => ':---:',
+  TextAlign.right => '---:',
+  _ => '---',
+};
+
 String _serializeTable(
   List<List<TableCellData>> rows,
   int columnCount,
@@ -1239,7 +1005,7 @@ String _serializeTable(
   }
 
   final lines = <String>[];
-  final divider = '| ${List.filled(columnCount, '---').join(' | ')} |';
+  final divider = '| ${List.generate(columnCount, (c) => _tableSeparator(c < rows.first.length ? rows.first[c].alignment : null)).join(' | ')} |';
   if (hasHeader) {
     lines.add(rowLine(rows.first));
     lines.add(divider);
@@ -1267,7 +1033,7 @@ final RegExp _imageMdRe =
 /// 字面图片语法 → [ImageRun];不匹配返回 null。
 ///
 /// `upload://` 短链同时写进 origSrc —— 那是 raw 的规范形态,序列化必须
-/// 写回短链(见 [_serializeImageRun])。
+/// 写回短链(见 [serializeImageRun])。
 ImageRun? parseImageMarkdown(String literal) {
   final m = _imageMdRe.firstMatch(literal);
   if (m == null) return null;

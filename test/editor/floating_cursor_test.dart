@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
+import 'package:fluxdo_render/fluxdo_render.dart';
 import 'package:fluxdo_render/src/editor/widget/editor_caret.dart';
 
 Future<EditorState> pumpEditor(WidgetTester tester) async {
@@ -186,6 +187,86 @@ void main() {
     expect(ghost.left, closeTo(content.left, 0.01));
     expect(ghost.top, greaterThanOrEqualTo(content.top));
     await sendFloating(tester, 'end');
+  });
+
+  testWidgets('虚拟光标越过下边界后反向立即上移，不积攒越界位移', (tester) async {
+    final pointer = FluxdoEditorVirtualPointer();
+    final state = EditorState.fromTexts(['hello world']);
+    addTearDown(state.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FluxdoEditor(state: state, virtualPointer: pointer)),
+    ));
+    await tester.pump();
+    expect(pointer.start(), isTrue);
+    pointer.moveBy(const Offset(0, 5000));
+    await tester.pump();
+    final bottom = tester.getCenter(find.byKey(kFloatingCursorGhostKey));
+    pointer.moveBy(const Offset(0, -20));
+    await tester.pump();
+    expect(tester.getCenter(find.byKey(kFloatingCursorGhostKey)).dy,
+        closeTo(bottom.dy - 20, 0.01));
+    pointer.moveBy(const Offset(0, -5000));
+    await tester.pump();
+    final top = tester.getCenter(find.byKey(kFloatingCursorGhostKey));
+    pointer.moveBy(const Offset(0, 5));
+    await tester.pump();
+    expect(tester.getCenter(find.byKey(kFloatingCursorGhostKey)).dy,
+        closeTo(top.dy + 5, 0.01));
+    pointer.end();
+    await tester.pump();
+  });
+
+  testWidgets('平台浮动光标贴边后小幅反向也立即移动', (tester) async {
+    await pumpEditor(tester);
+    await sendFloating(tester, 'start');
+    await sendFloating(tester, 'update', offset: const Offset(5000, 5000));
+    final edge = tester.getCenter(find.byKey(kFloatingCursorGhostKey));
+    await sendFloating(tester, 'update', offset: const Offset(4995, 4995));
+    expect(tester.getCenter(find.byKey(kFloatingCursorGhostKey)),
+        edge - const Offset(5, 5));
+    await sendFloating(tester, 'end');
+  });
+
+  testWidgets('高图下方向上贴边自动滚动，可以越过图片到上一段', (tester) async {
+    final pointer = FluxdoEditorVirtualPointer();
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    final state = EditorState(blocks: [
+      TextBlock(id: 'above', content: EditableTextContent(text: 'above image')),
+      TextBlock(id: 'image', content: EditableTextContent.fromInlines(const [
+        ImageRun(src: 'https://example.com/tall.png', width: 240, height: 800),
+      ])),
+      TextBlock(id: 'below', content: EditableTextContent(text: 'below image')),
+    ]);
+    addTearDown(state.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: Center(child: SizedBox(
+        width: 320,
+        height: 240,
+        child: SingleChildScrollView(
+          controller: scroll,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: FluxdoEditor(state: state, virtualPointer: pointer),
+          ),
+        ),
+      ))),
+    ));
+    await tester.pump();
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    state.updateSelection(const EditorSelection.collapsed(
+      EditorPosition(blockId: 'below', offset: 0),
+    ));
+    await tester.pump();
+    expect(pointer.start(), isTrue);
+    pointer.moveBy(const Offset(0, -5000));
+    for (var i = 0; i < 120; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(scroll.offset, closeTo(0, 0.01));
+    expect(state.selection!.extent.blockId, 'above');
+    pointer.end();
+    await tester.pump();
   });
 
   testWidgets('范围选区时 Start 忽略(不出幽灵不炸)', (tester) async {

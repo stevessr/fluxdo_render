@@ -204,4 +204,26 @@ void main() {
         reason: 'SDK delegate 应把 toolbar 夹回视口内,不超右边界');
     t.hide();
   });
+  testWidgets('官方菜单互斥：后显示的菜单替换旧菜单，旧控制器不能关闭新菜单', (tester) async {
+    final first = await mountToolbar(tester, onQuote: (_) {});
+    first.show(dataAt(const Rect.fromLTWH(100, 200, 80, 20)));
+    await tester.pump();
+    final ctx = tester.element(find.byType(Scaffold));
+    final second = SelectionToolbar(
+      context: ctx,
+      onQuote: null,
+      onCopied: null,
+    );
+    second.show(dataAt(const Rect.fromLTWH(100, 400, 80, 20)));
+    await tester.pump();
+    expect(find.byType(TextSelectionToolbar), findsOneWidget);
+    expect(find.text('引用'), findsNothing);
+    first.hide();
+    await tester.pump();
+    expect(find.byType(TextSelectionToolbar), findsOneWidget);
+    ContextMenuController.removeAny();
+    await tester.pump();
+    expect(find.byType(TextSelectionToolbar), findsNothing);
+  });
+
 }

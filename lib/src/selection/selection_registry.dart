@@ -123,6 +123,15 @@ class SelectionController extends ChangeNotifier {
 
   final SelectionRegistry registry;
 
+  /// 编辑器单选图片时使用紧贴图像的淡色选区；普通选词使用整行盒。
+  bool _outlineSelection = false;
+  bool get outlineSelection => _outlineSelection;
+  set outlineSelection(bool value) {
+    if (_outlineSelection == value) return;
+    _outlineSelection = value;
+    notifyListeners();
+  }
+
   DocumentSelection? _selection;
   DocumentSelection? get selection => _selection;
 

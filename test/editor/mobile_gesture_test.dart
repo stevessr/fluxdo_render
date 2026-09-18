@@ -136,8 +136,6 @@ void main() {
         node: CodeBlockNode(id: 'b_0', code: 'code here', language: 'py'),
       ),
     ]);
-    final before = state.selection;
-
     final g = await tester.startGesture(
       tester.getCenter(find.byType(EditorIsland)),
       kind: PointerDeviceKind.touch,
@@ -146,8 +144,11 @@ void main() {
     await g.up();
     await tester.pump();
 
-    // 岛让路:长按不产生任何选区变化(尤其不能选中"邻段文字"的词)
-    expect(state.selection, before);
+    // 岛自己的长按会整选该对象；正文识别器不能误选邻段文字。
+    expect(state.selection, const EditorSelection(
+      base: EditorPosition(blockId: 'e_isl', offset: 0),
+      extent: EditorPosition(blockId: 'e_isl', offset: 1),
+    ));
     await tester.pump(const Duration(seconds: 1));
   });
 

@@ -35,6 +35,7 @@ class SelectableTextBox extends StatefulWidget {
     this.codeLanguage,
     this.clipBoundsKey,
     this.debugLabel,
+    this.paintSelection = true,
   });
 
   /// 取当前块的映射表(InlineSpanText 每次 flatten 变;代码块静态)。
@@ -58,6 +59,7 @@ class SelectableTextBox extends StatefulWidget {
   final GlobalKey? clipBoundsKey;
 
   final String? debugLabel;
+  final bool paintSelection;
 
   @override
   State<SelectableTextBox> createState() => _SelectableTextBoxState();
@@ -67,15 +69,17 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
   final GlobalKey _childKey = GlobalKey();
   SelectableBlockHandle? _handle;
   SelectionController? _controller;
+  bool _active = true;
 
   SelectableBlockId get _id => SelectableBlockId(
-        widget.documentOrder,
-        chunkIndex: widget.chunkIndex,
-        debugLabel: widget.debugLabel,
-      );
+    widget.documentOrder,
+    chunkIndex: widget.chunkIndex,
+    debugLabel: widget.debugLabel,
+  );
 
   /// 从 child 子树向下找第一个 RenderParagraph(代码块 highlighter 输出嵌套深)。
   RenderParagraph? _findParagraph() {
+    if (!_active || !mounted) return null;
     final ctx = _childKey.currentContext;
     if (ctx == null) return null;
     final ro = ctx.findRenderObject();
@@ -84,6 +88,9 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
   }
 
   RenderParagraph? _firstParagraph(RenderObject node) {
+    if (node is BlockTextGeometry && (node as BlockTextGeometry).isAtomic) {
+      return null;
+    }
     if (node is RenderParagraph) return node;
     RenderParagraph? found;
     node.visitChildren((child) {
@@ -96,6 +103,7 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
   /// BlockTextGeometry)优先,否则 RenderParagraph 包适配。两路径互斥
   /// (一个块只有一种文本渲染),深度优先首个命中即返回。
   BlockTextGeometry? _findGeometry() {
+    if (!_active || !mounted) return null;
     final ctx = _childKey.currentContext;
     if (ctx == null) return null;
     final ro = ctx.findRenderObject();
@@ -136,6 +144,7 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
 
   /// 可视区裁剪矩形(代码块用 clipBoundsKey 指向的限高 SizedBox 的全局框)。
   Rect? _clipBounds() {
+    if (!_active || !mounted) return null;
     final key = widget.clipBoundsKey;
     if (key == null) return null;
     final ro = key.currentContext?.findRenderObject();
@@ -150,7 +159,7 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
   /// 对齐 SDK 每个 Scrollable 自带 _ScrollableSelectionContainerDelegate
   /// 自滚自轴的行为 —— 否则代码块横向溢出部分永远选不到。
   List<ScrollableState> _interiorScrollables() {
-    if (!mounted) return const [];
+    if (!_active || !mounted) return const [];
     final result = <ScrollableState>[];
     context.visitAncestorElements((el) {
       if (el.widget is SelectionScope) return false; // 作用域边界,到此为止
@@ -191,6 +200,23 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
       controller.registry.unregister(handle);
     }
     _handle = null;
+  }
+
+  @override
+  void deactivate() {
+    _active = false;
+    // A deleted/reparented paragraph can remain mounted until the end of this
+    // frame. It must stop participating in hit testing and selection painting
+    // before dispose, otherwise a newly reused document-order id finds it.
+    _unregister();
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _active = true;
+    _register();
   }
 
   @override
@@ -241,8 +267,10 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
     // 高亮画在内容**上层**(盖 emoji/图片),必须用低透明度主题色,不能用
     // DefaultSelectionStyle.selectionColor —— 后者透明度不可控(某些主题接近
     // 不透明),画上层会糊住文字。统一用 primary @0.3,可控且文字/占位符透出。
-    final highlightColor =
-        Theme.of(context).colorScheme.primary.withValues(alpha: 0.3);
+    final highlightColor = Theme.of(
+      context,
+    ).colorScheme.primary.withValues(alpha: 0.3);
+    if (!widget.paintSelection) return keyedChild;
     return SelectionHighlight(
       controller: controller,
       blockHandleGetter: () => _handle,

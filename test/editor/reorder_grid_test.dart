@@ -63,12 +63,13 @@ void main() {
     ));
     await tester.pump();
 
-    final tiles = find.byType(LongPressDraggable<int>);
+    final tiles = find.byWidgetPredicate((widget) => widget is LongPressDraggable);
     expect(tiles, findsNWidgets(3));
 
     // 长按第 0 瓦片提起,拖到第 2 瓦片上放下
     final from = tester.getCenter(tiles.at(0));
-    final to = tester.getCenter(tiles.at(2));
+    final rect = tester.getRect(tiles.at(2));
+    final to = Offset(rect.right - 12, rect.center.dy);
     final g = await tester.startGesture(from, kind: PointerDeviceKind.touch);
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await g.moveTo(to);
@@ -91,7 +92,7 @@ void main() {
     expect(altsOf(state), ['b', 'c', 'a'], reason: '未长按不重排');
   });
 
-  testWidgets('单图 grid 不挂拖拽(无排序意义)', (tester) async {
+  testWidgets('单图 grid 禁用拖拽(保留稳定控件层级)', (tester) async {
     final state = EditorState(blocks: [
       IslandBlock(
         id: 'e_g',
@@ -105,6 +106,8 @@ void main() {
       ),
     ));
     await tester.pump();
-    expect(find.byType(LongPressDraggable<int>), findsNothing);
+    final tile = find.byWidgetPredicate((widget) => widget is LongPressDraggable);
+    expect(tile, findsOneWidget);
+    expect(tester.widget<LongPressDraggable>(tile).maxSimultaneousDrags, 0);
   });
 }

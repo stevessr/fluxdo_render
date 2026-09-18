@@ -17,7 +17,7 @@
 /// 文本编辑手势。)
 ///
 /// 与既有手势的关系:编辑器现有 tap/longPress 是单指、pan 已用
-/// supportedDevices 限定给 mouse/trackpad,多指手势位是空的,不冲突。
+/// supportedDevices 限定给 mouse,触控板 pan/zoom 完全交给滚动容器。
 library;
 
 import 'package:flutter/gestures.dart';
@@ -70,8 +70,14 @@ class ThreeFingerGestureRecognizer extends ScaleGestureRecognizer {
     onEnd = _handleEnd;
   }
 
+  // ScaleGestureRecognizer 单独接收 pan/zoom，不受触屏 supportedDevices
+  // 限制；必须在入竞技场前拒绝，否则双指滚动会被当成缩放并吞掉。
+  @override
+  bool isPointerPanZoomAllowed(PointerPanZoomStartEvent event) => false;
+
   /// 实时跟踪每根手指位置 —— scale 噪声太大,只能自己算跨度。
   final Map<int, Offset> _points = {};
+  final Map<int, Offset> _starts = {};
 
   /// 一旦确认三指同时在场,立即宣布胜出。
   ///
@@ -83,6 +89,7 @@ class ThreeFingerGestureRecognizer extends ScaleGestureRecognizer {
   @override
   void addAllowedPointer(PointerDownEvent event) {
     _points[event.pointer] = event.position;
+    _starts[event.pointer] = event.position;
     super.addAllowedPointer(event);
     _claimIfThreeFingers();
   }
@@ -100,6 +107,7 @@ class ThreeFingerGestureRecognizer extends ScaleGestureRecognizer {
   void rejectGesture(int pointer) {
     // 输给单指滚动/长按后，不会再收到该指针的 up，必须同步清理。
     _points.remove(pointer);
+    _starts.remove(pointer);
     if (_points.isEmpty) _claimed = false;
     super.rejectGesture(pointer);
   }
@@ -109,9 +117,21 @@ class ThreeFingerGestureRecognizer extends ScaleGestureRecognizer {
     if (event is PointerMoveEvent) {
       _points[event.pointer] = event.position;
       // ScaleGestureRecognizer 默认也会认单指平移；三指未齐时让外层滚动处理。
-      if (!_claimed && _points.length < 3) return;
+      if (!_claimed && _points.length < 3) {
+        final start = _starts[event.pointer];
+        if (start != null &&
+            (event.position - start).distance >
+                computeHitSlop(event.kind, gestureSettings)) {
+          // iOS text dragging waits for competitors to yield. Keeping an
+          // impossible three-finger candidate alive would stall single-finger
+          // double-tap-and-drag even though this recognizer never wins.
+          resolve(GestureDisposition.rejected);
+        }
+        return;
+      }
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {
       _points.remove(event.pointer);
+      _starts.remove(event.pointer);
       if (_points.isEmpty) _claimed = false;
     }
     super.handleEvent(event);

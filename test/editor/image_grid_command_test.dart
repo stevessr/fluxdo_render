@@ -5,8 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart';
 
-const _img = ImageRun(src: 'upload://new.png', alt: 'n', width: 100, height: 80);
-const _gridImg = ImageRun(src: 'upload://old.png', alt: 'o', width: 50, height: 50);
+const _img = ImageRun(
+  src: 'upload://new.png',
+  alt: 'n',
+  width: 100,
+  height: 80,
+);
+const _gridImg = ImageRun(
+  src: 'upload://old.png',
+  alt: 'o',
+  width: 50,
+  height: 50,
+);
 
 TextBlock _textWithImg(String id, {String before = 'a', String after = 'b'}) =>
     TextBlock(
@@ -19,16 +29,47 @@ TextBlock _textWithImg(String id, {String before = 'a', String after = 'b'}) =>
     );
 
 IslandBlock _gridIsland(String id) => IslandBlock(
-      id: id,
-      node: const ImageGridNode(id: 'b_g', images: [_gridImg]),
-    );
+  id: id,
+  node: const ImageGridNode(id: 'b_g', images: [_gridImg]),
+);
 
 void main() {
-  test('分支1:前邻 grid → append,选中 grid 岛,undo 一步还原', () {
-    final s = EditorState(blocks: [
-      _gridIsland('e_g'),
-      _textWithImg('e_t'),
+  test('批量添加合并当前图片顺序、保留模式且可一步撤销', () {
+    final s = EditorState(
+      blocks: [
+        const IslandBlock(
+          id: 'grid',
+          node: ImageGridNode(
+            id: 'node',
+            mode: ImageGridMode.carousel,
+            columns: 3,
+            images: [_gridImg],
+          ),
+        ),
+      ],
+    );
+    addTearDown(s.dispose);
+    final before = s.blocks;
+    expect(
+      appendImagesToGrid(s, 'grid', [_img, const ImageRun(src: 'other')]),
+      isTrue,
+    );
+    final node = (s.blocks.first as IslandBlock).node as ImageGridNode;
+    expect(node.images.map((image) => image.src), [
+      'upload://old.png',
+      'upload://new.png',
+      'other',
     ]);
+    expect(node.mode, ImageGridMode.carousel);
+    expect(node.columns, 3);
+    s.undo();
+    expect(s.blocks, before);
+    expect(appendImagesToGrid(s, 'gone', [_img]), isFalse);
+    expect(s.blocks, before);
+  });
+
+  test('分支1:前邻 grid → append,选中 grid 岛,undo 一步还原', () {
+    final s = EditorState(blocks: [_gridIsland('e_g'), _textWithImg('e_t')]);
     addTearDown(s.dispose);
     final beforeBlocks = s.blocks;
 
@@ -45,10 +86,12 @@ void main() {
   });
 
   test('分支2:后邻 grid → prepend;删原子后空段丢弃', () {
-    final s = EditorState(blocks: [
-      _textWithImg('e_t', before: '', after: ''), // 段内只有图
-      _gridIsland('e_g'),
-    ]);
+    final s = EditorState(
+      blocks: [
+        _textWithImg('e_t', before: '', after: ''), // 段内只有图
+        _gridIsland('e_g'),
+      ],
+    );
     addTearDown(s.dispose);
 
     expect(addImageAtomToGrid(s, 'e_t', 0), isTrue);
@@ -110,20 +153,28 @@ void main() {
 // ---- 网格自身操作(官方 GridNodeView:removeGrid / setMode) ----
 
 IslandBlock _grid3(String id) => IslandBlock(
-      id: id,
-      node: const ImageGridNode(id: 'b_g3', images: [
-        ImageRun(src: 'upload://1.png', alt: 'a', width: 10, height: 10),
-        ImageRun(src: 'upload://2.png', alt: 'b', width: 20, height: 20),
-        ImageRun(src: 'upload://3.png', alt: 'c', width: 30, height: 30),
-      ]),
-    );
+  id: id,
+  node: const ImageGridNode(
+    id: 'b_g3',
+    images: [
+      ImageRun(src: 'upload://1.png', alt: 'a', width: 10, height: 10),
+      ImageRun(src: 'upload://2.png', alt: 'b', width: 20, height: 20),
+      ImageRun(src: 'upload://3.png', alt: 'c', width: 30, height: 30),
+    ],
+  ),
+);
 
 void gridOpsTests() {
   test('removeImageGrid:拆壳,每图一原子段,undo 一步还原', () {
-    final s = EditorState(blocks: [
-      TextBlock(id: 'e_0', content: EditableTextContent(text: '前')),
-      _grid3('e_g'),
-    ]);
+    final s = EditorState(
+      blocks: [
+        TextBlock(
+          id: 'e_0',
+          content: EditableTextContent(text: '前'),
+        ),
+        _grid3('e_g'),
+      ],
+    );
     addTearDown(s.dispose);
 
     expect(removeImageGrid(s, 'e_g'), isTrue);
@@ -144,8 +195,12 @@ void gridOpsTests() {
   });
 
   test('setImageGridMode:grid ⇄ carousel,序列化带 mode 后缀', () {
-    final s = EditorState(blocks: [_grid3('e_g'),
-      TextBlock(id: 'e_t', content: EditableTextContent.empty)]);
+    final s = EditorState(
+      blocks: [
+        _grid3('e_g'),
+        TextBlock(id: 'e_t', content: EditableTextContent.empty),
+      ],
+    );
     addTearDown(s.dispose);
 
     expect(setImageGridMode(s, 'e_g', ImageGridMode.carousel), isTrue);
@@ -165,13 +220,18 @@ void gridOpsTests() {
     addTearDown(s.dispose);
     expect(removeImageGrid(s, s.blocks.first.id), isFalse);
     expect(
-        setImageGridMode(s, s.blocks.first.id, ImageGridMode.carousel),
-        isFalse);
+      setImageGridMode(s, s.blocks.first.id, ImageGridMode.carousel),
+      isFalse,
+    );
   });
 
   test('removeImageFromGrid:删单图;删到空整岛移除', () {
-    final s = EditorState(blocks: [_grid3('e_g'),
-      TextBlock(id: 'e_t', content: EditableTextContent.empty)]);
+    final s = EditorState(
+      blocks: [
+        _grid3('e_g'),
+        TextBlock(id: 'e_t', content: EditableTextContent.empty),
+      ],
+    );
     addTearDown(s.dispose);
 
     expect(removeImageFromGrid(s, 'e_g', 1), isTrue);
@@ -186,8 +246,12 @@ void gridOpsTests() {
   });
 
   test('moveImageOutsideGrid:抽出为岛后独立图段并整选;剩一张拆壳', () {
-    final s = EditorState(blocks: [_grid3('e_g'),
-      TextBlock(id: 'e_t', content: EditableTextContent.empty)]);
+    final s = EditorState(
+      blocks: [
+        _grid3('e_g'),
+        TextBlock(id: 'e_t', content: EditableTextContent.empty),
+      ],
+    );
     addTearDown(s.dispose);
 
     expect(moveImageOutsideGrid(s, 'e_g', 1), isTrue);

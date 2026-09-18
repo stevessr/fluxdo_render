@@ -12,6 +12,54 @@ import 'package:fluxdo_render/src/editor/widget/fluxdo_editor.dart';
 import 'package:fluxdo_render/src/parser/paragraph_parser.dart';
 
 void main() {
+  testWidgets('提交回声到达时保留下一单元格编辑和未提交内容', (tester) async {
+    var n = 0;
+    final blocks = blockNodesToDoc(ParagraphParser().parse(
+      '<p>正文</p><table><thead><tr><th>A</th><th>B</th></tr></thead></table>'), () => 'e_${n++}');
+    final state = EditorState(blocks: blocks);
+    addTearDown(state.dispose);
+    String? submitted;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: FluxdoEditor(state: state, onTableEdited: (_, md) => submitted = md),
+    ))));
+    await tester.tap(find.text('A'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '新A');
+    await tester.tap(find.text('B'));
+    await tester.pumpAndSettle();
+    expect(submitted, contains('新A'));
+    await tester.enterText(find.byType(TextField), '正在写B');
+    final updated = blockNodesToDoc(ParagraphParser().parse(
+      '<table><thead><tr><th>新A</th><th>B</th></tr></thead></table>'), () => 'r_${n++}');
+    final table = updated.first as dynamic;
+    state.updateIslandNode(blocks[1].id, table.node);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, '正在写B');
+    expect(field.focusNode!.hasFocus, true);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('新插入表格请求编辑后直接聚焦首格', (tester) async {
+    var n = 0;
+    final state = EditorState(blocks: blockNodesToDoc(
+      ParagraphParser().parse('<p>正文</p><table><tbody><tr><td>首格</td><td>次格</td></tr></tbody></table>'),
+      () => 'e_${n++}'));
+    addTearDown(state.dispose);
+    state.requestIslandEdit(state.blocks[1].id);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: FluxdoEditor(state: state, onTableEdited: (_, _) {}),
+    ))));
+    await tester.pump();
+    await tester.pump();
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, '首格');
+    expect(field.focusNode!.hasFocus, true);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('cell 编辑中退格删字符(不被编辑器拦截)', (tester) async {
     var n = 0;
     final state = EditorState(

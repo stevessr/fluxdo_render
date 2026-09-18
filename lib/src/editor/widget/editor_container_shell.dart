@@ -12,6 +12,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../model/editor_block.dart';
+import 'editor_table_grid.dart' show kEditorSelfManagedRegion;
 import '../../node/node.dart' show CalloutKind;
 
 /// 把一组同容器子块包上对应装饰壳。
@@ -21,6 +22,7 @@ class EditorContainerShell extends StatelessWidget {
     required this.frame,
     required this.children,
     this.onTitleTap,
+    this.onContextMenu,
   });
 
   final ContainerFrame frame;
@@ -29,6 +31,7 @@ class EditorContainerShell extends StatelessWidget {
   /// 点壳标题行(details summary / callout 标题)→ 宿主弹原位编辑。
   /// null = 标题不可改(quote 的 username 行是引用元数据,不开放)。
   final VoidCallback? onTitleTap;
+  final VoidCallback? onContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -110,8 +113,11 @@ class EditorContainerShell extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.visibility_off_outlined,
-                        size: 13, color: scheme.onSurfaceVariant),
+                    Icon(
+                      Icons.visibility_off_outlined,
+                      size: 13,
+                      color: scheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '剧透',
@@ -142,11 +148,15 @@ class EditorContainerShell extends StatelessWidget {
               children: [
                 _TitleRow(
                   onTap: onTitleTap,
+                  onContextMenu: onContextMenu,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.arrow_drop_down,
-                          size: 18, color: scheme.onSurfaceVariant),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 18,
+                        color: scheme.onSurfaceVariant,
+                      ),
                       Expanded(
                         child: Text(
                           summary.isEmpty ? '详情' : summary,
@@ -159,10 +169,11 @@ class EditorContainerShell extends StatelessWidget {
                         ),
                       ),
                       if (onTitleTap != null)
-                        Icon(Icons.edit_outlined,
-                            size: 13,
-                            color: scheme.onSurfaceVariant
-                                .withValues(alpha: 0.6)),
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 13,
+                          color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+                        ),
                     ],
                   ),
                 ),
@@ -179,8 +190,8 @@ class EditorContainerShell extends StatelessWidget {
         final (calloutColor, calloutIcon) = _calloutStyle(kind);
         final displayTitle = (title ?? '').isEmpty
             ? (typeRaw.isEmpty
-                ? ''
-                : typeRaw[0].toUpperCase() + typeRaw.substring(1))
+                  ? ''
+                  : typeRaw[0].toUpperCase() + typeRaw.substring(1))
             : title!;
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -189,9 +200,7 @@ class EditorContainerShell extends StatelessWidget {
               topRight: Radius.circular(4),
               bottomRight: Radius.circular(4),
             ),
-            border: Border(
-              left: BorderSide(color: calloutColor, width: 4),
-            ),
+            border: Border(left: BorderSide(color: calloutColor, width: 4)),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 8, 8),
@@ -200,6 +209,7 @@ class EditorContainerShell extends StatelessWidget {
               children: [
                 _TitleRow(
                   onTap: onTitleTap,
+                  onContextMenu: onContextMenu,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -217,9 +227,11 @@ class EditorContainerShell extends StatelessWidget {
                         ),
                       ),
                       if (onTitleTap != null)
-                        Icon(Icons.edit_outlined,
-                            size: 13,
-                            color: calloutColor.withValues(alpha: 0.6)),
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 13,
+                          color: calloutColor.withValues(alpha: 0.6),
+                        ),
                     ],
                   ),
                 ),
@@ -234,41 +246,50 @@ class EditorContainerShell extends StatelessWidget {
   /// callout kind → (主色, 图标)。对齐 node_factory._calloutConfigFor
   /// 的映射(那边是私有配置,这里编辑壳只需要色 + 图标两项)。
   static (Color, IconData) _calloutStyle(CalloutKind kind) => switch (kind) {
-        CalloutKind.note => (Colors.blue, Icons.edit_note_rounded),
-        CalloutKind.summary => (Colors.cyan, Icons.subject_rounded),
-        CalloutKind.info => (Colors.blue, Icons.info_rounded),
-        CalloutKind.todo => (Colors.blue, Icons.check_circle_rounded),
-        CalloutKind.tip => (Colors.teal, Icons.tips_and_updates_rounded),
-        CalloutKind.success => (Colors.green, Icons.check_circle_rounded),
-        CalloutKind.question => (Colors.orange, Icons.help_rounded),
-        CalloutKind.warning => (Colors.orange, Icons.warning_amber_rounded),
-        CalloutKind.failure => (Colors.red, Icons.close_rounded),
-        CalloutKind.danger => (Colors.red, Icons.dangerous_rounded),
-        CalloutKind.bug => (Colors.red, Icons.bug_report_rounded),
-        CalloutKind.example => (Colors.purple, Icons.list_rounded),
-        CalloutKind.quote => (Colors.grey, Icons.format_quote_rounded),
-        CalloutKind.unknown => (Colors.grey, Icons.format_quote_rounded),
-      };
+    CalloutKind.note => (Colors.blue, Icons.edit_note_rounded),
+    CalloutKind.summary => (Colors.cyan, Icons.subject_rounded),
+    CalloutKind.info => (Colors.blue, Icons.info_rounded),
+    CalloutKind.todo => (Colors.blue, Icons.check_circle_rounded),
+    CalloutKind.tip => (Colors.teal, Icons.tips_and_updates_rounded),
+    CalloutKind.success => (Colors.green, Icons.check_circle_rounded),
+    CalloutKind.question => (Colors.orange, Icons.help_rounded),
+    CalloutKind.warning => (Colors.orange, Icons.warning_amber_rounded),
+    CalloutKind.failure => (Colors.red, Icons.close_rounded),
+    CalloutKind.danger => (Colors.red, Icons.dangerous_rounded),
+    CalloutKind.bug => (Colors.red, Icons.bug_report_rounded),
+    CalloutKind.example => (Colors.purple, Icons.list_rounded),
+    CalloutKind.quote => (Colors.grey, Icons.format_quote_rounded),
+    CalloutKind.unknown => (Colors.grey, Icons.format_quote_rounded),
+  };
 }
 
 /// 壳标题行:可点(改标题)时加 InkWell 反馈;不可点原样。
 class _TitleRow extends StatelessWidget {
-  const _TitleRow({required this.onTap, required this.child});
+  const _TitleRow({
+    required this.onTap,
+    required this.child,
+    this.onContextMenu,
+  });
 
   final VoidCallback? onTap;
   final Widget child;
+  final VoidCallback? onContextMenu;
 
   @override
   Widget build(BuildContext context) {
-    if (onTap == null) return child;
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: child,
+    if (onTap == null && onContextMenu == null) return child;
+    return MetaData(
+      metaData: kEditorSelfManagedRegion,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onContextMenu,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: child,
+          ),
         ),
       ),
     );

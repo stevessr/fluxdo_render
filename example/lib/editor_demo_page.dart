@@ -86,7 +86,7 @@ class _EditorDemoPageState extends State<EditorDemoPage> {
             focusNode: FocusNode(canRequestFocus: false, skipTraversal: true),
             icon: const Icon(Icons.output),
             onPressed: () {
-              final md = docToMarkdown(_state.blocks);
+              final md = _state.exportMarkdown();
               debugPrint('===== markdown =====\n$md\n===== end =====');
               showDialog<void>(
                 context: context,

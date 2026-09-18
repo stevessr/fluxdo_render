@@ -1,8 +1,8 @@
 /// 自研逻辑选区的几何/定位基础类型。
 ///
 /// 设计对齐 super_editor 的 Document/Position/Selection 三件套,但只读场景:
-/// - 不需要多态 nodePosition(本引擎所有可选块统一是「一个 RenderParagraph +
-///   渲染偏移」,占位符 emoji/mention/image 是段落里的一个 ￼ 偏移,不是独立块)
+/// - 文本和非文本块共享渲染偏移；行内占位符各占 1，独立非文本块也占 1，
+///   通过统一几何接口提供 before/after 边界。
 /// - 偏移统一用**渲染偏移**(RenderParagraph 坐标系,￼ 各占 1),命中/高亮都认它;
 ///   逻辑投影只在复制那一刻转(见 projection.dart)
 library;

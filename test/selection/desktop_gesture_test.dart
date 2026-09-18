@@ -105,7 +105,7 @@ void main() {
     expect(sel!.isCollapsed, isFalse, reason: '双击应选词');
   });
 
-  testWidgets('多击残留计数后拖拽:从拖拽起点重锚,非整段', (tester) async {
+  testWidgets('双击拖拽按词扩选，不误选整段', (tester) async {
     final c = SelectionController(SelectionRegistry());
     await tester.pumpWidget(host(c, const [
       TextRun('AAAAA BBBBB CCCCC DDDDD EEEEE FFFFF GGGGG'),
@@ -116,9 +116,7 @@ void main() {
     final mid = o + Offset(para.size.width * 0.4, 8);
     final right = o + Offset(para.size.width * 0.7, 8);
 
-    // 先双击(累积 consecutiveTapCount=2,可能选词/扩到段),再原地起一次
-    // 拖拽 —— 拖拽应从拖拽起点(mid)重锚 base,得 [mid..right] 子区间,
-    // 而非「段首→right」整段。
+    // 第二击按下后拖动，应从命中的词开始扩展，而不是误选整段。
     final g1 = await tester.startGesture(mid, kind: PointerDeviceKind.mouse);
     await g1.up();
     await tester.pump(const Duration(milliseconds: 40));
@@ -136,6 +134,6 @@ void main() {
         ? sel.base.renderOffset
         : sel.extent.renderOffset;
     expect(lo, greaterThan(0),
-        reason: '拖拽起点重锚,base 不应残留为段首(整段)');
+        reason: '以命中的词为起点，不能误选整段');
   });
 }

@@ -36,6 +36,9 @@ class EditorIsland extends StatefulWidget {
     required this.selected,
     required this.onTapSelect,
     this.onEditRequest,
+    this.showInsertHandles = true,
+    this.onContextMenu,
+    this.onSecondaryMenu,
     this.onInsertParagraph,
     this.contentOverride,
   });
@@ -45,6 +48,9 @@ class EditorIsland extends StatefulWidget {
   final NodeFactory nodeFactory;
 
   final bool selected;
+  final bool showInsertHandles;
+  final VoidCallback? onContextMenu;
+  final ValueChanged<Offset>? onSecondaryMenu;
 
   /// 点击 → 编辑器整选本岛。
   final VoidCallback onTapSelect;
@@ -108,8 +114,9 @@ bool _hasZeroSize(BlockNode node) {
 
 class _EditorIslandState extends State<EditorIsland> {
   /// 哑选区控制器:吞掉岛内块的注册,与编辑器 registry 隔离。
-  late final SelectionController _inertController =
-      SelectionController(SelectionRegistry());
+  late final SelectionController _inertController = SelectionController(
+    SelectionRegistry(),
+  );
 
   @override
   void dispose() {
@@ -121,7 +128,8 @@ class _EditorIslandState extends State<EditorIsland> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    Widget content = widget.contentOverride ??
+    Widget content =
+        widget.contentOverride ??
         SelectionScope(
           controller: _inertController,
           child: AbsorbPointer(
@@ -140,9 +148,9 @@ class _EditorIslandState extends State<EditorIsland> {
           content,
           Text(
             '当前区域大小 = 0',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       );
@@ -165,38 +173,33 @@ class _EditorIslandState extends State<EditorIsland> {
             ? scheme.primary.withValues(alpha: 0.08)
             : Colors.transparent,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: content,
-      ),
+      child: Padding(padding: const EdgeInsets.all(2), child: content),
     );
 
     // 选中态:上下缘悬挂「加段」把手(挂块边界外,根 Stack Clip.none
     // 承接 —— 表格选择柄同款悬挂惯例)
-    if (widget.selected && widget.onInsertParagraph != null) {
+    if (widget.showInsertHandles &&
+        widget.selected &&
+        widget.onInsertParagraph != null) {
       // 半悬挂(-12 + 高 28 → 中心在界内):Stack 命中只认自身 bounds,
       // 全悬挂画得出来点不到(根 Stack Clip.none 只救绘制不救命中)
       Widget handle({required bool before}) => Positioned(
-            top: before ? -12 : null,
-            bottom: before ? null : -12,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _InsertParagraphHandle(
-                key: ValueKey(before
-                    ? 'island-insert-before'
-                    : 'island-insert-after'),
-                onTap: () => widget.onInsertParagraph!(before: before),
-              ),
+        top: before ? -12 : null,
+        bottom: before ? null : -12,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: _InsertParagraphHandle(
+            key: ValueKey(
+              before ? 'island-insert-before' : 'island-insert-after',
             ),
-          );
+            onTap: () => widget.onInsertParagraph!(before: before),
+          ),
+        ),
+      );
       content = Stack(
         clipBehavior: Clip.none,
-        children: [
-          content,
-          handle(before: true),
-          handle(before: false),
-        ],
+        children: [content, handle(before: true), handle(before: false)],
       );
     }
 
@@ -206,7 +209,24 @@ class _EditorIslandState extends State<EditorIsland> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTapSelect,
-      onDoubleTap: widget.onEditRequest,
+      onLongPress: () {
+        widget.onTapSelect();
+        widget.onContextMenu?.call();
+      },
+      onSecondaryTapUp: (details) {
+        if (widget.onSecondaryMenu != null) {
+          widget.onSecondaryMenu!(details.globalPosition);
+        } else {
+          widget.onTapSelect();
+          widget.onContextMenu?.call();
+        }
+      },
+      // 宿主已有明确编辑入口时，不让双击识别器延迟单击选中；
+      // 网格内的瓦片交互也必须由子组件自行处理。
+      onDoubleTap:
+          widget.onContextMenu == null && widget.contentOverride == null
+          ? widget.onEditRequest
+          : null,
       child: MouseRegion(
         cursor: SystemMouseCursors.basic,
         // 岛区域标记:编辑器长按选词让路(岛无 RenderParagraph,长按
@@ -220,7 +240,6 @@ class _EditorIslandState extends State<EditorIsland> {
     );
   }
 }
-
 
 /// 100%/75%/50% 缩放胶囊条(浮层统一规格:圆角 + outlineVariant 细边 +
 /// surfaceContainerLow 底 + 柔和投影)。主项目源码模式预览的可缩放图
@@ -242,9 +261,7 @@ class EditorImageScaleBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.10),

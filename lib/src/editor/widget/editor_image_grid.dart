@@ -1,35 +1,18 @@
-/// 编辑器网格(grid 岛的专属交互视图)—— 官方 composer 内聚布局 1:1:
-///
-/// ```
-/// ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ [网格|轮播] ┐   ← 容器右上常驻
-/// ╎ ┌────────┐ ┌────────┐                      ╎
-/// ╎ │[删|出] │ │        │   ← 子选中瓦片左上叠工具条
-/// ╎ │  img   │ │  img   │
-/// ╎ │alt 标签│ └────────┘   ← 子选中瓦片底部 alt 标签(点击原位编辑)
-/// ╎ └────────┘                    [移除网格]   ← 容器右下常驻
-/// └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
-/// ```
-///
-/// - 布局 = rich-editor.scss `.composer-image-grid`:flex-wrap 等大方块
-///   (img 200px / 窄容器 150px, cover)+ **虚线边框** + 内边距;
-/// - 全部动作内聚(不再走 app Overlay 浮层):模式切换/移除网格/瓦片
-///   删除/移出网格/alt 编辑,由 FluxdoEditor 接子包命令,宿主只管
-///   [onImageOpen](查看器);
-/// - 鼠标样式(官方 CSS 同款):未选中瓦片 hover = click(pointer),
-///   已选中 = zoomIn(再点开查看器);按钮 = click;
-/// - 瓦片区在 [kEditorSelfManagedRegion] 自管区内;网格空白/边缘走岛
-///   整选(外层 GestureDetector)。
+/// In-place image-group editing: immediate mouse drag, touch long-press drag,
+/// explicit insertion targets, mode controls and a per-image action surface.
 library;
 
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/gestures.dart' show kPrimaryMouseButton;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 
 import '../../node/node.dart';
 import '../../render/image_handler.dart';
 import '../../render/node_factory.dart';
 import 'editor_table_grid.dart' show kEditorSelfManagedRegion;
 
-/// grid 内图片子选中事件(宿主开查看器用)。
+/// 图片组内的单图目标，同时用于就地菜单、查看器和选中几何。
 @immutable
 class GridImageSelection {
   const GridImageSelection({
@@ -78,11 +61,31 @@ class EditorImageGrid extends StatefulWidget {
     this.onMoveImageOut,
     this.onAltChanged,
     this.onReorder,
+    this.showSelectionControls = true,
+    this.onContextMenu,
+    this.onSelectGrid,
+    this.onSecondaryMenu,
+    this.onImageMenu,
+    this.onAddImages,
+    this.addingImages = false,
+    this.pendingUploads = const [],
+    this.controlSurfaceBuilder,
   });
+
+  final void Function(GridImageSelection image, Rect anchor)? onImageMenu;
+  final VoidCallback? onAddImages;
+  final bool addingImages;
+  final List<Widget> pendingUploads;
+  final Widget Function(BuildContext, Widget)? controlSurfaceBuilder;
 
   final ImageGridNode node;
   final String islandId;
   final NodeFactory nodeFactory;
+  final bool showSelectionControls;
+  final VoidCallback? onContextMenu;
+  final VoidCallback? onSelectGrid;
+  final void Function(GridImageSelection selection, Offset position)?
+  onSecondaryMenu;
 
   /// 当前子选中的图下标(FluxdoEditor 持有;null = 无子选中)。
   final int? selectedIndex;
@@ -90,10 +93,10 @@ class EditorImageGrid extends StatefulWidget {
   /// 瓦片单击(未选中态)→ 请求子选中。
   final ValueChanged<GridImageSelection>? onImageTap;
 
-  /// 已子选中的瓦片再点 → 请求打开查看器(宿主)。
+  /// 点击查看按钮 → 请求打开查看器(宿主)。
   final ValueChanged<GridImageSelection>? onImageOpen;
 
-  /// 容器右上 [网格|轮播] 切换。
+  /// 头部常驻的 [网格|轮播] 模式切换。
   final ValueChanged<ImageGridMode>? onModeChange;
 
   /// 容器右下 [移除网格](拆壳保图)。
@@ -113,40 +116,49 @@ class EditorImageGrid extends StatefulWidget {
   final void Function(int from, int to)? onReorder;
 
   @override
-  State<EditorImageGrid> createState() => _EditorImageGridState();
+  State<EditorImageGrid> createState() => EditorImageGridState();
 }
 
-class _EditorImageGridState extends State<EditorImageGrid> {
+class EditorImageGridState extends State<EditorImageGrid> {
   final Map<int, GlobalKey> _tileKeys = {};
+  final _carouselScroll = ScrollController();
+  ScrollableState? _carouselScrollable;
+  EdgeDraggingAutoScroller? _outerAutoScroll;
+  EdgeDraggingAutoScroller? _carouselAutoScroll;
+  int? _hovered;
+  int? _dragging;
+  (int, bool)? _dropTarget;
 
-  /// 正在原位编辑 alt 的瓦片下标(null = 无)。
-  int? _editingAlt;
-  final TextEditingController _altController = TextEditingController();
-  final FocusNode _altFocus = FocusNode(debugLabel: 'grid-tile-alt');
+  bool get _hasImageActions =>
+      widget.onImageMenu != null ||
+      widget.onSecondaryMenu != null ||
+      widget.onContextMenu != null ||
+      widget.onImageOpen != null ||
+      widget.onReorder != null ||
+      widget.onAltChanged != null ||
+      widget.onMoveImageOut != null ||
+      widget.onRemoveImage != null;
 
-  @override
-  void didUpdateWidget(covariant EditorImageGrid oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 子选中变化/图列表变化 → 退出 alt 编辑态
-    if (oldWidget.selectedIndex != widget.selectedIndex ||
-        oldWidget.node != widget.node) {
-      _editingAlt = null;
-    }
-  }
+  bool get _desktop => switch (Theme.of(context).platform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
 
   @override
   void dispose() {
-    _altController.dispose();
-    _altFocus.dispose();
+    _stopAutoScroll();
+    _carouselScroll.dispose();
     super.dispose();
   }
 
   GlobalKey _keyFor(int index) => _tileKeys.putIfAbsent(index, GlobalKey.new);
 
-  GridImageSelection? _selectionOf(int index) {
-    final box =
-        _tileKeys[index]?.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached || !box.hasSize) return null;
+  GridImageSelection? selectionFor(int index) {
+    if (index < 0 || index >= widget.node.images.length) return null;
+    final box = _tileKeys[index]?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
     final topLeft = box.localToGlobal(Offset.zero);
     if (!topLeft.dx.isFinite || !topLeft.dy.isFinite) return null;
     return GridImageSelection(
@@ -157,97 +169,630 @@ class _EditorImageGridState extends State<EditorImageGrid> {
     );
   }
 
-  void _onTileTap(int index) {
-    final sel = _selectionOf(index);
-    if (sel == null) return;
-    if (widget.selectedIndex == index) {
-      widget.onImageOpen?.call(sel);
+  void _select(int index) {
+    final selection = selectionFor(index);
+    if (selection != null) widget.onImageTap?.call(selection);
+  }
+
+  void _menu(int index, Rect anchor, {bool secondary = false}) {
+    final selection = selectionFor(index);
+    if (selection == null) return;
+    _select(index);
+    if (secondary && widget.onSecondaryMenu != null) {
+      widget.onSecondaryMenu!(selection, anchor.topLeft);
+    } else if (widget.onImageMenu != null) {
+      widget.onImageMenu!(selection, anchor);
+    } else if (widget.onContextMenu != null) {
+      widget.onContextMenu!();
     } else {
-      widget.onImageTap?.call(sel);
+      _showFallbackMenu(index, anchor);
     }
   }
 
-  void _startAltEdit(int index) {
-    setState(() {
-      _editingAlt = index;
-      _altController.text = widget.node.images[index].alt;
-      _altController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _altController.text.length,
+  Future<void> _showFallbackMenu(int index, Rect anchor) async {
+    if (!_hasImageActions) return;
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(
+          overlay.globalToLocal(anchor.topLeft),
+          overlay.globalToLocal(anchor.bottomRight),
+        ),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        if (widget.onImageOpen != null)
+          const PopupMenuItem(value: 'view', child: Text('查看图片')),
+        if (widget.onReorder != null) ...[
+          PopupMenuItem(
+            value: 'previous',
+            enabled: index > 0,
+            child: const Text('前移一张'),
+          ),
+          PopupMenuItem(
+            value: 'next',
+            enabled: index < widget.node.images.length - 1,
+            child: const Text('后移一张'),
+          ),
+        ],
+        if (widget.onAltChanged != null)
+          const PopupMenuItem(value: 'alt', child: Text('替代文本')),
+        if (widget.onMoveImageOut != null)
+          const PopupMenuItem(value: 'out', child: Text('移出网格')),
+        if (widget.onRemoveImage != null)
+          const PopupMenuItem(value: 'delete', child: Text('删除图片')),
+      ],
+    );
+    if (!mounted || index >= widget.node.images.length) return;
+    switch (action) {
+      case 'view':
+        final image = selectionFor(index);
+        if (image != null) widget.onImageOpen?.call(image);
+      case 'previous':
+        widget.onReorder?.call(index, index - 1);
+      case 'next':
+        widget.onReorder?.call(index, index + 1);
+      case 'out':
+        widget.onMoveImageOut?.call(index);
+      case 'delete':
+        widget.onRemoveImage?.call(index);
+      case 'alt':
+        var text = widget.node.images[index].alt;
+        final value = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('替代文本'),
+            content: TextFormField(
+              initialValue: text,
+              autofocus: true,
+              onChanged: (value) => text = value,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, text),
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+        );
+        if (mounted && value != null) widget.onAltChanged?.call(index, value);
+      default:
+        break;
+    }
+  }
+
+  Widget _surface(Widget child) =>
+      widget.controlSurfaceBuilder?.call(context, child) ??
+      Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+        child: child,
       );
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _editingAlt == index) _altFocus.requestFocus();
+
+  void _startDrag(int index) {
+    _select(index);
+    final outer = Scrollable.maybeOf(context);
+    if (outer != null) {
+      _outerAutoScroll = EdgeDraggingAutoScroller(outer, velocityScalar: 30);
+    }
+    if (widget.node.mode == ImageGridMode.carousel &&
+        _carouselScrollable != null) {
+      _carouselAutoScroll = EdgeDraggingAutoScroller(
+        _carouselScrollable!,
+        velocityScalar: 30,
+      );
+    }
+    setState(() {
+      _dragging = index;
+      _hovered = null;
     });
   }
 
-  void _commitAlt() {
-    final i = _editingAlt;
-    if (i == null) return;
-    setState(() => _editingAlt = null);
-    final text = _altController.text.trim();
-    if (i < widget.node.images.length &&
-        text != widget.node.images[i].alt) {
-      widget.onAltChanged?.call(i, text);
+  void _stopAutoScroll() {
+    _outerAutoScroll?.stopAutoScroll();
+    _carouselAutoScroll?.stopAutoScroll();
+    _outerAutoScroll = null;
+    _carouselAutoScroll = null;
+  }
+
+  void _endDrag() {
+    _stopAutoScroll();
+    if (mounted) {
+      setState(() {
+        _dragging = null;
+        _dropTarget = null;
+      });
     }
+  }
+
+  bool _accepts(_GridImageDrag data) =>
+      data.islandId == widget.islandId &&
+      listEquals(data.images, widget.node.images);
+
+  int _destination(_GridImageDrag data, int index, Offset point) {
+    final rect = selectionFor(index)?.globalRect;
+    final after = rect != null && point.dx >= rect.center.dx;
+    final boundary = index + (after ? 1 : 0);
+    return (boundary - (data.from < boundary ? 1 : 0)).clamp(
+      0,
+      widget.node.images.length - 1,
+    );
+  }
+
+  Widget _tile(int index, double size, ImageContentBuilder builder) {
+    final image = widget.node.images[index];
+    final selected = widget.selectedIndex == index;
+    final toolsVisible =
+        _hasImageActions &&
+        _dragging == null &&
+        (_hovered == index || selected) &&
+        ModalRoute.of(context)?.isCurrent != false;
+    final scheme = Theme.of(context).colorScheme;
+    final buttonSize = _desktop ? 32.0 : 48.0;
+    Widget photo() => ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox.square(
+        dimension: size,
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: AbsorbPointer(
+            child: builder(context, image, widget.node.images.length),
+          ),
+        ),
+      ),
+    );
+    final controls = Positioned(
+      right: 4,
+      top: 4,
+      child: Visibility(
+        visible: toolsVisible,
+        maintainState: true,
+        child: TextFieldTapRegion(
+          child: _surface(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  key: ValueKey('grid-image-view-${widget.islandId}-$index'),
+                  tooltip: '查看图片',
+                  style: IconButton.styleFrom(
+                    minimumSize: Size.square(buttonSize),
+                    maximumSize: Size.square(buttonSize),
+                    padding: const EdgeInsets.all(6),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: widget.onImageOpen == null
+                      ? null
+                      : () {
+                          final selected = selectionFor(index);
+                          if (selected != null) {
+                            widget.onImageOpen!(selected);
+                          }
+                        },
+                  icon: const Icon(Icons.open_in_full_rounded, size: 18),
+                ),
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    key: ValueKey('grid-image-more-${widget.islandId}-$index'),
+                    tooltip: '图片操作',
+                    style: IconButton.styleFrom(
+                      minimumSize: Size.square(buttonSize),
+                      maximumSize: Size.square(buttonSize),
+                      padding: const EdgeInsets.all(6),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      final box = buttonContext.findRenderObject() as RenderBox;
+                      _menu(index, box.localToGlobal(Offset.zero) & box.size);
+                    },
+                    icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final body = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _select(index),
+      onSecondaryTapUp: (details) =>
+          _menu(index, details.globalPosition & Size.zero, secondary: true),
+      child: SizedBox(
+        key: _keyFor(index),
+        width: size,
+        height: size,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            photo(),
+            if (selected)
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            Positioned(
+              left: 6,
+              bottom: 6,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: .5),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    // Keep the keyed tile (and its Tooltip/OverlayPortal) under the same
+    // parents when dragging starts or a second image is added.
+    final canReorder =
+        widget.onReorder != null && widget.node.images.length > 1;
+    final dragChild = Opacity(
+      opacity: _dragging == index ? .25 : 1,
+      child: body,
+    );
+    final data = _GridImageDrag(
+      widget.islandId,
+      index,
+      List.of(widget.node.images),
+    );
+    final feedback = Builder(
+      builder: (context) {
+        final previewSize = size * .65;
+        final screen = MediaQueryData.fromView(View.of(context)).size;
+        final dx = data.pointer.dx + previewSize + 16 < screen.width
+            ? 16.0
+            : -previewSize - 16;
+        final dy = data.pointer.dy > previewSize + 16
+            ? -previewSize - 16
+            : 16.0;
+        // Keep the pointer and drop edge unobscured, including on touch screens.
+        return Transform.translate(
+          offset: data.anchor + Offset(dx, dy),
+          child: Material(
+            color: Colors.transparent,
+            elevation: 8,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            child: SizedBox.square(
+              dimension: previewSize,
+              child: FittedBox(fit: BoxFit.cover, child: photo()),
+            ),
+          ),
+        );
+      },
+    );
+    void update(DragUpdateDetails details) {
+      data.pointer = details.globalPosition;
+      final area = Rect.fromCenter(
+        center: details.globalPosition,
+        width: 72,
+        height: 72,
+      );
+      _outerAutoScroll?.startAutoScrollIfNecessary(area);
+      _carouselAutoScroll?.startAutoScrollIfNecessary(area);
+    }
+
+    final draggable = _desktop
+        ? Draggable<_GridImageDrag>(
+            data: data,
+            maxSimultaneousDrags: canReorder ? 1 : 0,
+            dragAnchorStrategy: (d, c, p) {
+              data.pointer = p;
+              return data.anchor = childDragAnchorStrategy(d, c, p);
+            },
+            allowedButtonsFilter: (buttons) => buttons == kPrimaryMouseButton,
+            feedback: feedback,
+            onDragStarted: () => _startDrag(index),
+            onDragUpdate: update,
+            onDragEnd: (_) => _endDrag(),
+            child: dragChild,
+          )
+        : LongPressDraggable<_GridImageDrag>(
+            data: data,
+            maxSimultaneousDrags: canReorder ? 1 : 0,
+            dragAnchorStrategy: (d, c, p) {
+              data.pointer = p;
+              return data.anchor = childDragAnchorStrategy(d, c, p);
+            },
+            delay: const Duration(milliseconds: 300),
+            feedback: feedback,
+            onDragStarted: () => _startDrag(index),
+            onDragUpdate: update,
+            onDragEnd: (_) => _endDrag(),
+            child: dragChild,
+          );
+    return MouseRegion(
+      cursor: widget.onReorder != null
+          ? SystemMouseCursors.grab
+          : SystemMouseCursors.click,
+      onEnter: (_) {
+        if (_desktop && _dragging == null) setState(() => _hovered = index);
+      },
+      onExit: (_) {
+        if (_hovered == index) setState(() => _hovered = null);
+      },
+      child: DragTarget<_GridImageDrag>(
+        onWillAcceptWithDetails: (details) =>
+            canReorder && _accepts(details.data),
+        onMove: (details) {
+          if (!_accepts(details.data)) return;
+          final rect = selectionFor(index)?.globalRect;
+          if (rect == null) return;
+          final next = (
+            index,
+            (details.offset + details.data.anchor).dx >= rect.center.dx,
+          );
+          if (_dropTarget != next) setState(() => _dropTarget = next);
+        },
+        onLeave: (_) {
+          if (_dropTarget?.$1 == index) setState(() => _dropTarget = null);
+        },
+        onAcceptWithDetails: (details) {
+          if (!canReorder || !_accepts(details.data)) return;
+          widget.onReorder!(
+            details.data.from,
+            _destination(
+              details.data,
+              index,
+              details.offset + details.data.anchor,
+            ),
+          );
+        },
+        builder: (context, candidates, _) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            draggable,
+            // Controls are siblings of the drag surface: a press on a button
+            // never registers with Draggable, even if the pointer then moves.
+            controls,
+            if (candidates.isNotEmpty && _dropTarget?.$1 == index)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: _dropTarget!.$2 ? null : -5,
+                right: _dropTarget!.$2 ? -5 : null,
+                width: 3,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    key: ValueKey('grid-drop-${widget.islandId}-$index'),
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final images = widget.node.images;
+    if (images.isEmpty) return const SizedBox.shrink();
+    final carousel = widget.node.mode == ImageGridMode.carousel;
     final builder =
         widget.nodeFactory.imageContentBuilder ?? defaultImageContentBuilder;
-
-    if (images.isEmpty) return const SizedBox.shrink();
-
     return MetaData(
       metaData: kEditorSelfManagedRegion,
       behavior: HitTestBehavior.opaque,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // 官方:viewport <md 150px,≥md 200px(编辑器列宽近似判)
-          final tileSize = constraints.maxWidth < 640 ? 150.0 : 200.0;
-          return CustomPaint(
-            foregroundPainter: _DashedBorderPainter(
-              color: scheme.outlineVariant,
-              radius: 8,
+          final available = math.max(0.0, constraints.maxWidth - 24);
+          final small = constraints.maxWidth < 640;
+          final preferred = small ? 150.0 : 200.0;
+          final slots = images.length + widget.pendingUploads.length + (widget.onAddImages == null ? 0 : 1);
+          final columns = math.min(
+            slots,
+            math.max(1, ((available + 8) / (small ? 120 : 184)).floor()),
+          );
+          final tileSize = carousel
+              ? math.min(available, preferred)
+              : math.min(preferred, (available - 8 * (columns - 1)) / columns);
+          Widget addButton() {
+            final icon = widget.addingImages
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_photo_alternate_outlined, size: 18);
+            if (available < 300 ||
+                MediaQuery.textScalerOf(context).scale(14) > 18) {
+              return IconButton(
+                key: ValueKey('grid-add-${widget.islandId}'),
+                tooltip: widget.addingImages ? '正在添加' : '添加图片',
+                onPressed: widget.addingImages ? null : widget.onAddImages,
+                icon: icon,
+              );
+            }
+            return TextButton.icon(
+              key: ValueKey('grid-add-${widget.islandId}'),
+              onPressed: widget.addingImages ? null : widget.onAddImages,
+              icon: icon,
+              label: Text(widget.addingImages ? '正在添加' : '添加图片'),
+            );
+          }
+
+          final modeControl = widget.onModeChange == null
+              ? Text(
+                  carousel ? '轮播' : '网格',
+                  style: Theme.of(context).textTheme.labelLarge,
+                )
+              : _ModeSegment(
+                  mode: widget.node.mode,
+                  onChange: widget.onModeChange!,
+                );
+          final count = Text(
+            '${images.length} 张',
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+          );
+          final more = widget.onSelectGrid == null
+              ? const SizedBox.shrink()
+              : IconButton(
+                  tooltip: '图片组操作',
+                  onPressed: widget.onSelectGrid,
+                  icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                );
+          final header = available < 460
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(alignment: Alignment.centerLeft, child: modeControl),
+                    Row(
+                      children: [
+                        count,
+                        const Spacer(),
+                        if (widget.onAddImages != null) addButton(),
+                        more,
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    modeControl,
+                    const SizedBox(width: 10),
+                    count,
+                    const Spacer(),
+                    if (widget.onAddImages != null) addButton(),
+                    more,
+                  ],
+                );
+          final tiles = [
+            for (var i = 0; i < images.length; i++) _tile(i, tileSize, builder),
+            for (final pending in widget.pendingUploads)
+              SizedBox.square(dimension: tileSize, child: pending),
+            if (widget.onAddImages != null)
+              SizedBox.square(
+                dimension: tileSize,
+                child: OutlinedButton(
+                  key: ValueKey('grid-add-tile-${widget.islandId}'),
+                  onPressed: widget.addingImages ? null : widget.onAddImages,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    side: BorderSide(color: scheme.outlineVariant),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.add_rounded, size: 26),
+                      const SizedBox(height: 8),
+                      Text(widget.addingImages ? '正在添加' : '添加图片'),
+                    ],
+                  ),
+                ),
+              ),
+          ];
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: .5),
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 顶行:右上角 [网格|轮播] 常驻(官方 mode-buttons)
-                  if (widget.onModeChange != null)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: _ModeSegment(
-                        mode: widget.node.mode,
-                        onChange: widget.onModeChange!,
+                  header,
+                  const SizedBox(height: 8),
+                  // Mode changes must not reparent keyed image subtrees while
+                  // this LayoutBuilder is laying out. Tooltips may have active
+                  // overlay children outside this subtree at that moment.
+                  Scrollbar(
+                    controller: _carouselScroll,
+                    thumbVisibility: carousel && _desktop,
+                    child: SingleChildScrollView(
+                      key: ValueKey('grid-viewport-${widget.islandId}'),
+                      controller: _carouselScroll,
+                      scrollDirection: Axis.horizontal,
+                      physics: carousel
+                          ? const ClampingScrollPhysics()
+                          : const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.only(bottom: carousel ? 12 : 0),
+                      child: Builder(
+                        builder: (context) {
+                          _carouselScrollable = Scrollable.maybeOf(context);
+                          return SizedBox(
+                            width: carousel
+                                ? tileSize * tiles.length +
+                                      8 * (tiles.length - 1)
+                                : available,
+                            child: Wrap(
+                              key: ValueKey('grid-wrap-${widget.islandId}'),
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: tiles,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
                     children: [
-                      for (var i = 0; i < images.length; i++)
-                        _tile(context, scheme, builder, i, images[i],
-                            tileSize, images.length),
+                      Expanded(
+                        child: Text(
+                          _desktop ? '拖动图片排序 · 悬停显示操作' : '点选图片操作 · 长按拖动排序',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                      if (carousel) ...[
+                        IconButton(
+                          tooltip: '向前浏览',
+                          onPressed: () => _scrollCarousel(-tileSize - 8),
+                          icon: const Icon(Icons.chevron_left_rounded),
+                        ),
+                        IconButton(
+                          tooltip: '向后浏览',
+                          onPressed: () => _scrollCarousel(tileSize + 8),
+                          icon: const Icon(Icons.chevron_right_rounded),
+                        ),
+                      ],
+                      if (widget.showSelectionControls &&
+                          widget.onRemoveGrid != null)
+                        TextButton(
+                          onPressed: widget.onRemoveGrid,
+                          child: const Text('移除网格'),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  // 底行:右下角 [移除网格] 常驻(官方 remove-btn)
-                  if (widget.onRemoveGrid != null)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: _FlatButton(
-                        icon: Icons.grid_off_rounded,
-                        label: '移除网格',
-                        onTap: widget.onRemoveGrid!,
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -257,384 +802,54 @@ class _EditorImageGridState extends State<EditorImageGrid> {
     );
   }
 
-  Widget _tile(
-    BuildContext context,
-    ColorScheme scheme,
-    ImageContentBuilder builder,
-    int index,
-    ImageRun img,
-    double size,
-    int total,
-  ) {
-    final body = _tileBody(context, scheme, builder, index, img, size, total);
-    if (widget.onReorder == null || total < 2) return body;
-
-    // 拖拽排序:长按提起(触摸/鼠标同一手势 —— 立即拖会抢瓦片单击与
-    // 页面滚动的竞技场);每瓦片同时是放置目标,drop = 落位该瓦片下标。
-    return DragTarget<int>(
-      onWillAcceptWithDetails: (d) => d.data != index,
-      onAcceptWithDetails: (d) => widget.onReorder!(d.data, index),
-      builder: (context, candidates, _) => DecoratedBox(
-        position: DecorationPosition.foreground,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: candidates.isEmpty ? Colors.transparent : scheme.primary,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: LongPressDraggable<int>(
-          data: index,
-          maxSimultaneousDrags: 1,
-          feedback: _dragFeedback(context, builder, img, size, total),
-          childWhenDragging: Opacity(opacity: 0.35, child: body),
-          child: body,
-        ),
+  void _scrollCarousel(double delta) {
+    if (!_carouselScroll.hasClients) return;
+    _carouselScroll.animateTo(
+      (_carouselScroll.offset + delta).clamp(
+        0,
+        _carouselScroll.position.maxScrollExtent,
       ),
-    );
-  }
-
-  /// 拖拽影像:瓦片同尺寸缩略 + 提起阴影(脱离树,需自带 Material)。
-  Widget _dragFeedback(
-    BuildContext context,
-    ImageContentBuilder builder,
-    ImageRun img,
-    double size,
-    int total,
-  ) {
-    return Material(
-      color: Colors.transparent,
-      elevation: 6,
-      borderRadius: BorderRadius.circular(6),
-      clipBehavior: Clip.antiAlias,
-      child: Opacity(
-        opacity: 0.9,
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: FittedBox(
-            fit: BoxFit.cover,
-            clipBehavior: Clip.hardEdge,
-            child: AbsorbPointer(
-              child: builder(context, img, total),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _tileBody(
-    BuildContext context,
-    ColorScheme scheme,
-    ImageContentBuilder builder,
-    int index,
-    ImageRun img,
-    double size,
-    int total,
-  ) {
-    final selected = widget.selectedIndex == index;
-    final editingAlt = _editingAlt == index;
-    return MouseRegion(
-      // 官方 CSS:未选中 hover = pointer,选中 = zoom-in(再点开灯箱)
-      cursor: selected ? SystemMouseCursors.zoomIn : SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _onTileTap(index),
-        child: SizedBox(
-          key: _keyFor(index),
-          width: size,
-          height: size,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 图
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color:
-                        selected ? scheme.primary : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    clipBehavior: Clip.hardEdge,
-                    child: AbsorbPointer(
-                      child: builder(context, img, total),
-                    ),
-                  ),
-                ),
-              ),
-              // 子选中:左上叠 [删除|移出] 工具条(官方 menu top-start)
-              if (selected)
-                Positioned(
-                  left: 6,
-                  top: 6,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      _TileIconBtn(
-                        icon: Icons.delete_outline_rounded,
-                        tooltip: '删除图片',
-                        onTap: () => widget.onRemoveImage?.call(index),
-                      ),
-                      _TileIconBtn(
-                        icon: Icons.grid_off_rounded,
-                        tooltip: '移出网格',
-                        onTap: () => widget.onMoveImageOut?.call(index),
-                      ),
-                    ]),
-                  ),
-                ),
-              // 子选中:底部 alt 标签 / 原位编辑
-              if (selected)
-                Positioned(
-                  left: 6,
-                  right: 6,
-                  bottom: 6,
-                  child: editingAlt
-                      ? Focus(
-                          onKeyEvent: (node, event) {
-                            if (event is KeyDownEvent &&
-                                event.logicalKey ==
-                                    LogicalKeyboardKey.escape) {
-                              setState(() => _editingAlt = null);
-                              return KeyEventResult.handled;
-                            }
-                            return KeyEventResult.ignored;
-                          },
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.75),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: TextField(
-                              controller: _altController,
-                              focusNode: _altFocus,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.white),
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                hintText: '替代文本',
-                                hintStyle: TextStyle(
-                                    fontSize: 12, color: Colors.white54),
-                                contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 6),
-                                border: InputBorder.none,
-                              ),
-                              onSubmitted: (_) => _commitAlt(),
-                              onTapOutside: (_) => _commitAlt(),
-                            ),
-                          ),
-                        )
-                      : MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            onTap: () => _startAltEdit(index),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.black.withValues(alpha: 0.65),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                img.alt.isEmpty ? '替代文本' : img.alt,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: img.alt.isEmpty
-                                      ? Colors.white54
-                                      : Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                ),
-            ],
-          ),
-        ),
-      ),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
     );
   }
 }
 
-/// [网格|轮播] 分段按钮(官方 mode-buttons:active 主色底)。
+class _GridImageDrag {
+  _GridImageDrag(this.islandId, this.from, this.images);
+  Offset anchor = Offset.zero;
+  Offset pointer = Offset.zero;
+  final String islandId;
+  final int from;
+  final List<ImageRun> images;
+}
+
 class _ModeSegment extends StatelessWidget {
   const _ModeSegment({required this.mode, required this.onChange});
-
   final ImageGridMode mode;
   final ValueChanged<ImageGridMode> onChange;
-
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget btn(String label, IconData icon, ImageGridMode m) {
-      final active = mode == m;
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: active ? null : () => onChange(m),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: active ? scheme.primary : scheme.surfaceContainerLow,
-              border: Border.all(
-                color: active
-                    ? scheme.primary
-                    : scheme.outlineVariant.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon,
-                  size: 14,
-                  color:
-                      active ? scheme.onPrimary : scheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.2,
-                  fontWeight: FontWeight.w500,
-                  color:
-                      active ? scheme.onPrimary : scheme.onSurfaceVariant,
-                ),
-              ),
-            ]),
-          ),
-        ),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        btn('网格', Icons.grid_view_rounded, ImageGridMode.grid),
-        btn('轮播', Icons.view_carousel_rounded, ImageGridMode.carousel),
-      ]),
-    );
-  }
-}
-
-/// 扁平文字按钮(官方 remove-btn:细边框 + hover 提亮)。
-class _FlatButton extends StatelessWidget {
-  const _FlatButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerLow,
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 14, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.2,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-          ]),
-        ),
+  Widget build(BuildContext context) => SegmentedButton<ImageGridMode>(
+    segments: const [
+      ButtonSegment(
+        value: ImageGridMode.grid,
+        icon: Icon(Icons.grid_view_rounded, size: 16),
+        label: Text('网格'),
       ),
-    );
-  }
-}
-
-class _TileIconBtn extends StatelessWidget {
-  const _TileIconBtn({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(icon, size: 16, color: Colors.white),
-          ),
-        ),
+      ButtonSegment(
+        value: ImageGridMode.carousel,
+        icon: Icon(Icons.view_carousel_outlined, size: 16),
+        label: Text('轮播'),
       ),
-    );
-  }
-}
-
-/// 虚线圆角边框(官方 `border: 2px dashed`;Flutter 无原生 dashed)。
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    final rrect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      Radius.circular(radius),
-    ).deflate(1);
-    final path = Path()..addRRect(rrect);
-    const dash = 6.0, gap = 4.0;
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        canvas.drawPath(
-          metric.extractPath(d, (d + dash).clamp(0, metric.length)),
-          paint,
-        );
-        d += dash + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter old) =>
-      old.color != color || old.radius != radius;
+    ],
+    selected: {mode},
+    showSelectedIcon: false,
+    style: SegmentedButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      minimumSize: const Size(0, 40),
+    ),
+    onSelectionChanged: (value) => onChange(value.single),
+  );
 }

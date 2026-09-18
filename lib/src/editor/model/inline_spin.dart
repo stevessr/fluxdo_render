@@ -58,11 +58,7 @@ typedef _PairHit = ({
 /// BBCode 属性标记完整对(非锚定扫描版;group 1 = attr,group 2 = 内容)。
 final List<(RegExp, MarkKind, String)> _bbcodeAttrScanRules = [
   for (final (open, kind, close) in kBbcodeAttrSpecs)
-    (
-      RegExp('$open$kBbcodeContentPattern${RegExp.escape(close)}'),
-      kind,
-      close,
-    ),
+    (RegExp('$open$kBbcodeContentPattern${RegExp.escape(close)}'), kind, close),
 ];
 
 /// 快退/触发探针:任一定界符族的首字符。text 一个都不含时字面折叠必然
@@ -132,8 +128,12 @@ SpinResult spinInlineMarks(
   // 字面对内部(进入态),记录下来供回归防线放行。
   var guardSkipped = false;
   for (var pass = 0; pass < maxPasses; pass++) {
-    final (hit, skipped) = _findEarliestPair(cur, exclusions,
-        guardCaret: guardAtCaret ? pos : null, guardInclusive: guardInclusive);
+    final (hit, skipped) = _findEarliestPair(
+      cur,
+      exclusions,
+      guardCaret: guardAtCaret ? pos : null,
+      guardInclusive: guardInclusive,
+    );
     guardSkipped = guardSkipped || skipped;
     if (hit == null) break;
     final openEnd = hit.start + hit.openLen;
@@ -142,8 +142,13 @@ SpinResult spinInlineMarks(
     cur = cur
         .delete(contentEnd, matchEnd)
         .delete(hit.start, openEnd)
-        .applyMark(hit.start, hit.start + hit.contentLen, hit.kind,
-            attr: hit.attr);
+        .applyMark(
+          hit.start,
+          hit.start + hit.contentLen,
+          hit.kind,
+          attr: hit.attr,
+          isAutoLink: hit.kind == MarkKind.link ? false : null,
+        );
     pos = _remapCaret(pos, hit.start, openEnd, contentEnd, matchEnd);
     exclusions = [
       for (final (s, e) in exclusions)
@@ -180,7 +185,7 @@ SpinResult spinInlineMarks(
 /// 公开给状态层做「进入物化」的簇判定(materializeClusterAt)——
 /// 物化准入与 spin 折叠能力必须同口径,否则展开了折不回去。
 bool isRefoldableMark(EditableTextContent c, MarkSpan m) {
-  if (m.kind == MarkKind.inlineCode) return false;
+  if (m.kind == MarkKind.inlineCode || c.isBareLink(m)) return false;
   final inner = c.text.substring(m.start, m.end);
   if (m.kind == MarkKind.link) {
     // link 可物化(点击进入改 href 的主路径),但 label 含原子哨兵的
@@ -222,8 +227,12 @@ bool isRefoldableMark(EditableTextContent c, MarkSpan m) {
   Set<MarkSpan> cluster, {
   required int caret,
 }) {
-  final r = _materializeSet(c, cluster, caret.clamp(0, c.length),
-      boundaryOutside: true);
+  final r = _materializeSet(
+    c,
+    cluster,
+    caret.clamp(0, c.length),
+    boundaryOutside: true,
+  );
   return (content: r.content, caret: r.caret);
 }
 
@@ -294,35 +303,46 @@ _Materialized _materializeSet(
   }
   int openCompare(MarkSpan a, MarkSpan b) {
     if (a.start == b.start && a.end == b.end) {
-      return compareSameSpanMarkOpen(a, listIndex[a] ?? 0, b, listIndex[b] ?? 0);
+      return compareSameSpanMarkOpen(
+        a,
+        listIndex[a] ?? 0,
+        b,
+        listIndex[b] ?? 0,
+      );
     }
     return (b.end - b.start).compareTo(a.end - a.start); // 覆盖长的在外
   }
 
-  final events = <({int offset, String literal, bool opening, MarkSpan mark})>[
-    for (final m in materialize) ...[
-      (
-        offset: m.start,
-        literal: markOpeningDelimiter(m),
-        opening: true,
-        mark: m
-      ),
-      (
-        offset: m.end,
-        literal: markClosingDelimiter(m),
-        opening: false,
-        mark: m
-      ),
-    ],
-  ]..sort((x, y) {
-      final byOffset = x.offset.compareTo(y.offset);
-      if (byOffset != 0) return byOffset;
-      if (x.opening != y.opening) return x.opening ? 1 : -1; // 闭先于开
-      if (x.opening) return openCompare(x.mark, y.mark); // 开:外层先
-      return openCompare(y.mark, x.mark); // 闭:内层先
-    });
+  final events =
+      <({int offset, String literal, bool opening, MarkSpan mark})>[
+        for (final m in materialize) ...[
+          (
+            offset: m.start,
+            literal: markOpeningDelimiter(m),
+            opening: true,
+            mark: m,
+          ),
+          (
+            offset: m.end,
+            literal: markClosingDelimiter(m),
+            opening: false,
+            mark: m,
+          ),
+        ],
+      ]..sort((x, y) {
+        final byOffset = x.offset.compareTo(y.offset);
+        if (byOffset != 0) return byOffset;
+        if (x.opening != y.opening) return x.opening ? 1 : -1; // 闭先于开
+        if (x.opening) return openCompare(x.mark, y.mark); // 开:外层先
+        return openCompare(y.mark, x.mark); // 闭:内层先
+      });
 
-  var out = EditableTextContent(text: c.text, marks: kept, atoms: c.atoms);
+  var out = EditableTextContent(
+    text: c.text,
+    marks: kept,
+    atoms: c.atoms,
+    softBreaks: c.softBreaks,
+  );
   var newCaret = caret;
   for (final e in events.reversed) {
     out = out.insert(e.offset, e.literal);
@@ -341,9 +361,7 @@ _Materialized _materializeSet(
   return (
     content: out,
     caret: newCaret,
-    exclusions: [
-      for (final m in out.marks) (m.start, m.end),
-    ],
+    exclusions: [for (final m in out.marks) (m.start, m.end)],
   );
 }
 
@@ -367,7 +385,59 @@ int _remapCaret(int p, int start, int openEnd, int contentEnd, int matchEnd) {
 /// [guardCaret]:caret 守卫(所有 kind 统一)—— caret 严格在字面对区间
 /// 内部时该命中跳过(返回值第二项 = 是否发生过守卫跳过,回归防线据此
 /// 识别「光标驻留物化态」),光标移到边界/外部才折。
+// 即使调用方传入含空行的单块，也不得把两个段落的定界符配成一对。
+// 先分段再扫描，而非命中后拒绝，避免无效跨段命中吞掉后段的开符。
+final RegExp _paragraphBoundary = RegExp(r'\r?\n[ \t\r]*\n');
+
 (_PairHit?, bool) _findEarliestPair(
+  EditableTextContent content,
+  List<(int, int)> exclusions, {
+  int? guardCaret,
+  bool guardInclusive = false,
+}) {
+  final boundaries = _paragraphBoundary.allMatches(content.text).toList();
+  if (boundaries.isEmpty) {
+    return _findPairInParagraph(
+      content,
+      exclusions,
+      guardCaret: guardCaret,
+      guardInclusive: guardInclusive,
+    );
+  }
+  var start = 0;
+  var skipped = false;
+  for (final end in [...boundaries.map((m) => m.start), content.length]) {
+    final (hit, guarded) = _findPairInParagraph(
+      content.slice(start, end),
+      [
+        for (final (s, e) in exclusions)
+          if (s < end && e > start) (s - start, e - start),
+      ],
+      guardCaret: guardCaret == null ? null : guardCaret - start,
+      guardInclusive: guardInclusive,
+    );
+    skipped = skipped || guarded;
+    if (hit != null) {
+      return (
+        (
+          start: hit.start + start,
+          openLen: hit.openLen,
+          contentLen: hit.contentLen,
+          closeLen: hit.closeLen,
+          kind: hit.kind,
+          attr: hit.attr,
+        ),
+        skipped,
+      );
+    }
+    // 分隔符包含空行；跳过它后继续找下一段。
+    final boundary = _paragraphBoundary.matchAsPrefix(content.text, end);
+    start = boundary?.end ?? end;
+  }
+  return (null, skipped);
+}
+
+(_PairHit?, bool) _findPairInParagraph(
   EditableTextContent content,
   List<(int, int)> exclusions, {
   int? guardCaret,
@@ -405,8 +475,9 @@ int _remapCaret(int p, int start, int openEnd, int contentEnd, int matchEnd) {
   bool guarded(int start, int matchEnd) {
     final c = guardCaret;
     if (c == null) return false;
-    final inside =
-        guardInclusive ? (c >= start && c <= matchEnd) : (c > start && c < matchEnd);
+    final inside = guardInclusive
+        ? (c >= start && c <= matchEnd)
+        : (c > start && c < matchEnd);
     if (inside) {
       guardSkipped = true;
       return true;
@@ -414,9 +485,14 @@ int _remapCaret(int p, int start, int openEnd, int contentEnd, int matchEnd) {
     return false;
   }
 
-  bool valid(int start, int openLen, int contentLen, int closeLen,
-      String inner) {
-    if (inner.contains('\n')) return false;
+  bool valid(
+    int start,
+    int openLen,
+    int contentLen,
+    int closeLen,
+    String inner,
+  ) {
+    // 单个换行属于块内 inline 内容；段落边界已在外层隔离。
     if (guarded(start, start + openLen + contentLen + closeLen)) return false;
     return allowed(start, openLen, contentLen, closeLen);
   }
@@ -447,6 +523,8 @@ int _remapCaret(int p, int start, int openEnd, int contentEnd, int matchEnd) {
     for (final m in re.allMatches(text)) {
       if (best != null && m.start >= best!.start) break;
       final inner = m.group(1)!;
+      // 行内代码仍遵守原有单行契约，不借强调修复扩大语法范围。
+      if (kind == MarkKind.inlineCode && inner.contains('\n')) continue;
       if (!valid(m.start, delim.length, inner.length, delim.length, inner)) {
         continue;
       }
@@ -548,7 +626,12 @@ List<InlineSyntaxHit> scanInlineSyntax(EditableTextContent content) {
 
   // [exclusions] 为**当前切片坐标**;递归内容段时外层已保证不切进
   // 排除区(allowed 检查),子切片传其内部残留的排除区(通常为空)。
-  void scanRange(String text, int base, List<(int, int)> exclusions, int depth) {
+  void scanRange(
+    String text,
+    int base,
+    List<(int, int)> exclusions,
+    int depth,
+  ) {
     if (depth > 4) return;
     var slice = text;
     var offset = base;
@@ -569,16 +652,11 @@ List<InlineSyntaxHit> scanInlineSyntax(EditableTextContent content) {
       final innerEnd = innerStart + hit.contentLen;
       final inner = slice.substring(innerStart, innerEnd);
       if (hasInlineDelimiterChar(inner)) {
-        scanRange(
-          inner,
-          offset + innerStart,
-          [
-            for (final (s, e) in ex)
-              if (s >= innerStart && e <= innerEnd)
-                (s - innerStart, e - innerStart),
-          ],
-          depth + 1,
-        );
+        scanRange(inner, offset + innerStart, [
+          for (final (s, e) in ex)
+            if (s >= innerStart && e <= innerEnd)
+              (s - innerStart, e - innerStart),
+        ], depth + 1);
       }
       // 跳过本命中继续扫尾部
       final matchEnd = innerEnd + hit.closeLen;
@@ -592,12 +670,9 @@ List<InlineSyntaxHit> scanInlineSyntax(EditableTextContent content) {
     }
   }
 
-  scanRange(
-    content.text,
-    0,
-    [for (final m in content.marks) (m.start, m.end)],
-    0,
-  );
+  scanRange(content.text, 0, [
+    for (final m in content.marks) (m.start, m.end),
+  ], 0);
   out.sort((a, b) => a.start.compareTo(b.start));
   return out;
 }

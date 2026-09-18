@@ -186,6 +186,7 @@ class ListNode extends BlockNode {
     required this.items,
     this.depth = 0,
     this.start = 1,
+    this.loose = false,
     this.textAlign,
   });
 
@@ -202,6 +203,9 @@ class ListNode extends BlockNode {
   /// 第 i 项 marker = `start + i`。Discourse 续接列表会产出 `start="2"` 等。
   final int start;
 
+  /// 松散列表保留项内段落边界，不能仅按嵌套深度还原。
+  final bool loose;
+
   /// 列表整体对齐 — 来自 `<div align>` / `<center>` 容器的对齐下放
   /// (近似 CSS text-align 继承:li 内容居中/靠右,marker 跟随内容)。
   final TextAlign? textAlign;
@@ -214,12 +218,13 @@ class ListNode extends BlockNode {
           ordered == other.ordered &&
           depth == other.depth &&
           start == other.start &&
+          loose == other.loose &&
           textAlign == other.textAlign &&
           listEquals(items, other.items);
 
   @override
   int get hashCode =>
-      Object.hash(ordered, depth, start, textAlign, Object.hashAll(items));
+      Object.hash(ordered, depth, start, loose, textAlign, Object.hashAll(items));
 
   @override
   String toString() =>
@@ -342,7 +347,15 @@ class CodeBlockNode extends BlockNode {
     required super.id,
     required this.code,
     this.language,
+    this.rawHtml = false,
+    this.rawMarkdown = false,
   });
+
+  /// 可靠 token 来源片段，不是 HTML，也不加代码围栏。
+  final bool rawMarkdown;
+
+  /// 编辑器导入的 HTML 源码块，导出时不加代码围栏。
+  final bool rawHtml;
 
   /// 代码原始字面值(parser 已解码 HTML 实体,末尾换行已去掉)。
   final String code;
@@ -357,10 +370,11 @@ class CodeBlockNode extends BlockNode {
       other is CodeBlockNode &&
           runtimeType == other.runtimeType &&
           code == other.code &&
-          language == other.language;
+          language == other.language &&
+          rawHtml == other.rawHtml && rawMarkdown == other.rawMarkdown;
 
   @override
-  int get hashCode => Object.hash(code, language);
+  int get hashCode => Object.hash(code, language, rawHtml, rawMarkdown);
 
   @override
   String toString() =>
@@ -977,7 +991,11 @@ class FootnoteEntry {
     required this.id,
     required this.number,
     required this.inlines,
+    this.markdownLabel,
   });
+
+  /// 原始 Markdown 标签，与显示编号分离。
+  final String? markdownLabel;
 
   /// 锚点 id(`fn:abc`)。与 [FootnoteRefRun.fnId] 对应,供未来「点上标滚到底部」用。
   final String id;
@@ -994,11 +1012,12 @@ class FootnoteEntry {
       other is FootnoteEntry &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          markdownLabel == other.markdownLabel &&
           number == other.number &&
           _listEq(inlines, other.inlines);
 
   @override
-  int get hashCode => Object.hash(id, number, Object.hashAll(inlines));
+  int get hashCode => Object.hash(id, number, markdownLabel, Object.hashAll(inlines));
 
   @override
   String toString() => 'FootnoteEntry(#$number $id, ${inlines.length} inlines)';
@@ -1299,6 +1318,8 @@ class VideoNode extends BlockNode {
   const VideoNode({
     required super.id,
     required this.src,
+    this.rawHtml,
+    this.rawHtmlSignature,
     this.poster,
     this.width,
     this.height,
@@ -1310,6 +1331,10 @@ class VideoNode extends BlockNode {
   /// 播放源 URL(`data-video-src` / 首个 `source[src]` / `video[src]`)。
   /// 可能是 `upload://` 短链;空串表示无有效源。
   final String src;
+
+  /// 编辑 token 的原始 HTML；仅模型签名未变化时可直接复用。
+  final String? rawHtml;
+  final String? rawHtmlSignature;
 
   /// `data-orig-src` 的 `upload://` 短链(baked/预览 cooked 都可能带)。
   /// markdown 序列化写回 `![|video](短链)` 用 —— raw 的规范形态是短链,
@@ -1337,6 +1362,8 @@ class VideoNode extends BlockNode {
       other is VideoNode &&
           runtimeType == other.runtimeType &&
           src == other.src &&
+          rawHtml == other.rawHtml &&
+          rawHtmlSignature == other.rawHtmlSignature &&
           poster == other.poster &&
           width == other.width &&
           height == other.height &&
@@ -1346,7 +1373,8 @@ class VideoNode extends BlockNode {
 
   @override
   int get hashCode =>
-      Object.hash(src, poster, width, height, mime, loop, origSrc);
+      Object.hash(src, poster, width, height, mime, loop, origSrc,
+          rawHtml, rawHtmlSignature);
 
   @override
   String toString() =>
@@ -1374,6 +1402,8 @@ class AudioNode extends BlockNode {
   const AudioNode({
     required super.id,
     required this.src,
+    this.rawHtml,
+    this.rawHtmlSignature,
     this.title,
     this.mime,
     this.origSrc,
@@ -1383,6 +1413,10 @@ class AudioNode extends BlockNode {
   /// 播放源 URL(首个 `source[src]` / `audio[src]`)。可能是 `upload://` 短链;
   /// 空串表示无有效源。
   final String src;
+
+  /// 编辑 token 的原始 HTML；仅模型签名未变化时可直接复用。
+  final String? rawHtml;
+  final String? rawHtmlSignature;
 
   /// `data-orig-src` 的 `upload://` 短链。markdown 序列化写回
   /// `![|audio](短链)` 用(同 VideoNode.origSrc)。
@@ -1405,13 +1439,16 @@ class AudioNode extends BlockNode {
       other is AudioNode &&
           runtimeType == other.runtimeType &&
           src == other.src &&
+          rawHtml == other.rawHtml &&
+          rawHtmlSignature == other.rawHtmlSignature &&
           title == other.title &&
           mime == other.mime &&
           origSrc == other.origSrc &&
           voice == other.voice;
 
   @override
-  int get hashCode => Object.hash(src, title, mime, origSrc, voice);
+  int get hashCode =>
+      Object.hash(src, title, mime, origSrc, voice, rawHtml, rawHtmlSignature);
 
   @override
   String toString() => 'AudioNode($id, $src)';
@@ -1431,7 +1468,15 @@ class TableCellData {
   const TableCellData({
     required this.children,
     this.isHeader = false,
+    this.alignment,
+    this.sourceId,
   });
+
+  /// 编辑投影的来源标识；仅在编辑投影中使用。
+  final String? sourceId;
+
+  /// Markdown 列对齐；null 表示未声明，与显式左对齐区分。
+  final TextAlign? alignment;
 
   /// cell 内的块级子节点(递归 parse)。
   final List<BlockNode> children;
@@ -1444,11 +1489,13 @@ class TableCellData {
       identical(this, other) ||
       other is TableCellData &&
           runtimeType == other.runtimeType &&
+          sourceId == other.sourceId &&
           isHeader == other.isHeader &&
+          alignment == other.alignment &&
           listEquals(children, other.children);
 
   @override
-  int get hashCode => Object.hash(isHeader, Object.hashAll(children));
+  int get hashCode => Object.hash(sourceId, isHeader, alignment, Object.hashAll(children));
 
   @override
   String toString() =>
@@ -1489,7 +1536,11 @@ class TableNode extends BlockNode {
     required this.columnCount,
     this.hasHeader = false,
     this.textAlign,
+    this.rowSourceIds = const [],
   });
+
+  /// 与 rows 对应的来源标识；新行使用 null。
+  final List<String?> rowSourceIds;
 
   /// 全部行(含 header 行)。`hasHeader=true` 时第一行就是 header,
   /// 其余是 body;`hasHeader=false` 时全部 body。
@@ -1515,6 +1566,7 @@ class TableNode extends BlockNode {
       identical(this, other) ||
       other is TableNode &&
           runtimeType == other.runtimeType &&
+          listEquals(rowSourceIds, other.rowSourceIds) &&
           columnCount == other.columnCount &&
           hasHeader == other.hasHeader &&
           textAlign == other.textAlign &&
@@ -1523,6 +1575,7 @@ class TableNode extends BlockNode {
 
   @override
   int get hashCode => Object.hash(
+        Object.hashAll(rowSourceIds),
         columnCount,
         hasHeader,
         textAlign,
@@ -1755,7 +1808,15 @@ class PollNode extends BlockNode {
     required this.pollName,
     this.title,
     this.rawHtml = '',
+    this.rawMarkdown,
+    this.rawMarkdownSignature,
   });
+
+  /// token 导入的可靠原文；仅结构签名未改变时复用。
+  final String? rawMarkdown;
+  final String? rawMarkdownSignature;
+
+  String get sourceSignature => '$pollName\u0000$title\u0000$rawHtml';
 
   /// `data-poll-name`(默认 "poll"),主项目用它从 post.polls match。
   final String pollName;
@@ -1775,10 +1836,12 @@ class PollNode extends BlockNode {
           runtimeType == other.runtimeType &&
           pollName == other.pollName &&
           title == other.title &&
-          rawHtml == other.rawHtml;
+          rawHtml == other.rawHtml &&
+          rawMarkdown == other.rawMarkdown &&
+          rawMarkdownSignature == other.rawMarkdownSignature;
 
   @override
-  int get hashCode => Object.hash(pollName, title, rawHtml);
+  int get hashCode => Object.hash(pollName, title, rawHtml, rawMarkdown, rawMarkdownSignature);
 
   @override
   String toString() =>

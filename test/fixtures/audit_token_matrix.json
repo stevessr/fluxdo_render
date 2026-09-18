@@ -1,0 +1,5789 @@
+{
+  "mathAscii": {
+    "raw": "前 %x+y% 后",
+    "cooked": "<p>前 <span class=\"asciimath\">x+y</span> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 %x+y% 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "math_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "x+y",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": {
+              "mathType": "asciimath"
+            },
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "mathTex": {
+    "raw": "前 $x+y$ 后",
+    "cooked": "<p>前 <span class=\"math\">x+y</span> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 $x+y$ 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "math_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "x+y",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": {
+              "mathType": "tex"
+            },
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "mathBlock": {
+    "raw": "$$\nx+y\n$$",
+    "cooked": "<div class=\"math\">\nx+y\n</div>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "math_block",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "x+y",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "hashtag": {
+    "raw": "前 #mock 后",
+    "cooked": "<p>前 <span class=\"hashtag-raw\">#mock</span> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 #mock 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "hashtag-raw"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "#mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "nestedPoll": {
+    "raw": "> [poll]\n> * 甲\n> * 乙\n> [/poll]",
+    "cooked": "<blockquote>\n<div class=\"poll\" data-poll-name=\"poll\" data-poll-status=\"open\">\n<div class=\"poll-container\">\n<ul>\n<li data-poll-option-id=\"ef8ef6e9fa3d751e7f4936266651d330\">甲</li>\n<li data-poll-option-id=\"6779665945f22a2e9d49f7f67011a3e4\">乙</li>\n</ul>\n</div>\n<div class=\"poll-info\">\n<div class=\"poll-info_counts\">\n<div class=\"poll-info_counts-count\">\n<span class=\"info-number\">0</span>\n<span class=\"info-label\">poll.voters</span>\n</div>\n</div>\n</div>\n</div>\n</blockquote>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "blockquote_open",
+        "tag": "blockquote",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ">",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll"
+          ],
+          [
+            "data-poll-name",
+            "poll"
+          ],
+          [
+            "data-poll-status",
+            "open"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 4,
+            "tokenCount": 28,
+            "root": false
+          }
+        },
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_container_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-container"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_open",
+        "tag": "ul",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": [
+          [
+            "data-poll-option-id",
+            "ef8ef6e9fa3d751e7f4936266651d330"
+          ]
+        ],
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "甲",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": [
+          [
+            "data-poll-option-id",
+            "6779665945f22a2e9d49f7f67011a3e4"
+          ]
+        ],
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "乙",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_close",
+        "tag": "ul",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_container_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info_counts"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_count_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info_counts-count"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_number_open",
+        "tag": "span",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "info-number"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "0",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_number_close",
+        "tag": "span",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_label_open",
+        "tag": "span",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "info-label"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "poll.voters",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_label_close",
+        "tag": "span",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_count_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "blockquote_close",
+        "tag": "blockquote",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ">",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "emptyQuote": {
+    "raw": ">",
+    "cooked": "<blockquote></blockquote>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "blockquote_open",
+        "tag": "blockquote",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ">",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "blockquote_close",
+        "tag": "blockquote",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ">",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "emptyDetails": {
+    "raw": "[details=\"mock\"]\n[/details]",
+    "cooked": "<details>\n<summary>\nmock</summary>\n</details>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bbcode_open",
+        "tag": "details",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 2,
+            "tokenCount": 5,
+            "root": true
+          }
+        },
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_open",
+        "tag": "summary",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "summary",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "details",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "emptySpoiler": {
+    "raw": "[spoiler]\n[/spoiler]",
+    "cooked": "<div class=\"spoiler\"></div>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "wrap_bbcode",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "spoiler"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 2,
+            "tokenCount": 2,
+            "root": true
+          }
+        },
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "wrap_bbcode",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "nestedList": {
+    "raw": "* mock\n\n  3. nested\n  4. second",
+    "cooked": "<ul>\n<li>\n<p>mock</p>\n<ol start=\"3\">\n<li>nested</li>\n<li>second</li>\n</ol>\n</li>\n</ul>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bullet_list_open",
+        "tag": "ul",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_open",
+        "tag": "ol",
+        "nesting": 1,
+        "attrs": [
+          [
+            "start",
+            3
+          ]
+        ],
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "3",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "nested",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "nested",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "4",
+        "children": null,
+        "meta": null,
+        "map": [
+          3,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          3,
+          4
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "second",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "second",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          3,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_close",
+        "tag": "ol",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_close",
+        "tag": "ul",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "tableCaption": {
+    "raw": "<table>\n<caption>mock说明</caption>\n<tr><th>甲</th></tr><tr><td>乙</td></tr>\n</table>",
+    "cooked": "<table>\nmock说明\n<tr><th>甲</th></tr><tr><td>乙</td></tr>\n</table>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "html_block",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "<table>\n<caption>mock说明</caption>\n<tr><th>甲</th></tr><tr><td>乙</td></tr>\n</table>",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          4
+        ],
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "adjacentLists": {
+    "raw": "3. 甲\n\n<!-- 分隔 -->\n\n7. 乙",
+    "cooked": "<ol start=\"3\">\n<li>甲</li>\n</ol>\n\n<ol start=\"7\">\n<li>乙</li>\n</ol>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "ordered_list_open",
+        "tag": "ol",
+        "nesting": 1,
+        "attrs": [
+          [
+            "start",
+            3
+          ]
+        ],
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "3",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "甲",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_close",
+        "tag": "ol",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "html_block",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "<!-- 分隔 -->\n",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_open",
+        "tag": "ol",
+        "nesting": 1,
+        "attrs": [
+          [
+            "start",
+            7
+          ]
+        ],
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "7",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "乙",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          4,
+          5
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "ordered_list_close",
+        "tag": "ol",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": ".",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "htmlEmpty": {
+    "raw": "前 <kbd></kbd> 后",
+    "cooked": "<p>前 <kbd></kbd> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 <kbd></kbd> 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "htmlNestedSize": {
+    "raw": "前 <small>甲 <small>乙</small> 丙</small> 后",
+    "cooked": "<p>前 <small>甲 <small>乙</small> 丙</small> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 <small>甲 <small>乙</small> 丙</small> 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<small>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<small>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</small>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 丙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</small>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "attachment": {
+    "raw": "[mock|attachment](upload://mock.pdf)",
+    "cooked": "<p><a class=\"attachment\" href=\"/404\" data-orig-href=\"upload://mock.pdf\">mock</a></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[mock|attachment](upload://mock.pdf)",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "/404"
+              ],
+              [
+                "data-orig-href",
+                "upload://mock.pdf"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock|attachment",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "bbUnderline": {
+    "raw": "[u]mock[/u]",
+    "cooked": "<p><span class=\"bbcode-u\">mock</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[u]mock[/u]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "bbcode_u_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "bbcode-u"
+              ]
+            ],
+            "content": "",
+            "markup": "[u]",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "bbcode_u_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "bbStrike": {
+    "raw": "[s]mock[/s]",
+    "cooked": "<p><span class=\"bbcode-s\">mock</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[s]mock[/s]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "bbcode_s_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "bbcode-s"
+              ]
+            ],
+            "content": "",
+            "markup": "[s]",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "bbcode_s_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "wrap": {
+    "raw": "[wrap data-mock=\"x\"]\n正文\n[/wrap]",
+    "cooked": "<div class=\"d-wrap\" data-data-mock=\"x\">\n<p>正文</p>\n</div>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "wrap_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "d-wrap"
+          ],
+          [
+            "data-data-mock",
+            "x"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 3,
+            "tokenCount": 5,
+            "root": true
+          }
+        },
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "正文",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "正文",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "wrap_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "dateRecurring": {
+    "raw": "[date=2027-03-12 recurring=\"1.months\" timezone=\"Asia/Shanghai\"]",
+    "cooked": "<p><span class=\"discourse-local-date\" data-date=\"2027-03-12\" data-email-preview=\"2027-03-11T16:00:00+00:00\" data-recurring=\"1.months\" data-timezone=\"Asia/Shanghai\">2027-03-11T16:00:00Z</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[date=2027-03-12 recurring=\"1.months\" timezone=\"Asia/Shanghai\"]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "span_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "discourse-local-date"
+              ],
+              [
+                "data-date",
+                "2027-03-12"
+              ],
+              [
+                "data-email-preview",
+                "2027-03-11T16:00:00+00:00"
+              ],
+              [
+                "data-recurring",
+                "1.months"
+              ],
+              [
+                "data-timezone",
+                "Asia/Shanghai"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "2027-03-11T16:00:00Z",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "dateCountdown": {
+    "raw": "[date=2027-03-12 countdown=false]",
+    "cooked": "<p><span class=\"discourse-local-date\" data-countdown=\"false\" data-date=\"2027-03-12\" data-email-preview=\"2027-03-12T00:00:00+00:00\">2027-03-12T00:00:00Z</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[date=2027-03-12 countdown=false]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "span_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "discourse-local-date"
+              ],
+              [
+                "data-countdown",
+                "false"
+              ],
+              [
+                "data-date",
+                "2027-03-12"
+              ],
+              [
+                "data-email-preview",
+                "2027-03-12T00:00:00+00:00"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "2027-03-12T00:00:00Z",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "dateRange": {
+    "raw": "[date-range from=2027-03-12 to=2027-03-15 timezone=\"Asia/Shanghai\"]",
+    "cooked": "<p><span class=\"discourse-local-date\" data-date=\"2027-03-12\" data-email-preview=\"2027-03-11T16:00:00+00:00\" data-range=\"from\" data-timezone=\"Asia/Shanghai\">2027-03-11T16:00:00Z</span>→<span class=\"discourse-local-date\" data-date=\"2027-03-15\" data-email-preview=\"2027-03-14T16:00:00+00:00\" data-range=\"to\" data-timezone=\"Asia/Shanghai\">2027-03-14T16:00:00Z</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[date-range from=2027-03-12 to=2027-03-15 timezone=\"Asia/Shanghai\"]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "span_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "discourse-local-date"
+              ],
+              [
+                "data-date",
+                "2027-03-12"
+              ],
+              [
+                "data-email-preview",
+                "2027-03-11T16:00:00+00:00"
+              ],
+              [
+                "data-range",
+                "from"
+              ],
+              [
+                "data-timezone",
+                "Asia/Shanghai"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "2027-03-11T16:00:00Z",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "→",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "discourse-local-date"
+              ],
+              [
+                "data-date",
+                "2027-03-15"
+              ],
+              [
+                "data-email-preview",
+                "2027-03-14T16:00:00+00:00"
+              ],
+              [
+                "data-range",
+                "to"
+              ],
+              [
+                "data-timezone",
+                "Asia/Shanghai"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "2027-03-14T16:00:00Z",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "span_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "htmlNested": {
+    "raw": "前 <kbd>甲 <kbd>乙</kbd> 丙</kbd> 后",
+    "cooked": "<p>前 <kbd>甲 <kbd>乙</kbd> 丙</kbd> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 <kbd>甲 <kbd>乙</kbd> 丙</kbd> 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 丙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</kbd>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "htmlUnderline": {
+    "raw": "前 <u>mock</u> 后",
+    "cooked": "<p>前 mock 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 <u>mock</u> 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "<u>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "html_inline",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "</u>",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "bbBold": {
+    "raw": "[b]mock[/b]",
+    "cooked": "<p><span class=\"bbcode-b\">mock</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[b]mock[/b]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "bbcode_b_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "bbcode-b"
+              ]
+            ],
+            "content": "",
+            "markup": "[b]",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "bbcode_b_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "bbItalic": {
+    "raw": "[i]mock[/i]",
+    "cooked": "<p><span class=\"bbcode-i\">mock</span></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[i]mock[/i]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "bbcode_i_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "bbcode-i"
+              ]
+            ],
+            "content": "",
+            "markup": "[i]",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "bbcode_i_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "table": {
+    "raw": "|甲|乙|\n|---|---|\n|a|b|",
+    "cooked": "<div class=\"md-table\">\n<table>\n<thead>\n<tr>\n<th>甲</th>\n<th>乙</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>a</td>\n<td>b</td>\n</tr>\n</tbody>\n</table>\n</div>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "table_open",
+        "tag": "table",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "thead_open",
+        "tag": "thead",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_open",
+        "tag": "tr",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_open",
+        "tag": "th",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "甲",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_close",
+        "tag": "th",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_open",
+        "tag": "th",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "乙",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_close",
+        "tag": "th",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_close",
+        "tag": "tr",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "thead_close",
+        "tag": "thead",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tbody_open",
+        "tag": "tbody",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_open",
+        "tag": "tr",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_open",
+        "tag": "td",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "a",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "a",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_close",
+        "tag": "td",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_open",
+        "tag": "td",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "b",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "b",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_close",
+        "tag": "td",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_close",
+        "tag": "tr",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tbody_close",
+        "tag": "tbody",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "table_close",
+        "tag": "table",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "tableAlign": {
+    "raw": "|甲|乙|\n|:---|---:|\n|a|b|",
+    "cooked": "<div class=\"md-table\">\n<table>\n<thead>\n<tr>\n<th style=\"text-align:left\">甲</th>\n<th style=\"text-align:right\">乙</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td style=\"text-align:left\">a</td>\n<td style=\"text-align:right\">b</td>\n</tr>\n</tbody>\n</table>\n</div>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "table_open",
+        "tag": "table",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "thead_open",
+        "tag": "thead",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_open",
+        "tag": "tr",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_open",
+        "tag": "th",
+        "nesting": 1,
+        "attrs": [
+          [
+            "style",
+            "text-align:left"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "甲",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_close",
+        "tag": "th",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_open",
+        "tag": "th",
+        "nesting": 1,
+        "attrs": [
+          [
+            "style",
+            "text-align:right"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "乙",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "th_close",
+        "tag": "th",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_close",
+        "tag": "tr",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "thead_close",
+        "tag": "thead",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tbody_open",
+        "tag": "tbody",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_open",
+        "tag": "tr",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_open",
+        "tag": "td",
+        "nesting": 1,
+        "attrs": [
+          [
+            "style",
+            "text-align:left"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "a",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "a",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_close",
+        "tag": "td",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_open",
+        "tag": "td",
+        "nesting": 1,
+        "attrs": [
+          [
+            "style",
+            "text-align:right"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "b",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "b",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "td_close",
+        "tag": "td",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tr_close",
+        "tag": "tr",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "tbody_close",
+        "tag": "tbody",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "table_close",
+        "tag": "table",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "caption": {
+    "raw": "![mock](upload://mock.png)\n*mock caption*",
+    "cooked": "<p><img src=\"/images/transparent.png\" alt=\"mock\" data-orig-src=\"upload://mock.png\"><br>\n<em>mock caption</em></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "![mock](upload://mock.png)\n*mock caption*",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "image",
+            "tag": "img",
+            "nesting": 0,
+            "attrs": [
+              [
+                "src",
+                "/images/transparent.png"
+              ],
+              [
+                "alt",
+                ""
+              ],
+              [
+                "data-orig-src",
+                "upload://mock.png"
+              ]
+            ],
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": [
+              {
+                "type": "text",
+                "tag": "",
+                "nesting": 0,
+                "attrs": null,
+                "content": "mock",
+                "markup": "",
+                "info": "",
+                "children": null,
+                "meta": null,
+                "map": null,
+                "block": false,
+                "hidden": false
+              }
+            ],
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "softbreak",
+            "tag": "br",
+            "nesting": 0,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "em_open",
+            "tag": "em",
+            "nesting": 1,
+            "attrs": null,
+            "content": "",
+            "markup": "*",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock caption",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "em_close",
+            "tag": "em",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "*",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "poll": {
+    "raw": "[poll type=regular results=always chartType=bar]\n* 甲\n* 乙\n[/poll]",
+    "cooked": "<div class=\"poll\" data-poll-charttype=\"bar\" data-poll-name=\"poll\" data-poll-results=\"always\" data-poll-status=\"open\" data-poll-type=\"regular\">\n<div class=\"poll-container\">\n<ul>\n<li data-poll-option-id=\"ef8ef6e9fa3d751e7f4936266651d330\">甲</li>\n<li data-poll-option-id=\"6779665945f22a2e9d49f7f67011a3e4\">乙</li>\n</ul>\n</div>\n<div class=\"poll-info\">\n<div class=\"poll-info_counts\">\n<div class=\"poll-info_counts-count\">\n<span class=\"info-number\">0</span>\n<span class=\"info-label\">poll.voters</span>\n</div>\n</div>\n</div>\n</div>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "poll_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll"
+          ],
+          [
+            "data-poll-chartType",
+            "bar"
+          ],
+          [
+            "data-poll-name",
+            "poll"
+          ],
+          [
+            "data-poll-results",
+            "always"
+          ],
+          [
+            "data-poll-status",
+            "open"
+          ],
+          [
+            "data-poll-type",
+            "regular"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 4,
+            "tokenCount": 28,
+            "root": true
+          }
+        },
+        "map": [
+          0,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_container_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-container"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_open",
+        "tag": "ul",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": [
+          [
+            "data-poll-option-id",
+            "ef8ef6e9fa3d751e7f4936266651d330"
+          ]
+        ],
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "甲",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "甲",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": [
+          [
+            "data-poll-option-id",
+            "6779665945f22a2e9d49f7f67011a3e4"
+          ]
+        ],
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "乙",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "乙",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_close",
+        "tag": "ul",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_container_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info_counts"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_count_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "poll-info_counts-count"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_number_open",
+        "tag": "span",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "info-number"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "0",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_number_close",
+        "tag": "span",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_label_open",
+        "tag": "span",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "info-label"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "poll.voters",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_label_close",
+        "tag": "span",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_count_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_counts_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_info_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "poll_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "quoteAttrs": {
+    "raw": "[quote=\"mock, post:2, topic:42, full:true\"]\n正文\n[/quote]",
+    "cooked": "<aside class=\"quote no-group\" data-username=\"mock\" data-post=\"2\" data-topic=\"42\" data-full=\"true\">\n<div class=\"title\">\n<div class=\"quote-controls\"></div>\n mock:</div>\n<blockquote>\n<p>正文</p>\n</blockquote>\n</aside>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bbcode_open",
+        "tag": "aside",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "quote no-group"
+          ],
+          [
+            "data-username",
+            "mock"
+          ],
+          [
+            "data-post",
+            2
+          ],
+          [
+            "data-topic",
+            42
+          ],
+          [
+            "data-full",
+            "true"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "fluxdoSource": {
+            "startLine": 0,
+            "endLine": 3,
+            "tokenCount": 12,
+            "root": true
+          }
+        },
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_header_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "title"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_controls_open",
+        "tag": "div",
+        "nesting": 1,
+        "attrs": [
+          [
+            "class",
+            "quote-controls"
+          ]
+        ],
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_controls_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "text",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": " mock:",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "quote_header_close",
+        "tag": "div",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_open",
+        "tag": "blockquote",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "正文",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "正文",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          1,
+          2
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "blockquote",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bbcode_close",
+        "tag": "aside",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "spoilerInline": {
+    "raw": "前 [spoiler]mock[/spoiler] 后",
+    "cooked": "<p>前 <span class=\"spoiler\">mock</span> 后</p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "前 [spoiler]mock[/spoiler] 后",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "前 ",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "bbcode_spoiler_open",
+            "tag": "span",
+            "nesting": 1,
+            "attrs": [
+              [
+                "class",
+                "spoiler"
+              ]
+            ],
+            "content": "",
+            "markup": "[spoiler]",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "bbcode_spoiler_close",
+            "tag": "span",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": "bbcode",
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": " 后",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "footnote": {
+    "raw": "正文[^1]\n\n[^1]: 注释",
+    "cooked": "<p>正文<sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">[1]</a></sup></p>\n<hr class=\"footnotes-sep\">\n\n<ol class=\"footnotes-list\">\n<li id=\"fn1\" class=\"footnote-item\"><p>注释 <a href=\"#fnref1\" class=\"footnote-backref\">↩︎</a></p>\n</li>\n</ol>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "正文[^1]",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "正文",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "footnote_ref",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": {
+              "id": 0,
+              "subId": 0,
+              "label": "1"
+            },
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "footnote_block_open",
+        "tag": "",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "footnote_open",
+        "tag": "",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "id": 0,
+          "label": "1"
+        },
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "注释",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "注释",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          2,
+          3
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "footnote_anchor",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": {
+          "id": 0,
+          "subId": 0,
+          "label": "1"
+        },
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "footnote_close",
+        "tag": "",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      },
+      {
+        "type": "footnote_block_close",
+        "tag": "",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": false,
+        "hidden": false
+      }
+    ]
+  },
+  "linkTitle": {
+    "raw": "[mock](https://mock.example \"title\")",
+    "cooked": "<p><a href=\"https://mock.example\" title=\"title\">mock</a></p>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[mock](https://mock.example \"title\")",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "link_open",
+            "tag": "a",
+            "nesting": 1,
+            "attrs": [
+              [
+                "href",
+                "https://mock.example"
+              ],
+              [
+                "title",
+                "title"
+              ]
+            ],
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          },
+          {
+            "type": "link_close",
+            "tag": "a",
+            "nesting": -1,
+            "attrs": null,
+            "content": "",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "headingAttrs": {
+    "raw": "# mock",
+    "cooked": "<h1>mock</h1>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "heading_open",
+        "tag": "h1",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "#",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "mock",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "heading_close",
+        "tag": "h1",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "#",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  },
+  "check": {
+    "raw": "* [x] mock",
+    "cooked": "<ul>\n<li>[x] mock</li>\n</ul>",
+    "version": 1,
+    "tokens": [
+      {
+        "type": "bullet_list_open",
+        "tag": "ul",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "list_item_open",
+        "tag": "li",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_open",
+        "tag": "p",
+        "nesting": 1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "inline",
+        "tag": "",
+        "nesting": 0,
+        "attrs": null,
+        "content": "[x] mock",
+        "markup": "",
+        "info": "",
+        "children": [
+          {
+            "type": "text",
+            "tag": "",
+            "nesting": 0,
+            "attrs": null,
+            "content": "[x] mock",
+            "markup": "",
+            "info": "",
+            "children": null,
+            "meta": null,
+            "map": null,
+            "block": false,
+            "hidden": false
+          }
+        ],
+        "meta": null,
+        "map": [
+          0,
+          1
+        ],
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "paragraph_close",
+        "tag": "p",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": true
+      },
+      {
+        "type": "list_item_close",
+        "tag": "li",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      },
+      {
+        "type": "bullet_list_close",
+        "tag": "ul",
+        "nesting": -1,
+        "attrs": null,
+        "content": "",
+        "markup": "*",
+        "info": "",
+        "children": null,
+        "meta": null,
+        "map": null,
+        "block": true,
+        "hidden": false
+      }
+    ]
+  }
+}

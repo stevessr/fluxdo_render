@@ -55,10 +55,11 @@ bool isEditableInline(InlineNode n) => switch (n) {
         :final isAttachment,
         :final hashtagRef,
         :final isOneboxLink,
+        :final editorLinkSource,
       ) =>
-        !isAttachment &&
-            // hashtag:原子化放行(见上面注释)
-            (hashtagRef != null ||
+        // token 附件有完整来源，可原子化；既有 cooked 附件仍保持岛模型。
+        (!isAttachment || editorLinkSource != null) &&
+            (isAttachment || hashtagRef != null ||
             // onebox 系链接(裸 URL 的 linkify 产物)可编辑:flatten 时
             // 文本替换为 href(官方 linkify 语义 —— 编辑器里显示 URL
             // 本身),序列化 text==href 走裸 URL 规则,往返无损
@@ -94,6 +95,7 @@ List<EditorBlock> blockNodesToDoc(
     bool ordered = false,
     int depth = 0,
     int listStart = 1,
+    bool listLoose = false,
     List<ContainerFrame> containers = const [],
   }) {
     out.add(TextBlock(
@@ -104,6 +106,7 @@ List<EditorBlock> blockNodesToDoc(
       ordered: ordered,
       depth: depth,
       listStart: listStart,
+      listLoose: listLoose,
       containers: containers,
     ));
   }
@@ -129,7 +132,8 @@ List<EditorBlock> blockNodesToDoc(
         kind: TextBlockKind.listItem,
         ordered: list.ordered,
         depth: depth,
-        listStart: i == 0 && depth == 0 ? list.start : 1,
+        listStart: i == 0 ? list.start : 1,
+        listLoose: list.loose,
         containers: containers,
       );
       for (final sub in item.children ?? const <ListNode>[]) {
@@ -191,6 +195,10 @@ List<EditorBlock> blockNodesToDoc(
             ...containers,
             QuoteFrame(groupId: nextFrameGroupId()),
           ];
+          // 空引用也是文档内容：保留容器和可编辑落点，不能因没有子节点丢弃。
+          if (children.isEmpty) {
+            addText(EditableTextContent.empty, containers: frame);
+          }
           for (final child in children) {
             walk(child, frame);
           }
@@ -574,6 +582,7 @@ List<ListNode> _buildLists(
       items: items,
       depth: baseDepth,
       start: start,
+      loose: first.listLoose,
     ));
   }
   return out;

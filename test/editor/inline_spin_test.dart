@@ -159,9 +159,9 @@ void main() {
       expect(r.content.marks, isEmpty);
     });
 
-    test('内容含 \\n 不折(跨软换行不成对)', () {
-      final r = spinInlineMarks(content('**a\nb**'), caret: 0);
-      expect(r.content.text, '**a\nb**');
+    test('内容含空行不折(不可跨段落成对)', () {
+      final r = spinInlineMarks(content('**a\n\nb**'), caret: 0);
+      expect(r.content.text, '**a\n\nb**');
       expect(r.content.marks, isEmpty);
     });
 

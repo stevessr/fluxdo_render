@@ -11,6 +11,8 @@ import 'dart:ui' show BoxHeightStyle;
 import 'package:flutter/widgets.dart';
 
 import 'selectable_block_handle.dart';
+import 'block_text_geometry.dart';
+import 'projection.dart';
 import 'selection_geometry.dart';
 import 'selection_range.dart';
 import 'selection_registry.dart';
@@ -44,6 +46,7 @@ class SelectionHighlight extends StatelessWidget {
         repaint: controller,
         registry: controller.registry,
         selectionOf: () => controller.selection,
+        outlineOf: () => controller.outlineSelection,
         blockHandleGetter: blockHandleGetter,
         color: color,
       ),
@@ -57,12 +60,14 @@ class _HighlightPainter extends CustomPainter {
     required Listenable repaint,
     required this.registry,
     required this.selectionOf,
+    required this.outlineOf,
     required this.blockHandleGetter,
     required this.color,
   }) : super(repaint: repaint);
 
   final SelectionRegistry registry;
   final DocumentSelectionGetter selectionOf;
+  final bool Function() outlineOf;
   final SelectableBlockHandle? Function() blockHandleGetter;
   final Color color;
 
@@ -96,19 +101,27 @@ class _HighlightPainter extends CustomPainter {
     // box 时整条会逐步变高;max 让行高恒定,扩选不跳变。
     // 跨行不误并:max 让相邻行 box 紧贴(非重叠),mergeSelectionBoxesByLine 的
     // 「重叠过半」阈值挡住(实测窄宽 5 行 → 仍 5 个独立矩形,不合并)。
-    final boxes = geometry.getBoxesForSelection(
-      TextSelection(baseOffset: mine.start, extentOffset: mine.end),
-      boxHeightStyle: BoxHeightStyle.max,
-    );
-    if (boxes.isEmpty) return;
+    final outline = outlineOf();
+    final rects = selectionHighlightRects(geometry, mine, tight: outline);
+    if (rects.isEmpty) return;
 
     final paint = Paint()
       ..style = PaintingStyle.fill
       ..color = color;
+    if (outline) {
+      paint.color = color.withValues(alpha: .16);
+    }
     // 同行 box 合并成统一高度矩形:同一行内 emoji(偏高)与文字 box 取 union,
     // 整行等高(防 emoji 处参差);tight 间隙保证不跨行。
-    for (final rowRect in mergeSelectionBoxesByLine(boxes)) {
-      canvas.drawRect(rowRect, paint);
+    for (final rowRect in rects) {
+      if (outline) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rowRect, const Radius.circular(4)),
+          paint,
+        );
+      } else {
+        canvas.drawRect(rowRect, paint);
+      }
     }
   }
 
@@ -138,7 +151,7 @@ List<Rect> mergeSelectionBoxesByLine(List<TextBox> boxes) {
       // 同行判定:垂直区间有「实质」重叠(过半),避免行间 1px 误触。
       final overlap =
           (r.bottom < ref.bottom ? r.bottom : ref.bottom) -
-              (r.top > ref.top ? r.top : ref.top);
+          (r.top > ref.top ? r.top : ref.top);
       final minH = (r.height < ref.height ? r.height : ref.height);
       if (overlap > minH * 0.5) {
         row.add(r);
@@ -158,4 +171,55 @@ List<Rect> mergeSelectionBoxesByLine(List<TextBox> boxes) {
     result.add(rect);
   }
   return result;
+}
+
+/// Images have their own silhouette. Never union a tall image with neighbouring
+/// text into a paragraph-sized rectangle, or let it inflate text-only selection.
+List<Rect> selectionHighlightRects(
+  BlockTextGeometry geometry,
+  BlockRange range, {
+  bool tight = false,
+}) {
+  final images = range.projection.entries
+      .where((e) => e.kind == ProjectionKind.image)
+      .toList();
+  if (images.isEmpty) {
+    return mergeSelectionBoxesByLine(
+      geometry.getBoxesForSelection(
+        TextSelection(baseOffset: range.start, extentOffset: range.end),
+        boxHeightStyle: tight ? BoxHeightStyle.tight : BoxHeightStyle.max,
+      ),
+    );
+  }
+  final textBoxes = <TextBox>[];
+  final imageRects = <Rect>[];
+  var cursor = range.start;
+  void addText(int start, int end) {
+    if (start >= end) return;
+    textBoxes.addAll(
+      geometry.getBoxesForSelection(
+        TextSelection(baseOffset: start, extentOffset: end),
+      ),
+    );
+  }
+
+  for (final image in images) {
+    if (image.renderEnd <= range.start || image.renderStart >= range.end) {
+      continue;
+    }
+    addText(cursor, image.renderStart);
+    imageRects.addAll(
+      geometry
+          .getBoxesForSelection(
+            TextSelection(
+              baseOffset: image.renderStart,
+              extentOffset: image.renderEnd,
+            ),
+          )
+          .map((box) => box.toRect()),
+    );
+    cursor = image.renderEnd;
+  }
+  addText(cursor, range.end);
+  return [...mergeSelectionBoxesByLine(textBoxes), ...imageRects];
 }

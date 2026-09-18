@@ -277,7 +277,8 @@ void main() {
       expect(
         tb.content.marks.single,
         const MarkSpan(
-            start: 2, end: 4, kind: MarkKind.link, attr: 'https://x.com'),
+            start: 2, end: 4, kind: MarkKind.link, attr: 'https://x.com',
+            isAutoLink: false),
       );
       // 往返:toInlines 还原 LinkRun
       final back = tb.content.toInlines();

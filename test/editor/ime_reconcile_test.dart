@@ -45,6 +45,22 @@ void main() {
     return (state, ime);
   }
 
+  test('清空文字选区后，迟到的输入法消息不能写回旧段落', () {
+    final (state, ime) = makeAttached();
+    addTearDown(state.dispose);
+    addTearDown(ime.detach);
+    state.updateSelection(null);
+    ime.syncFromState(show: false);
+    final before = state.blocks;
+    ime.updateEditingValue(TextEditingValue(
+      text: '$pad第一段迟到',
+      selection: const TextSelection.collapsed(offset: 6),
+    ));
+    expect(state.blocks, before);
+    expect(state.selection, isNull);
+    expect(ime.attachedBlockId, isNull);
+  });
+
   group('拼音 composing 全流程', () {
     test('n → ni → 你 上屏', () {
       final (state, ime) = makeAttached();

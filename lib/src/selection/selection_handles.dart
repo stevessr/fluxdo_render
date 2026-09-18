@@ -27,9 +27,9 @@ class SelectionHandlesController {
     this.onDragStart,
     this.onDragMove,
     this.onDragEnd,
-  })  : _hit = SelectionHitTester(controller.registry),
-        _exporter = SelectionExporter(controller.registry),
-        _magnifier = SelectionMagnifier(context);
+  }) : _hit = SelectionHitTester(controller.registry),
+       _exporter = SelectionExporter(controller.registry),
+       _magnifier = SelectionMagnifier(context);
 
   final BuildContext context;
   final SelectionController controller;
@@ -113,8 +113,9 @@ class SelectionHandlesController {
 
   Widget _build(BuildContext ctx) {
     final sel = controller.selection;
-    var anchors =
-        (sel == null || sel.isCollapsed) ? null : _exporter.endpointAnchors(sel);
+    var anchors = (sel == null || sel.isCollapsed)
+        ? null
+        : _exporter.endpointAnchors(sel);
     if (anchors == null) {
       // 拖动中几何瞬时不可得(两端重合 collapsed / 端点块离屏)→ 沿用上一帧
       // 锚点,**绝不返回 shrink 摘树**:摘树会 dispose 正在拖拽的
@@ -137,10 +138,20 @@ class SelectionHandlesController {
       groupId: controller,
       child: Stack(
         children: [
-          _handle(ctx, controls, _DragSide.start, anchors.start,
-              anchors.startLineHeight),
-          _handle(ctx, controls, _DragSide.end, anchors.end,
-              anchors.endLineHeight),
+          _handle(
+            ctx,
+            controls,
+            _DragSide.start,
+            anchors.start,
+            anchors.startLineHeight,
+          ),
+          _handle(
+            ctx,
+            controls,
+            _DragSide.end,
+            anchors.end,
+            anchors.endLineHeight,
+          ),
         ],
       ),
     );
@@ -190,12 +201,7 @@ class SelectionHandlesController {
           child: SizedBox(
             width: size.width,
             height: size.height,
-            child: controls.buildHandle(
-              ctx,
-              type,
-              lineHeight,
-              null,
-            ),
+            child: controls.buildHandle(ctx, type, lineHeight, null),
           ),
         ),
       ),
@@ -220,10 +226,10 @@ class SelectionHandlesController {
     // _handleSelectionEndHandleDragStart 用 selectionPoint.localPosition)。
     final anchors = sel == null ? null : _exporter.endpointAnchors(sel);
     if (anchors != null) {
-      _dragPosition =
-          side == _DragSide.start ? anchors.start : anchors.end;
-      _dragLineHeight =
-          side == _DragSide.start ? anchors.startLineHeight : anchors.endLineHeight;
+      _dragPosition = side == _DragSide.start ? anchors.start : anchors.end;
+      _dragLineHeight = side == _DragSide.start
+          ? anchors.startLineHeight
+          : anchors.endLineHeight;
     } else {
       _dragPosition = global;
       _dragLineHeight = 0;
@@ -251,7 +257,7 @@ class SelectionHandlesController {
     _dragPosition += delta;
     onDragMove?.call(_dragPosition);
     final hitPoint = _dragPosition - Offset(0, _dragLineHeight / 2);
-    final pos = _hit.positionAt(hitPoint);
+    final pos = _hit.positionAt(hitPoint, selectionBase: fixed);
     if (pos == null) return;
 
     // 拖到与固定端**重合**(collapsed)或相邻块边界零宽 → 跳过本帧,选区保持
@@ -287,7 +293,8 @@ class SelectionHandlesController {
   ///   X 夹在行内);
   /// - fieldBounds = 本 chunk 内容区全局矩形(Material 焦点 X 不出内容区)。
   void _showMagnifierAtDragPosition({Rect? caretRect}) {
-    final caret = caretRect ??
+    final caret =
+        caretRect ??
         ((_dragDocPosition != null
                 ? _hit.caretRectAt(_dragDocPosition!)
                 : null) ??
@@ -309,16 +316,25 @@ class SelectionHandlesController {
     }
 
     // 被拖端所在段落的全局横向范围 → 行边界。段落不可见时用内容区宽度。
-    Rect lineBoundaries =
-        Rect.fromLTRB(fieldBounds.left, caret.top, fieldBounds.right, caret.bottom);
+    Rect lineBoundaries = Rect.fromLTRB(
+      fieldBounds.left,
+      caret.top,
+      fieldBounds.right,
+      caret.bottom,
+    );
     final pos = _dragDocPosition;
-    final geometry =
-        pos == null ? null : controller.registry.byId(pos.blockId)?.geometry;
+    final geometry = pos == null
+        ? null
+        : controller.registry.byId(pos.blockId)?.geometry;
     if (geometry != null && geometry.isLive) {
       final tl = geometry.renderBox.localToGlobal(Offset.zero);
       if (tl.dx.isFinite && tl.dy.isFinite) {
         lineBoundaries = Rect.fromLTRB(
-            tl.dx, caret.top, tl.dx + geometry.renderBox.size.width, caret.bottom);
+          tl.dx,
+          caret.top,
+          tl.dx + geometry.renderBox.size.width,
+          caret.bottom,
+        );
       }
     }
 

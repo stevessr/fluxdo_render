@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 
 import '../flatten/soft_break.dart';
 import 'selection_data.dart';
+import 'projection.dart';
 import 'selection_geometry.dart';
 import 'selection_range.dart';
 import 'selection_registry.dart';
@@ -33,7 +34,11 @@ class SelectionExporter {
     }
     // 渲染层为长串软换行插的 U+200B(见 insertSoftBreaks)不属于内容,strip。
     final plainText = buf.toString().replaceAll(kSoftBreakChar, '');
-    if (plainText.isEmpty) return null;
+    final copyText = ranges
+        .map((r) => r.projection.project(r.start, r.end, forCopy: true))
+        .join('\n')
+        .replaceAll(kSoftBreakChar, '');
+    if (copyText.isEmpty) return null;
 
     // 2. 高亮矩形(全局)+ 外接框 —— 只对**可见块**(live handle)算,滚出
     //    视口的块无几何(跳过,符合预期:看不见的不画)。被 keepAlive 保活但
@@ -67,6 +72,7 @@ class SelectionExporter {
 
     return SelectionData(
       plainText: plainText,
+      copyText: copyText,
       globalBounds: bounds,
       globalRects: globalRects,
       code: code,
@@ -85,10 +91,23 @@ class SelectionExporter {
     return CodeSelectionInfo(language: block.codeLanguage);
   }
 
+  double _anchorHeight(BlockRange range, double height, {required bool start}) {
+    final offset = start ? range.start : range.end - 1;
+    final objectEdge = range.projection.entries.any(
+      (e) =>
+          (e.kind == ProjectionKind.image ||
+              e.kind == ProjectionKind.blockObject) &&
+          offset >= e.renderStart &&
+          offset < e.renderEnd,
+    );
+    // Drag handles compensate by half a text line, never half an image height.
+    return objectEdge ? height.clamp(0, 32) : height;
+  }
+
   /// 按文档序返回选区两端点的 DocumentPosition(拖手柄时固定一端、动另一端)。
   /// visualStart = 视觉最前端点,visualEnd = 视觉最后端点。空选区返回 null。
-  ({DocumentPosition visualStart, DocumentPosition visualEnd})? orderedEndpoints(
-      DocumentSelection? selection) {
+  ({DocumentPosition visualStart, DocumentPosition visualEnd})?
+  orderedEndpoints(DocumentSelection? selection) {
     if (selection == null) return null;
     final order = registry.orderedBlocks();
     if (order.isEmpty) return null;
@@ -102,7 +121,8 @@ class SelectionExporter {
     final bi = idx(selection.base.blockId);
     final ei = idx(selection.extent.blockId);
     if (bi < 0 || ei < 0) return null;
-    final baseFirst = bi < ei ||
+    final baseFirst =
+        bi < ei ||
         (bi == ei &&
             selection.base.renderOffset <= selection.extent.renderOffset);
     return baseFirst
@@ -136,7 +156,10 @@ class SelectionExporter {
       final fb = boxes.first;
       final gp = g.renderBox.localToGlobal(Offset(fb.left, fb.bottom));
       if (!gp.dx.isFinite || !gp.dy.isFinite) continue; // 离屏保活块 NaN → 跳过
-      startAnchor = _BoxAnchor(global: gp, lineHeight: fb.bottom - fb.top);
+      startAnchor = _BoxAnchor(
+        global: gp,
+        lineHeight: _anchorHeight(r, fb.bottom - fb.top, start: true),
+      );
       break;
     }
 
@@ -152,7 +175,10 @@ class SelectionExporter {
       final lb = boxes.last;
       final gp = g.renderBox.localToGlobal(Offset(lb.right, lb.bottom));
       if (!gp.dx.isFinite || !gp.dy.isFinite) continue; // 离屏保活块 NaN → 跳过
-      endAnchor = _BoxAnchor(global: gp, lineHeight: lb.bottom - lb.top);
+      endAnchor = _BoxAnchor(
+        global: gp,
+        lineHeight: _anchorHeight(r, lb.bottom - lb.top, start: false),
+      );
       break;
     }
 

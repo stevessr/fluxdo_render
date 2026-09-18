@@ -448,6 +448,9 @@ class RenderCachedParagraph extends RenderBox
       _cachedPlainText ??= _result.span.toPlainText(includePlaceholders: false);
 
   @override
+  String get plainText => _result.span.toPlainText(includeSemanticsLabels: false);
+
+  @override
   void setupParentData(RenderBox child) {
     if (child.parentData is! _IslandParentData) {
       child.parentData = _IslandParentData();
