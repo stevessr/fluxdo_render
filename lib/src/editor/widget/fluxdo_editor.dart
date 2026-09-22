@@ -1098,8 +1098,19 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         hitTestRoot: _rootKey.currentContext?.findRenderObject(),
       );
       if (docPos == null) return false;
-      final pos = _toEditorPosition(docPos);
+      var pos = _toEditorPosition(docPos);
       if (pos == null) return false;
+      // 中心命中岛块(视口被 table/图集占满时):解析到岛外邻块,
+      // 不产生「按下即松手光标驻留岛位」的失焦死角。
+      final index = docPos.blockId.docOrder;
+      final blocks = widget.state.blocks;
+      if (index >= 0 && index < blocks.length && blocks[index] is IslandBlock) {
+        pos = _nearestTextEdgeAroundIsland(
+          index,
+          after: docPos.renderOffset > 0,
+        );
+        if (pos == null) return false;
+      }
       _caretAffinity = docPos.affinity;
       widget.state.updateSelection(EditorSelection.collapsed(pos));
       return true;
@@ -1110,28 +1121,44 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       sel = widget.state.selection;
       if (sel == null) return false;
     }
-    if (!extend && !sel.isCollapsed) return false;
     var docPos = _toDocumentPosition(sel.extent, affinity: _caretAffinity);
-    var rect = docPos == null
+    // 文本块用精确行内 caret;岛位(table/图集)无注册几何、离屏块已
+    // 回收时返回 null,交由下方视口中心重起步兑底。
+    Rect? caretRectFor(DocumentPosition? pos) => pos == null
         ? null
-        : _hitTester.editingCaretRectAt(docPos, lineHeight: _caretLineHeight);
-    if (rect == null) return false;
-    // 光标在视口外(如上次编辑位已滚走):改从视口中心起步
-    if (!extend && !vp.contains(rect.center)) {
+        : (_hitTester.editingCaretRectAt(
+              pos,
+              lineHeight: _caretLineHeight,
+            ) ??
+            _hitTester.caretRectAt(pos));
+    var rect = caretRectFor(docPos);
+    // 非扩选起步 = 移动插入点。文字选区维持忽略(不破坏拖出的选区);
+    // 对象/岛整选态(端点在岛上、无文本 caret)折叠到 extent 起步 ——
+    // 折叠会经 _onStateChanged 自动退出对象整选态,否则点过 table/
+    // 图集后滑钮再也拉不起光标(失焦死角)。
+    if (!extend && !sel.isCollapsed) {
+      final extentHandle = docPos == null
+          ? null
+          : _hitTester.registry.byId(docPos.blockId);
+      if (extentHandle?.paragraph != null) return false;
+      widget.state.updateSelection(EditorSelection.collapsed(sel.extent));
+      sel = widget.state.selection;
+      if (sel == null) return false;
+    }
+    // 起步矩形不可用(光标驻留岛位、所在块离屏被虚拟列表回收)或
+    // 光标在视口外:改从视口中心重起步 —— 滑钮"随时可拖",不能因
+    // 上次落点不可见而永久失灵。
+    if (!extend && (rect == null || !vp.contains(rect.center))) {
       if (anchorAtViewportCenter()) {
         sel = widget.state.selection;
         docPos = sel == null
             ? null
             : _toDocumentPosition(sel.extent, affinity: _caretAffinity);
-        final r2 = docPos == null
-            ? null
-            : _hitTester.editingCaretRectAt(
-                docPos,
-                lineHeight: _caretLineHeight,
-              );
+        final r2 = caretRectFor(docPos);
         if (r2 != null) rect = r2;
       }
     }
+    if (rect == null) return false;
     if (sel == null) return false;
     _floatingCursor = true;
     _floatingExtendBase = extend ? sel.base : null;
@@ -1208,7 +1235,23 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       hitTestRoot: _rootKey.currentContext?.findRenderObject(),
     );
     if (docPos == null) return;
-    final editorPos = _toEditorPosition(docPos);
+    var editorPos = _toEditorPosition(docPos);
+    // 块级对象(table/图集/onebox…)不是光标可停位 —— 与键盘移动同规
+    // (「岛端点顺移到岛外邻块」):命中按上下半区解析到岛前块尾/岛后
+    // 块头。否则选区驻留岛位,实光标因无文本 caret 消失,拖动会话
+    // 表现为"失焦"。
+    if (editorPos != null) {
+      final index = docPos.blockId.docOrder;
+      final blocks = widget.state.blocks;
+      if (index >= 0 &&
+          index < blocks.length &&
+          blocks[index] is IslandBlock) {
+        editorPos = _nearestTextEdgeAroundIsland(
+          index,
+          after: docPos.renderOffset > 0,
+        );
+      }
+    }
     if (editorPos != null && editorPos != widget.state.selection?.extent) {
       _caretAffinity = docPos.affinity;
       _verticalGoalX = null;
@@ -1221,6 +1264,37 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         deferIrReconcile: true,
       );
     }
+  }
+
+  /// 岛([index])按命中侧解析到最近文本块的可停位:[after] = 岛后
+  /// 块头,否则岛前块尾;首选方向没有文本块时反向兜底(文档不变量
+  /// 保证至少一个 TextBlock,双查皆空才返回 null)。
+  EditorPosition? _nearestTextEdgeAroundIsland(
+    int index, {
+    required bool after,
+  }) {
+    final blocks = widget.state.blocks;
+    for (final forward in [after, !after]) {
+      if (forward) {
+        for (var i = index + 1; i < blocks.length; i++) {
+          final block = blocks[i];
+          if (block is TextBlock) {
+            return EditorPosition(blockId: block.id, offset: 0);
+          }
+        }
+      } else {
+        for (var i = index - 1; i >= 0; i--) {
+          final block = blocks[i];
+          if (block is TextBlock) {
+            return EditorPosition(
+              blockId: block.id,
+              offset: block.content.length,
+            );
+          }
+        }
+      }
+    }
+    return null;
   }
 
   /// 浮动幽灵光标:主题色圆角条 + 轻阴影,Overlay 顶层跟手平滑移动
@@ -1769,10 +1843,11 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
     final docPos = _toDocumentPosition(sel.extent, affinity: _caretAffinity);
     if (docPos == null) return null;
-    final globalRect = _hitTester.editingCaretRectAt(
-      docPos,
-      lineHeight: _caretLineHeight,
-    );
+    // 岛位(连续岛折叠等边缘态)无文本 caret:退回对象几何边缘位,
+    // 避免实光标无声消失(看起来像失焦)。
+    final globalRect =
+        _hitTester.editingCaretRectAt(docPos, lineHeight: _caretLineHeight) ??
+        _hitTester.caretRectAt(docPos);
     if (globalRect == null) return null;
     final rootBox = _rootKey.currentContext?.findRenderObject();
     if (rootBox is! RenderBox || !rootBox.attached) return null;

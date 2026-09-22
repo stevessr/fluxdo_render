@@ -13,6 +13,7 @@
 /// 等富格式以源码显示,cook 后还原 —— 不丢格式)。
 library;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RendererBinding;
 
@@ -79,7 +80,9 @@ class EditorTableGrid extends StatefulWidget {
   State<EditorTableGrid> createState() => _EditorTableGridState();
 }
 
-class _EditorTableGridState extends State<EditorTableGrid> {
+class _EditorTableGridState extends State<EditorTableGrid>
+    with WidgetsBindingObserver
+    implements TextSelectionGestureDetectorBuilderDelegate {
   late List<List<String>> _cells;
   late bool _hasHeader;
   late List<TextAlign?> _alignments;
@@ -90,6 +93,33 @@ class _EditorTableGridState extends State<EditorTableGrid> {
   VoidCallback? _pendingStructure;
   final TextEditingController _cellController = TextEditingController();
   final FocusNode _cellFocus = FocusNode();
+
+  /// 编辑框句柄:编辑框随格切换在 cell 槽位间重建(共享
+  /// controller/focusNode),新实例挂载时焦点已在 —— 无焦点事件、键盘
+  /// 令牌已被上一格消费，不会自动 attach IME 连接(键盘看着在，打字
+  /// 全无效果，再点一下编辑框本体触发 requestKeyboard 才恢复)。切格
+  /// 后主动 requestKeyboard 补上；用裸 EditableText 才拿得到这个
+  /// state(TextField 的内部句柄私有)。
+  final GlobalKey<EditableTextState> _cellFieldKey =
+      GlobalKey<EditableTextState>();
+
+  /// 编辑框手势装配:裸 EditableText 没有任何手势处理(tap 落光标/
+  /// 长按划词+拖选/双击选词/鼠标拖选全无),Flutter 的设计是把这套
+  /// 交给 TextSelectionGestureDetectorBuilder 包裹 —— TextField 正是
+  /// 这么做的。不接的话编辑态无法划词、双击无效。
+  late final _cellGestureBuilder = TextSelectionGestureDetectorBuilder(
+    delegate: this,
+  );
+
+
+  @override
+  GlobalKey<EditableTextState> get editableTextKey => _cellFieldKey;
+
+  @override
+  bool get forcePressEnabled => defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  bool get selectionEnabled => true;
 
   bool _hoverGrid = false;
 
@@ -110,11 +140,14 @@ class _EditorTableGridState extends State<EditorTableGrid> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _syncFromNode();
     if (widget.autoEdit) _scheduleFirstCell();
-    _cellFocus.addListener(() {
-      if (!_cellFocus.hasFocus) _commitCell();
-    });
+    _cellFocus.addListener(_onCellFocusChanged);
+  }
+
+  void _onCellFocusChanged() {
+    if (!_cellFocus.hasFocus) _commitCell();
   }
 
   @override
@@ -185,8 +218,65 @@ class _EditorTableGridState extends State<EditorTableGrid> {
     }
   }
 
+  /// 把正在编辑的 cell 滚进可见区(视口与键盘上缘取交集)。
+  ///
+  /// 键盘弹出是异步动画:_startEdit 时先按当前几何滚一次，弹出期间
+  /// [didChangeMetrics] 反复触发，每次重算直至收敛。不用
+  /// Scrollable.ensureVisible —— 它按整个 RenderObject 对齐，表格是
+  /// 巨型块会被瞬移到块顶(fluxdo_editor._ensureCaretVisible 同款做法:
+  /// 按目标矩形精确 animateTo)。
+  void _revealEditingCell() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _editing == null || !_cellFocus.hasFocus) return;
+      final scrollable = Scrollable.maybeOf(context);
+      if (scrollable == null) return; // 无滚动宿主(桌面定高布局)
+      final pos = scrollable.position;
+      if (!pos.hasContentDimensions) return;
+      final fieldRo = _cellFieldKey.currentContext?.findRenderObject();
+      if (fieldRo is! RenderBox || !fieldRo.attached || !fieldRo.hasSize) {
+        return;
+      }
+      final vpBox = scrollable.context.findRenderObject();
+      if (vpBox is! RenderBox || !vpBox.attached || !vpBox.hasSize) return;
+      final vpRect = vpBox.localToGlobal(Offset.zero) & vpBox.size;
+      // 视口下缘与键盘上缘取小:手机上弹出键盘后可见区被截短。
+      final mq = MediaQuery.maybeOf(context);
+      final kbTop =
+          (mq?.size.height ?? vpRect.bottom) - (mq?.viewInsets.bottom ?? 0);
+      final bottom = vpRect.bottom < kbTop ? vpRect.bottom : kbTop;
+      if (bottom <= vpRect.top) return;
+      final fieldRect = fieldRo.localToGlobal(Offset.zero) & fieldRo.size;
+      const pad = 24.0;
+      double? delta;
+      if (fieldRect.bottom > bottom - pad) {
+        delta = fieldRect.bottom - (bottom - pad);
+      } else if (fieldRect.top < vpRect.top + pad) {
+        delta = fieldRect.top - (vpRect.top + pad);
+      }
+      if (delta == null) return;
+      final target = (pos.pixels + delta).clamp(
+        pos.minScrollExtent,
+        pos.maxScrollExtent,
+      );
+      if ((target - pos.pixels).abs() < 1) return;
+      pos.animateTo(
+        target,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void didChangeMetrics() {
+    // 键盘弹出/收起与旋转等窗口几何变化:编辑中每次重算定位。
+    if (_editing != null && _cellFocus.hasFocus) _revealEditingCell();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cellFocus.removeListener(_onCellFocusChanged);
     _cellController.dispose();
     _cellFocus.dispose();
     super.dispose();
@@ -214,13 +304,23 @@ class _EditorTableGridState extends State<EditorTableGrid> {
     setState(() {
       _editing = (r, c);
       _cellController.text = _cells[r][c];
-      _cellController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _cellController.text.length,
-      );
+      // 触屏:折叠光标落在文末 —— 有光标可见、打字追加而非替换、
+      // 长按/双击可选词(程序化全选在移动端既无光标也不带出选择
+      // 手柄,还让首字直接覆盖整格)。鼠标:维持点击全选(桌面
+      // 覆盖输入快捷路径,选区高亮清晰可见)。
+      _cellController.selection = _hoverCapable
+          ? TextSelection(baseOffset: 0, extentOffset: _cells[r][c].length)
+          : TextSelection.collapsed(offset: _cells[r][c].length);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _editing != null) _cellFocus.requestFocus();
+      if (!mounted || _editing != (r, c)) return;
+      _cellFocus.requestFocus();
+      // 补挂 IME 连接:requestKeyboard 已持焦点时直接 attach+show(无需
+      // 键盘令牌),未持焦点时走 requestFocus 正常聚焦路径。
+      _cellFieldKey.currentState?.requestKeyboard();
+      // 自动定位:键盘未弹出时先按当前几何滚一次，弹出期间由
+      // didChangeMetrics 反复重算直至收敛。
+      _revealEditingCell();
     });
   }
 
@@ -694,27 +794,41 @@ class _EditorTableGridState extends State<EditorTableGrid> {
     );
 
     if (_editing == (r, c)) {
-      // 编辑态:primary 描边框住整个 cell,焦点一目了然
+      // 编辑态:primary 描边框住整个 cell，焦点一目了然。用裸
+      // EditableText 而非 TextField:本格样式无任何 decoration，且需要
+      // 持有 EditableTextState(见 _cellFieldKey 注释)。
       return Container(
         width: _kCellWidth,
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
         decoration: BoxDecoration(
           border: Border.all(color: scheme.primary, width: 1.5),
           color: scheme.primaryContainer.withValues(alpha: 0.15),
         ),
-        child: TextField(
-          controller: _cellController,
-          textAlign: c < _alignments.length
-              ? _alignments[c] ?? TextAlign.start
-              : TextAlign.start,
-          focusNode: _cellFocus,
-          style: style,
-          cursorHeight: 15,
-          decoration: const InputDecoration(
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 7, vertical: 7),
-            border: InputBorder.none,
+        child: _cellGestureBuilder.buildGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          child: EditableText(
+            key: _cellFieldKey,
+            controller: _cellController,
+            focusNode: _cellFocus,
+            // 关键:关掉 RenderEditable 自带的 tap/long-press 识别器,
+            // 手势全部让给外层 detector 的 TapAndHorizontalDrag ——
+            // 否则自识别器永远赢下 tap 竞技场,连续 tap 计数无法跨
+            // tap 累计,双击选词永远无法触发(TextField 同款做法)。
+            rendererIgnoresPointer: true,
+            style: style,
+            cursorHeight: 15,
+            cursorColor: scheme.primary,
+            backgroundCursorColor: scheme.primary.withValues(alpha: 0.3),
+            selectionColor: scheme.primary.withValues(alpha: 0.3),
+            textAlign: c < _alignments.length
+                ? _alignments[c] ?? TextAlign.start
+                : TextAlign.start,
+            mouseCursor: SystemMouseCursors.text,
+            selectionControls: materialTextSelectionControls,
+            keyboardType: TextInputType.text,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _commitCell(),
           ),
-          onSubmitted: (_) => _commitCell(),
         ),
       );
     }
