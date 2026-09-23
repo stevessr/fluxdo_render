@@ -1126,11 +1126,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     // 回收时返回 null,交由下方视口中心重起步兑底。
     Rect? caretRectFor(DocumentPosition? pos) => pos == null
         ? null
-        : (_hitTester.editingCaretRectAt(
-              pos,
-              lineHeight: _caretLineHeight,
-            ) ??
-            _hitTester.caretRectAt(pos));
+        : (_hitTester.editingCaretRectAt(pos, lineHeight: _caretLineHeight) ??
+              _hitTester.caretRectAt(pos));
     var rect = caretRectFor(docPos);
     // 非扩选起步 = 移动插入点。文字选区维持忽略(不破坏拖出的选区);
     // 对象/岛整选态(端点在岛上、无文本 caret)折叠到 extent 起步 ——
@@ -1243,9 +1240,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (editorPos != null) {
       final index = docPos.blockId.docOrder;
       final blocks = widget.state.blocks;
-      if (index >= 0 &&
-          index < blocks.length &&
-          blocks[index] is IslandBlock) {
+      if (index >= 0 && index < blocks.length && blocks[index] is IslandBlock) {
         editorPos = _nearestTextEdgeAroundIsland(
           index,
           after: docPos.renderOffset > 0,
@@ -3663,11 +3658,16 @@ class _FluxdoEditorState extends State<FluxdoEditor>
             key: _islandKeys.putIfAbsent(block.id, GlobalKey.new),
             node: block.node as TableNode,
             autoEdit: widget.state.consumeIslandEditRequest(block.id),
+            // 宿主视口底部被键盘/工具栏遮挡的高度:编辑中追加滚动余量,
+            // 让内容末尾的表格也有路滚到遮挡区之上(与正文光标 reveal
+            // 同一数值口径)。
+            viewportBottomInset: widget.caretViewportInsets.bottom,
             onContextMenu: widget.objectToolbarManaged
                 ? _requestObjectMenu
                 : null,
             onChanged: (md) => widget.onTableEdited!(block, md),
-            onNodeChanged: (node) => widget.state.updateIslandNode(block.id, node),
+            onNodeChanged: (node) =>
+                widget.state.updateIslandNode(block.id, node),
             selected:
                 !widget.objectToolbarManaged &&
                 _isSingleIslandSelection(block.id),

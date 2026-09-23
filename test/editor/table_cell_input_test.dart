@@ -115,7 +115,7 @@ void main() {
     });
   }
 
-  testWidgets('键盘遮挡编辑格时自动滚回可见区', (tester) async {
+  testWidgets('键盘弹出后编辑格自动滚回可见区', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     EditorState? state;
     try {
@@ -168,18 +168,81 @@ void main() {
       expect(before.bottom, lessThan(600));
       expect(before.top, greaterThanOrEqualTo(0));
       // 弹出 300 高的键盘后可见区只剩 [0, 300],格子(≈400+)被遮住;
-      // 点切到另一格 → 自动定位把编辑格滚回可见区。
+      // inset 变化即触发重定位,正在编辑的 A 格自动滚回可见区。
       await tester.pumpWidget(harness(300));
-      await tester.pump();
+      await tester.pump(); // 动画 ticker 首帧锚定
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(const Duration(milliseconds: 150));
+      final revealed = tester.getRect(field);
+      expect(revealed.bottom, lessThan(300), reason: '键盘弹出后编辑格应自动滚回可见区');
+      expect(revealed.top, greaterThanOrEqualTo(0));
+      // 点切到另一格:已在可见区,不再多余滚动
       await tester.tap(find.text('B'));
-      await tester.pump(); // postFrame: requestKeyboard + reveal 注册
-      // 测试绑定 ticker 首个 tick 锚定 elapsed=0，animateTo 的位移从
-      // 第二个 tick 起生效 —— 逐帧 pump 至动画收敛。
+      await tester.pump();
+      await tester.pump();
+      final after = tester.getRect(field);
+      expect(after.bottom, lessThan(300), reason: '切格后编辑格应保持在可见区');
+      expect(after.top, greaterThanOrEqualTo(0));
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+      state?.dispose();
+    }
+  });
+
+  testWidgets('滚动余量不足时以宿主遮挡量补足定位', (tester) async {
+    // 真机场景:表格在内容末尾,下方仅剩极短内容,maxScrollExtent
+    // 不足以把编辑格顶到工具栏之上。编辑中按宿主遮挡量(bottomInset)
+    // 追加底部滚动余量后即可定位。
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    EditorState? state;
+    try {
+      var id = 0;
+      state = EditorState(
+        blocks: blockNodesToDoc(
+          ParagraphParser().parse(
+            '<p>正文</p><table><tr><td>A</td><td>B</td></tr></table>',
+          ),
+          () => 'e_${id++}',
+        ),
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(800, 600),
+              viewInsets: const EdgeInsets.only(bottom: 300),
+            ),
+            child: SizedBox(
+              height: 600,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 400),
+                    FluxdoEditor(
+                      state: state,
+                      onTableEdited: (_, _) {},
+                      caretViewportInsets: const EdgeInsets.only(bottom: 300),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      await tester.pump();
+      final field = find.byType(EditableText);
+      // 键盘已弹出,格子下半截在遮挡区后但中心仍可点
+      await tester.tap(find.text('A'));
+      await tester.pump(); // reveal 注册
       await tester.pump(const Duration(milliseconds: 150));
       await tester.pump(const Duration(milliseconds: 150));
       await tester.pump(const Duration(milliseconds: 150));
       final after = tester.getRect(field);
-      expect(after.bottom, lessThan(300), reason: '编辑格不得被键盘遮住');
+      expect(after.bottom, lessThan(300), reason: '滚动余量补足后编辑格应滚到工具栏之上');
       expect(after.top, greaterThanOrEqualTo(0));
       await tester.pumpWidget(const SizedBox.shrink());
     } finally {

@@ -57,6 +57,7 @@ class EditorTableGrid extends StatefulWidget {
     this.autoEdit = false,
     this.onSelectRequest,
     this.onContextMenu,
+    this.viewportBottomInset = 0,
   });
 
   final TableNode node;
@@ -76,6 +77,13 @@ class EditorTableGrid extends StatefulWidget {
   final VoidCallback? onSelectRequest;
   final VoidCallback? onContextMenu;
 
+  /// 宿主滚动视口底部被键盘/工具栏遮挡的高度(composer 传入的
+  /// caretViewportInsets.bottom,与正文光标 reveal 同一口径)。编辑中
+  /// 用它追加底部滚动余量 —— 表格常在内容末尾,下方没有足够内容
+  /// 时 maxScrollExtent 不足以把编辑格顶到遮挡区之上(真机实测:
+  /// reveal 被夹在极限滚动位,编辑格仍被工具栏压住)。
+  final double viewportBottomInset;
+
   @override
   State<EditorTableGrid> createState() => _EditorTableGridState();
 }
@@ -94,6 +102,11 @@ class _EditorTableGridState extends State<EditorTableGrid>
   final TextEditingController _cellController = TextEditingController();
   final FocusNode _cellFocus = FocusNode();
 
+  /// 上次 reveal 的滚动目标:同一目标不重复 animateTo(键盘动画期间
+  /// 宿主逐帧重建,本组件 didUpdateWidget 每帧触发 reveal,目标不变
+  /// 时让进行中的动画继续,避免逐帧重启抖动)。
+  double? _lastRevealTarget;
+
   /// 编辑框句柄:编辑框随格切换在 cell 槽位间重建(共享
   /// controller/focusNode),新实例挂载时焦点已在 —— 无焦点事件、键盘
   /// 令牌已被上一格消费，不会自动 attach IME 连接(键盘看着在，打字
@@ -110,7 +123,6 @@ class _EditorTableGridState extends State<EditorTableGrid>
   late final _cellGestureBuilder = TextSelectionGestureDetectorBuilder(
     delegate: this,
   );
-
 
   @override
   GlobalKey<EditableTextState> get editableTextKey => _cellFieldKey;
@@ -153,6 +165,8 @@ class _EditorTableGridState extends State<EditorTableGrid>
   @override
   void didUpdateWidget(covariant EditorTableGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 键盘/工具栏动画期间宿主逐帧重建:编辑中每帧重算定位直至收敛。
+    if (_editing != null && _cellFocus.hasFocus) _revealEditingCell();
     if (widget.autoEdit && !oldWidget.autoEdit) _scheduleFirstCell();
     if (oldWidget.node != widget.node) {
       final echo = tableGridToMarkdown(
@@ -243,7 +257,12 @@ class _EditorTableGridState extends State<EditorTableGrid>
       final mq = MediaQuery.maybeOf(context);
       final kbTop =
           (mq?.size.height ?? vpRect.bottom) - (mq?.viewInsets.bottom ?? 0);
-      final bottom = vpRect.bottom < kbTop ? vpRect.bottom : kbTop;
+      // 与 FluxdoEditor._visibleViewportRect(forCaret: true) 同一口径:
+      // 先扣掉宿主工具岛/浮层遮挡，再与键盘上缘取交集。此前只拿
+      // viewport.bottom 与 kbTop，真实宿主中 viewport 仍延伸到工具岛
+      // 下方，导致编辑格虽被工具岛盖住却误判为“已可见”。
+      final insetBottom = vpRect.bottom - widget.viewportBottomInset;
+      final bottom = insetBottom < kbTop ? insetBottom : kbTop;
       if (bottom <= vpRect.top) return;
       final fieldRect = fieldRo.localToGlobal(Offset.zero) & fieldRo.size;
       const pad = 24.0;
@@ -258,7 +277,12 @@ class _EditorTableGridState extends State<EditorTableGrid>
         pos.minScrollExtent,
         pos.maxScrollExtent,
       );
-      if ((target - pos.pixels).abs() < 1) return;
+      if ((target - pos.pixels).abs() < 1) {
+        _lastRevealTarget = target;
+        return;
+      }
+      if (_lastRevealTarget == target) return;
+      _lastRevealTarget = target;
       pos.animateTo(
         target,
         duration: const Duration(milliseconds: 120),
@@ -319,7 +343,8 @@ class _EditorTableGridState extends State<EditorTableGrid>
       // 键盘令牌),未持焦点时走 requestFocus 正常聚焦路径。
       _cellFieldKey.currentState?.requestKeyboard();
       // 自动定位:键盘未弹出时先按当前几何滚一次，弹出期间由
-      // didChangeMetrics 反复重算直至收敛。
+      // didChangeMetrics 与宿主逐帧重建重算直至收敛。
+      _lastRevealTarget = null;
       _revealEditingCell();
     });
   }
@@ -638,83 +663,89 @@ class _EditorTableGridState extends State<EditorTableGrid>
       ),
     );
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hoverGrid = true),
-      onExit: (_) => setState(() {
-        _hoverGrid = false;
-        _hoverRow = null;
-        _hoverCol = null;
-      }),
-      child: widget.onContextMenu != null
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                MetaData(
-                  metaData: kEditorSelfManagedRegion,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(48, 48),
+    final editingInset = _editing != null ? widget.viewportBottomInset : 0.0;
+    return Padding(
+      // 编辑中追加滚动余量:内容末尾的表格才有路把编辑格滚到
+      // 键盘/工具栏之上(见 viewportBottomInset 注释)。
+      padding: EdgeInsets.only(bottom: editingInset),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hoverGrid = true),
+        onExit: (_) => setState(() {
+          _hoverGrid = false;
+          _hoverRow = null;
+          _hoverCol = null;
+        }),
+        child: widget.onContextMenu != null
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  MetaData(
+                    metaData: kEditorSelfManagedRegion,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                        ),
+                        onPressed: () {
+                          widget.onSelectRequest?.call();
+                          widget.onContextMenu!();
+                        },
+                        icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                        label: const Text('表格操作'),
                       ),
-                      onPressed: () {
-                        widget.onSelectRequest?.call();
-                        widget.onContextMenu!();
-                      },
-                      icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                      label: const Text('表格操作'),
                     ),
                   ),
-                ),
-                body,
-              ],
-            )
-          : Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Padding(padding: const EdgeInsets.only(top: 4), child: body),
-                // 左上角块级选择柄(hover 或已选中显示;在 MetaData 外 ——
-                // 点击走编辑器整选,选中后退格删整表)
-                if (widget.onSelectRequest != null &&
-                    (_handlesActive || widget.selected))
-                  Positioned(
-                    left: -2,
-                    top: -6,
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Tooltip(
-                        message: '选中表格(选中后退格删除)',
-                        child: InkWell(
-                          onTap: widget.onSelectRequest,
-                          borderRadius: BorderRadius.circular(4),
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: widget.selected
-                                  ? scheme.primary
-                                  : scheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
+                  body,
+                ],
+              )
+            : Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Padding(padding: const EdgeInsets.only(top: 4), child: body),
+                  // 左上角块级选择柄(hover 或已选中显示;在 MetaData 外 ——
+                  // 点击走编辑器整选,选中后退格删整表)
+                  if (widget.onSelectRequest != null &&
+                      (_handlesActive || widget.selected))
+                    Positioned(
+                      left: -2,
+                      top: -6,
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Tooltip(
+                          message: '选中表格(选中后退格删除)',
+                          child: InkWell(
+                            onTap: widget.onSelectRequest,
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
                                 color: widget.selected
                                     ? scheme.primary
-                                    : scheme.outlineVariant,
+                                    : scheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: widget.selected
+                                      ? scheme.primary
+                                      : scheme.outlineVariant,
+                                ),
                               ),
-                            ),
-                            child: Icon(
-                              Icons.drag_indicator,
-                              size: 12,
-                              color: widget.selected
-                                  ? scheme.onPrimary
-                                  : scheme.onSurfaceVariant,
+                              child: Icon(
+                                Icons.drag_indicator,
+                                size: 12,
+                                color: widget.selected
+                                    ? scheme.onPrimary
+                                    : scheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 
