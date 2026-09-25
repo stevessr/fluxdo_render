@@ -75,6 +75,44 @@ void main() {
     );
   });
 
+  test('用户滚离后暂时重新可见也不能为同一 key 重新武装跟随', () {
+    final tracker = EditorCaretRevealTracker();
+    tracker.shouldReveal(key: key, caret: distantCaret, viewport: screen);
+    tracker.shouldReveal(
+      key: key,
+      caret: distantCaret,
+      viewport: screen,
+      userScrolling: true,
+    );
+    // 视口暂时变大,目标重新进入可见区。
+    expect(
+      tracker.shouldReveal(
+        key: key,
+        caret: const Rect.fromLTWH(20, 250, 2, 24),
+        viewport: screen,
+      ),
+      isFalse,
+    );
+    // 视口再次收缩,同一 key 仍不能把用户拉回。
+    expect(
+      tracker.shouldReveal(
+        key: key,
+        caret: const Rect.fromLTWH(20, 250, 2, 24),
+        viewport: const Rect.fromLTWH(0, 0, 400, 200),
+      ),
+      isFalse,
+    );
+    const next = (
+      EditorSelection.collapsed(EditorPosition(blockId: 'text', offset: 2)),
+      null,
+    );
+    expect(
+      tracker.shouldReveal(key: next, caret: distantCaret, viewport: screen),
+      isTrue,
+      reason: '新编辑目标应重新允许自动跟随',
+    );
+  });
+
   test('虚拟光标结束吸收一次布局变化，新输入仍可触发跟随', () {
     final tracker = EditorCaretRevealTracker();
     tracker.suppressNext(key);

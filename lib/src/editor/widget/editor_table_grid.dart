@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RendererBinding;
 
 import '../../node/node.dart';
+import 'editor_table_actions.dart';
 import '../model/markdown_serializer.dart';
 
 /// 编辑器自管交互区的命中标记(MetaData.metaData):FluxdoEditor 的
@@ -57,7 +58,12 @@ class EditorTableGrid extends StatefulWidget {
     this.autoEdit = false,
     this.onSelectRequest,
     this.onContextMenu,
-    this.viewportBottomInset = 0,
+    this.onEditingRectChanged,
+    this.onEditingContextChanged,
+    this.commitEditing,
+    this.tableId,
+    this.structureControlsBuilder,
+    this.onStructureMenuRequested,
   });
 
   final TableNode node;
@@ -77,12 +83,17 @@ class EditorTableGrid extends StatefulWidget {
   final VoidCallback? onSelectRequest;
   final VoidCallback? onContextMenu;
 
-  /// 宿主滚动视口底部被键盘/工具栏遮挡的高度(composer 传入的
-  /// caretViewportInsets.bottom,与正文光标 reveal 同一口径)。编辑中
-  /// 用它追加底部滚动余量 —— 表格常在内容末尾,下方没有足够内容
-  /// 时 maxScrollExtent 不足以把编辑格顶到遮挡区之上(真机实测:
-  /// reveal 被夹在极限滚动位,编辑格仍被工具栏压住)。
-  final double viewportBottomInset;
+  /// 当前聚焦编辑框的全局矩形。表格只上报几何，不自行判断视口或滚动；
+  /// 宿主 FluxdoEditor 复用正文光标同一套 reveal 策略处理。
+  final ValueChanged<({(int, int) cell, Rect rect})?>? onEditingRectChanged;
+
+  final String? tableId;
+  final Widget Function(BuildContext, (int, int)?, void Function(bool, Rect))?
+  structureControlsBuilder;
+  final Future<void> Function(bool row, Rect anchor)? onStructureMenuRequested;
+
+  final ValueChanged<EditorTableContext?>? onEditingContextChanged;
+  final Future<bool> Function(String markdown)? commitEditing;
 
   @override
   State<EditorTableGrid> createState() => _EditorTableGridState();
@@ -101,11 +112,6 @@ class _EditorTableGridState extends State<EditorTableGrid>
   VoidCallback? _pendingStructure;
   final TextEditingController _cellController = TextEditingController();
   final FocusNode _cellFocus = FocusNode();
-
-  /// 上次 reveal 的滚动目标:同一目标不重复 animateTo(键盘动画期间
-  /// 宿主逐帧重建,本组件 didUpdateWidget 每帧触发 reveal,目标不变
-  /// 时让进行中的动画继续,避免逐帧重启抖动)。
-  double? _lastRevealTarget;
 
   /// 编辑框句柄:编辑框随格切换在 cell 槽位间重建(共享
   /// controller/focusNode),新实例挂载时焦点已在 —— 无焦点事件、键盘
@@ -146,6 +152,10 @@ class _EditorTableGridState extends State<EditorTableGrid>
       RendererBinding.instance.mouseTracker.mouseIsConnected;
 
   /// 柄/加条的"活跃"判定:桌面 = hover;触屏 = 编辑/选中态常显。
+  bool get _mobileManaged =>
+      !_hoverCapable && widget.onEditingContextChanged != null;
+  double get _handleInset => _mobileManaged ? 0 : _kHandleThickness + 2;
+
   bool get _handlesActive =>
       _hoverGrid || (!_hoverCapable && (_editing != null || widget.selected));
 
@@ -156,19 +166,33 @@ class _EditorTableGridState extends State<EditorTableGrid>
     _syncFromNode();
     if (widget.autoEdit) _scheduleFirstCell();
     _cellFocus.addListener(_onCellFocusChanged);
+    _cellController.addListener(_editingChanged);
   }
 
   void _onCellFocusChanged() {
-    if (!_cellFocus.hasFocus) _commitCell();
+    if (_cellFocus.hasFocus) {
+      _scheduleEditingRectReport();
+    } else {
+      _commitCell();
+    }
   }
 
   @override
   void didUpdateWidget(covariant EditorTableGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 键盘/工具栏动画期间宿主逐帧重建:编辑中每帧重算定位直至收敛。
-    if (_editing != null && _cellFocus.hasFocus) _revealEditingCell();
+    // 键盘/工具栏动画期间布局逐帧变化，持续向宿主上报新矩形。
+    if (_editing != null && _cellFocus.hasFocus) {
+      _scheduleEditingRectReport();
+    }
     if (widget.autoEdit && !oldWidget.autoEdit) _scheduleFirstCell();
     if (oldWidget.node != widget.node) {
+      // 显式提交由宿主验证旧节点身份；格式规范化可能改变 Markdown，
+      // 不能仅靠字符串相等识别这次已确认的回写。
+      if (_awaitingCommitEcho) {
+        _pendingEchoes.clear();
+        _syncFromNode();
+        return;
+      }
       final echo = tableGridToMarkdown(
         [
           for (final row in widget.node.rows)
@@ -197,6 +221,9 @@ class _EditorTableGridState extends State<EditorTableGrid>
       _pendingStructure = null;
       _pendingEchoes.clear();
       _editing = null;
+      widget.onEditingRectChanged?.call(null);
+      if (!_structureBusy) _publishContext(clear: true);
+      _revision++;
       _syncFromNode();
     }
   }
@@ -232,75 +259,38 @@ class _EditorTableGridState extends State<EditorTableGrid>
     }
   }
 
-  /// 把正在编辑的 cell 滚进可见区(视口与键盘上缘取交集)。
-  ///
-  /// 键盘弹出是异步动画:_startEdit 时先按当前几何滚一次，弹出期间
-  /// [didChangeMetrics] 反复触发，每次重算直至收敛。不用
-  /// Scrollable.ensureVisible —— 它按整个 RenderObject 对齐，表格是
-  /// 巨型块会被瞬移到块顶(fluxdo_editor._ensureCaretVisible 同款做法:
-  /// 按目标矩形精确 animateTo)。
-  void _revealEditingCell() {
+  void _scheduleEditingRectReport() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _editing == null || !_cellFocus.hasFocus) return;
-      final scrollable = Scrollable.maybeOf(context);
-      if (scrollable == null) return; // 无滚动宿主(桌面定高布局)
-      final pos = scrollable.position;
-      if (!pos.hasContentDimensions) return;
-      final fieldRo = _cellFieldKey.currentContext?.findRenderObject();
-      if (fieldRo is! RenderBox || !fieldRo.attached || !fieldRo.hasSize) {
+      final renderObject = _cellFieldKey.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox ||
+          !renderObject.attached ||
+          !renderObject.hasSize) {
         return;
       }
-      final vpBox = scrollable.context.findRenderObject();
-      if (vpBox is! RenderBox || !vpBox.attached || !vpBox.hasSize) return;
-      final vpRect = vpBox.localToGlobal(Offset.zero) & vpBox.size;
-      // 视口下缘与键盘上缘取小:手机上弹出键盘后可见区被截短。
-      final mq = MediaQuery.maybeOf(context);
-      final kbTop =
-          (mq?.size.height ?? vpRect.bottom) - (mq?.viewInsets.bottom ?? 0);
-      // 与 FluxdoEditor._visibleViewportRect(forCaret: true) 同一口径:
-      // 先扣掉宿主工具岛/浮层遮挡，再与键盘上缘取交集。此前只拿
-      // viewport.bottom 与 kbTop，真实宿主中 viewport 仍延伸到工具岛
-      // 下方，导致编辑格虽被工具岛盖住却误判为“已可见”。
-      final insetBottom = vpRect.bottom - widget.viewportBottomInset;
-      final bottom = insetBottom < kbTop ? insetBottom : kbTop;
-      if (bottom <= vpRect.top) return;
-      final fieldRect = fieldRo.localToGlobal(Offset.zero) & fieldRo.size;
-      const pad = 24.0;
-      double? delta;
-      if (fieldRect.bottom > bottom - pad) {
-        delta = fieldRect.bottom - (bottom - pad);
-      } else if (fieldRect.top < vpRect.top + pad) {
-        delta = fieldRect.top - (vpRect.top + pad);
-      }
-      if (delta == null) return;
-      final target = (pos.pixels + delta).clamp(
-        pos.minScrollExtent,
-        pos.maxScrollExtent,
-      );
-      if ((target - pos.pixels).abs() < 1) {
-        _lastRevealTarget = target;
-        return;
-      }
-      if (_lastRevealTarget == target) return;
-      _lastRevealTarget = target;
-      pos.animateTo(
-        target,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-      );
+      _publishContext();
+      widget.onEditingRectChanged?.call((
+        cell: _editing!,
+        rect: renderObject.localToGlobal(Offset.zero) & renderObject.size,
+      ));
     });
   }
 
   @override
   void didChangeMetrics() {
-    // 键盘弹出/收起与旋转等窗口几何变化:编辑中每次重算定位。
-    if (_editing != null && _cellFocus.hasFocus) _revealEditingCell();
+    if (_editing != null && _cellFocus.hasFocus) {
+      _scheduleEditingRectReport();
+    }
   }
 
   @override
   void dispose() {
+    widget.onEditingContextChanged?.call(null);
+    widget.onEditingRectChanged?.call(null);
+    if (!_structureBusy) _publishContext(clear: true);
     WidgetsBinding.instance.removeObserver(this);
     _cellFocus.removeListener(_onCellFocusChanged);
+    _cellController.removeListener(_editingChanged);
     _cellController.dispose();
     _cellFocus.dispose();
     super.dispose();
@@ -342,10 +332,8 @@ class _EditorTableGridState extends State<EditorTableGrid>
       // 补挂 IME 连接:requestKeyboard 已持焦点时直接 attach+show(无需
       // 键盘令牌),未持焦点时走 requestFocus 正常聚焦路径。
       _cellFieldKey.currentState?.requestKeyboard();
-      // 自动定位:键盘未弹出时先按当前几何滚一次，弹出期间由
-      // didChangeMetrics 与宿主逐帧重建重算直至收敛。
-      _lastRevealTarget = null;
-      _revealEditingCell();
+      // 向宿主上报编辑框几何，由 FluxdoEditor 复用正文 reveal 策略。
+      _scheduleEditingRectReport();
     });
   }
 
@@ -355,11 +343,171 @@ class _EditorTableGridState extends State<EditorTableGrid>
     final (r, c) = e;
     final next = _cellController.text;
     _editing = null;
+    widget.onEditingRectChanged?.call(null);
+    if (!_structureBusy) _publishContext(clear: true);
     if (r < _rows && c < _cols && _cells[r][c] != next) {
       _cells[r][c] = next;
       _emit();
     } else if (mounted) {
       setState(() {});
+    }
+  }
+
+  int _revision = 0;
+  bool _structureBusy = false;
+  bool? _highlightRow;
+  (int, int)? _highlightCell;
+
+  Future<void> _openStructureMenu(bool row, Rect anchor) async {
+    if (_editing == null || _structureBusy || _highlightRow != null) return;
+    setState(() {
+      _highlightRow = row;
+      _highlightCell = _editing;
+    });
+    try {
+      await widget.onStructureMenuRequested?.call(row, anchor);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _highlightRow = null;
+          _highlightCell = null;
+        });
+      }
+    }
+  }
+
+  bool _awaitingCommitEcho = false;
+  (int, int)? _operationCell;
+
+  void _editingChanged() {
+    _revision++;
+    _publishContext();
+  }
+
+  void _publishContext({bool clear = false}) {
+    final cell = _editing ?? _operationCell;
+    final revision = _revision;
+    if (clear || cell == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_structureBusy && _editing == null) {
+          widget.onEditingContextChanged?.call(null);
+        }
+      });
+      return;
+    }
+    final (r, c) = cell;
+    if (r >= _rows || c >= _cols) return;
+    String value(int row, int col) =>
+        _editing == (row, col) ? _cellController.text : _cells[row][col];
+    final context = EditorTableContext(
+      tableId: widget.tableId ?? widget.node.id,
+      cell: cell,
+      revision: revision,
+      rows: _rows,
+      columns: _cols,
+      rowHasContent: List.generate(
+        _cols,
+        (i) => value(r, i),
+      ).any((v) => v.trim().isNotEmpty),
+      columnHasContent: List.generate(
+        _rows,
+        (i) => value(i, c),
+      ).any((v) => v.trim().isNotEmpty),
+      busy: _structureBusy,
+      execute: (action) => _executeAction(action, cell, revision),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          revision == _revision &&
+          (_editing ?? _operationCell) == cell) {
+        widget.onEditingContextChanged?.call(context);
+      }
+    });
+  }
+
+  Future<EditorTableActionResult> _executeAction(
+    EditorTableAction action,
+    (int, int) cell,
+    int revision,
+  ) async {
+    if (!mounted || revision != _revision || _editing != cell) {
+      return EditorTableActionResult.stale;
+    }
+    if (_structureBusy ||
+        widget.onNodeChanged == null ||
+        widget.commitEditing == null) {
+      return EditorTableActionResult.unavailable;
+    }
+    final (r, c) = cell;
+    if ((action == EditorTableAction.deleteRow && _rows <= 1) ||
+        (action == EditorTableAction.deleteColumn && _cols <= 1)) {
+      return EditorTableActionResult.unavailable;
+    }
+    setState(() => _structureBusy = true);
+    _operationCell = cell;
+    _publishContext();
+    final text = _cellController.text;
+    try {
+      if (_cells[r][c] != text) {
+        final cells = [for (final row in _cells) List<String>.of(row)];
+        cells[r][c] = text;
+        final markdown = tableGridToMarkdown(
+          cells,
+          hasHeader: _hasHeader,
+          alignments: _alignments,
+        );
+        _pendingEchoes.add(markdown);
+        final accepted = await widget.commitEditing!(markdown);
+        if (!mounted) return EditorTableActionResult.stale;
+        if (!accepted) {
+          _pendingEchoes.remove(markdown);
+          return EditorTableActionResult.failed;
+        }
+        _awaitingCommitEcho = true;
+        await WidgetsBinding.instance.endOfFrame;
+        _awaitingCommitEcho = false;
+        if (!mounted || _editing != cell || _cellController.text != text) {
+          return EditorTableActionResult.stale;
+        }
+        _syncFromNode();
+      }
+      _editing = null;
+      final target = switch (action) {
+        EditorTableAction.rowBefore => (r, c),
+        EditorTableAction.rowAfter => (r + 1, c),
+        EditorTableAction.columnBefore => (r, c),
+        EditorTableAction.columnAfter => (r, c + 1),
+        EditorTableAction.deleteRow => (r.clamp(0, _rows - 2), c),
+        EditorTableAction.deleteColumn => (r, c.clamp(0, _cols - 2)),
+      };
+      switch (action) {
+        case EditorTableAction.rowBefore:
+          _insertRow(r);
+        case EditorTableAction.rowAfter:
+          _insertRow(r + 1);
+        case EditorTableAction.columnBefore:
+          _insertCol(c);
+        case EditorTableAction.columnAfter:
+          _insertCol(c + 1);
+        case EditorTableAction.deleteRow:
+          _removeRow(r);
+        case EditorTableAction.deleteColumn:
+          _removeCol(c);
+      }
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return EditorTableActionResult.stale;
+      _startEdit(target.$1, target.$2);
+      return EditorTableActionResult.success;
+    } catch (_) {
+      return EditorTableActionResult.failed;
+    } finally {
+      _awaitingCommitEcho = false;
+      _structureBusy = false;
+      _operationCell = null;
+      if (mounted) {
+        setState(() {});
+        _publishContext();
+      }
     }
   }
 
@@ -581,7 +729,7 @@ class _EditorTableGridState extends State<EditorTableGrid>
         ),
         // 圆角外框覆盖层(只描边不拦事件;选中态 primary 加粗)
         Positioned(
-          left: _kHandleThickness + 2,
+          left: _handleInset,
           top: 0,
           bottom: 0,
           width: tableWidth,
@@ -612,23 +760,25 @@ class _EditorTableGridState extends State<EditorTableGrid>
           mainAxisSize: MainAxisSize.min,
           children: [
             // 顶部列柄条(hover 表格淡显全部,hover 该列高亮)
-            Padding(
-              padding: const EdgeInsets.only(left: _kHandleThickness + 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var c = 0; c < _cols; c++)
-                    _ColHandle(
-                      opacity: !_handlesActive
-                          ? 0
-                          : (_hoverCol == c ? 1.0 : 0.35),
-                      width: _kCellWidth + (c > 0 ? 1 : 0),
-                      onTapDown: (pos) => _showColMenu(c, pos),
-                      onHover: (h) => setState(() => _hoverCol = h ? c : null),
-                    ),
-                ],
+            if (!_mobileManaged)
+              Padding(
+                padding: EdgeInsets.only(left: _handleInset),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var c = 0; c < _cols; c++)
+                      _ColHandle(
+                        opacity: !_handlesActive
+                            ? 0
+                            : (_hoverCol == c ? 1.0 : 0.35),
+                        width: _kCellWidth + (c > 0 ? 1 : 0),
+                        onTapDown: (pos) => _showColMenu(c, pos),
+                        onHover: (h) =>
+                            setState(() => _hoverCol = h ? c : null),
+                      ),
+                  ],
+                ),
               ),
-            ),
             // IntrinsicHeight:stretch 的右缘加列条随表格高(Column 的
             // 无界高约束下 stretch 会要求无限高 → 布局崩)
             IntrinsicHeight(
@@ -638,48 +788,57 @@ class _EditorTableGridState extends State<EditorTableGrid>
                 children: [
                   rowsArea,
                   // 右缘加列条
-                  _EdgeAddBar(
-                    axis: Axis.vertical,
-                    visible: _handlesActive,
-                    tooltip: '添加列',
-                    onTap: () => _insertCol(_cols),
-                  ),
+                  if (!_mobileManaged)
+                    _EdgeAddBar(
+                      axis: Axis.vertical,
+                      visible: _handlesActive,
+                      tooltip: '添加列',
+                      onTap: () => _insertCol(_cols),
+                    ),
                 ],
               ),
             ),
             // 下缘加行条
-            Padding(
-              padding: const EdgeInsets.only(left: _kHandleThickness + 2),
-              child: _EdgeAddBar(
-                axis: Axis.horizontal,
-                visible: _handlesActive,
-                tooltip: '添加行',
-                length: tableWidth,
-                onTap: () => _insertRow(_rows),
+            if (!_mobileManaged)
+              Padding(
+                padding: EdgeInsets.only(left: _handleInset),
+                child: _EdgeAddBar(
+                  axis: Axis.horizontal,
+                  visible: _handlesActive,
+                  tooltip: '添加行',
+                  length: tableWidth,
+                  onTap: () => _insertRow(_rows),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
 
-    final editingInset = _editing != null ? widget.viewportBottomInset : 0.0;
-    return Padding(
-      // 编辑中追加滚动余量:内容末尾的表格才有路把编辑格滚到
-      // 键盘/工具栏之上(见 viewportBottomInset 注释)。
-      padding: EdgeInsets.only(bottom: editingInset),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hoverGrid = true),
-        onExit: (_) => setState(() {
-          _hoverGrid = false;
-          _hoverRow = null;
-          _hoverCol = null;
-        }),
-        child: widget.onContextMenu != null
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoverGrid = true),
+      onExit: (_) => setState(() {
+        _hoverGrid = false;
+        _hoverRow = null;
+        _hoverCol = null;
+      }),
+      child: widget.onContextMenu != null
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_mobileManaged && widget.structureControlsBuilder != null)
+                  MetaData(
+                    metaData: kEditorSelfManagedRegion,
+                    child: TextFieldTapRegion(
+                      child: widget.structureControlsBuilder!(
+                        context,
+                        _editing,
+                        _openStructureMenu,
+                      ),
+                    ),
+                  )
+                else
                   MetaData(
                     metaData: kEditorSelfManagedRegion,
                     child: Align(
@@ -697,55 +856,54 @@ class _EditorTableGridState extends State<EditorTableGrid>
                       ),
                     ),
                   ),
-                  body,
-                ],
-              )
-            : Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Padding(padding: const EdgeInsets.only(top: 4), child: body),
-                  // 左上角块级选择柄(hover 或已选中显示;在 MetaData 外 ——
-                  // 点击走编辑器整选,选中后退格删整表)
-                  if (widget.onSelectRequest != null &&
-                      (_handlesActive || widget.selected))
-                    Positioned(
-                      left: -2,
-                      top: -6,
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: Tooltip(
-                          message: '选中表格(选中后退格删除)',
-                          child: InkWell(
-                            onTap: widget.onSelectRequest,
-                            borderRadius: BorderRadius.circular(4),
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
+                body,
+              ],
+            )
+          : Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(padding: const EdgeInsets.only(top: 4), child: body),
+                // 左上角块级选择柄(hover 或已选中显示;在 MetaData 外 ——
+                // 点击走编辑器整选,选中后退格删整表)
+                if (widget.onSelectRequest != null &&
+                    (_handlesActive || widget.selected))
+                  Positioned(
+                    left: -2,
+                    top: -6,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Tooltip(
+                        message: '选中表格(选中后退格删除)',
+                        child: InkWell(
+                          onTap: widget.onSelectRequest,
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: widget.selected
+                                  ? scheme.primary
+                                  : scheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
                                 color: widget.selected
                                     ? scheme.primary
-                                    : scheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: widget.selected
-                                      ? scheme.primary
-                                      : scheme.outlineVariant,
-                                ),
+                                    : scheme.outlineVariant,
                               ),
-                              child: Icon(
-                                Icons.drag_indicator,
-                                size: 12,
-                                color: widget.selected
-                                    ? scheme.onPrimary
-                                    : scheme.onSurfaceVariant,
-                              ),
+                            ),
+                            child: Icon(
+                              Icons.drag_indicator,
+                              size: 12,
+                              color: widget.selected
+                                  ? scheme.onPrimary
+                                  : scheme.onSurfaceVariant,
                             ),
                           ),
                         ),
                       ),
                     ),
-                ],
-              ),
-      ),
+                  ),
+              ],
+            ),
     );
   }
 
@@ -769,12 +927,13 @@ class _EditorTableGridState extends State<EditorTableGrid>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _RowHandle(
-              opacity: !_handlesActive ? 0 : (_hoverRow == r ? 1.0 : 0.35),
-              onTapDown: (pos) => _showRowMenu(r, pos),
-              onHover: (h) => setState(() => _hoverRow = h ? r : null),
-            ),
-            const SizedBox(width: 2),
+            if (!_mobileManaged)
+              _RowHandle(
+                opacity: !_handlesActive ? 0 : (_hoverRow == r ? 1.0 : 0.35),
+                onTapDown: (pos) => _showRowMenu(r, pos),
+                onHover: (h) => setState(() => _hoverRow = h ? r : null),
+              ),
+            if (!_mobileManaged) const SizedBox(width: 2),
             ClipRRect(
               borderRadius: radius,
               child: Container(
@@ -800,7 +959,16 @@ class _EditorTableGridState extends State<EditorTableGrid>
                                 ),
                               )
                             : null,
-                        child: _buildCell(r, c, isHeader, textStyle, scheme),
+                        child: ColoredBox(
+                          color:
+                              _highlightCell != null &&
+                                  (_highlightRow == true
+                                      ? r == _highlightCell!.$1
+                                      : c == _highlightCell!.$2)
+                              ? scheme.primary.withValues(alpha: .16)
+                              : Colors.transparent,
+                          child: _buildCell(r, c, isHeader, textStyle, scheme),
+                        ),
                       ),
                   ],
                 ),

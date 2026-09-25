@@ -75,6 +75,7 @@ import 'editor_context_bar.dart';
 import 'editor_image_grid.dart';
 import 'editor_island.dart';
 import 'editor_table_grid.dart';
+import 'editor_table_actions.dart';
 
 /// 图片原子选中态(官方 ProseMirror NodeSelection 对应物)。
 ///
@@ -342,6 +343,10 @@ class FluxdoEditor extends StatefulWidget {
     this.onIslandEditRequest,
     this.onContainerTitleEdit,
     this.onTableEdited,
+    this.onTableContextChanged,
+    this.onTableCommit,
+    this.tableStructureControlsBuilder,
+    this.onTableStructureMenuRequested,
     this.onCodeBlockEdited,
     this.onAtomTap,
     this.onImageAtomSelectionChanged,
@@ -458,6 +463,13 @@ class FluxdoEditor extends StatefulWidget {
   /// 表格 cell 编辑确认 → 新 markdown 表格文本(宿主 cook 后
   /// state.replaceIsland)。null = 表格走通用只读岛。
   final void Function(IslandBlock island, String markdown)? onTableEdited;
+  final Widget Function(BuildContext, (int, int)?, void Function(bool, Rect))?
+  tableStructureControlsBuilder;
+  final Future<void> Function(String tableId, bool row, Rect anchor)?
+  onTableStructureMenuRequested;
+  final ValueChanged<EditorTableContext?>? onTableContextChanged;
+  final Future<bool> Function(IslandBlock island, String markdown)?
+  onTableCommit;
 
   /// 代码块岛内编辑提交 → 新 code/language(宿主直接
   /// state.updateIslandNode(CodeBlockNode(...)),结构化形变不经 cook)。
@@ -1454,6 +1466,16 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     final pixels = _scrollPosition?.pixels ?? 0;
     final delta = pixels - _lastScrollPixels;
     _lastScrollPixels = pixels;
+    final tableRect = _tableEditingRect;
+    if (tableRect != null && delta != 0) {
+      _tableEditingRect = tableRect.translate(0, -delta);
+    }
+    if (_tableEditingRect != null) {
+      _revealTableEditingRect(
+        userScrolling:
+            _scrollPosition?.userScrollDirection != ScrollDirection.idle,
+      );
+    }
     if (_handles?.isShowing ?? false) {
       _handles!.update(yCompensation: delta);
       _contextBar?.reposition(yCompensation: delta);
@@ -1463,6 +1485,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     }
     if (_lastImageAtomSel == null &&
         _caretInfo.value.$1 == null &&
+        _tableEditingRect == null &&
         _dragGlobal == null &&
         !_longPressing) {
       return;
@@ -1495,7 +1518,82 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   // 软键盘 ensureVisible(S5)
   // -----------------------------------------------------------------
 
+  String? _contextTableId;
   final _caretReveal = EditorCaretRevealTracker();
+  final _tableReveal = EditorRectRevealTracker<(String, (int, int))>();
+  (String, (int, int))? _tableEditingKey;
+  Rect? _tableEditingRect;
+
+  void _onTableEditingRectChanged(
+    String tableId,
+    ({(int, int) cell, Rect rect})? geometry,
+  ) {
+    if (geometry == null) {
+      if (_tableEditingKey?.$1 == tableId) {
+        _tableEditingKey = null;
+        _tableEditingRect = null;
+        _tableReveal.reset();
+      }
+      return;
+    }
+    _tableEditingKey = (tableId, geometry.cell);
+    _tableEditingRect = geometry.rect;
+    _revealTableEditingRect();
+  }
+
+  void _revealTableEditingRect({bool userScrolling = false}) {
+    final key = _tableEditingKey;
+    final rect = _tableEditingRect;
+    final pos = _scrollPosition;
+    if (key == null || rect == null || pos == null) return;
+    final visible = _visibleViewportRect(forCaret: true);
+    if (visible == null) return;
+    final scrolling =
+        userScrolling || pos.userScrollDirection != ScrollDirection.idle;
+    if (!_tableReveal.shouldReveal(
+      key: key,
+      caret: rect,
+      viewport: visible,
+      userScrolling: scrolling,
+      autoScrolling: pos.isScrollingNotifier.value && !scrolling,
+    )) {
+      return;
+    }
+    _scrollRectIntoVisibleViewport(rect);
+  }
+
+  /// 将任意编辑目标矩形滚入正文同一有效视口。正文 caret 与表格 cell
+  /// 共用这一个滚动核心，视口遮挡、键盘上缘、用户滚动和动画参数
+  /// 只有一个真源。
+  void _scrollRectIntoVisibleViewport(Rect targetRect) {
+    final pos = _scrollPosition;
+    if (pos == null || !pos.hasContentDimensions) return;
+    if (pos.userScrollDirection != ScrollDirection.idle) return;
+    final visible = _visibleViewportRect(forCaret: true);
+    if (visible == null) return;
+    const pad = 24.0;
+    final visBottom = visible.bottom - pad;
+    final visTop = visible.top + pad;
+    if (visBottom <= visTop) return;
+
+    double? delta;
+    if (targetRect.bottom > visBottom) {
+      delta = targetRect.bottom - visBottom;
+    } else if (targetRect.top < visTop) {
+      delta = targetRect.top - visTop;
+    }
+    if (delta == null) return;
+    final scrollTarget = (pos.pixels + delta).clamp(
+      pos.minScrollExtent,
+      pos.maxScrollExtent,
+    );
+    if ((scrollTarget - pos.pixels).abs() < 1) return;
+    pos.animateTo(
+      scrollTarget,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+    );
+  }
 
   /// 光标越出可见区(视口 ∩ 键盘上方)时滚动到可见。仅折叠光标态
   /// (打字/点击);非折叠选区(手柄态)不自动滚 —— 用户在看选区。
@@ -1523,28 +1621,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     )) {
       return;
     }
-    const pad = 24.0;
-    final visBottom = visible.bottom - pad;
-    final visTop = visible.top + pad;
-    if (visBottom <= visTop) return;
-
-    double? delta;
-    if (caretGlobal.bottom > visBottom) {
-      delta = caretGlobal.bottom - visBottom;
-    } else if (caretGlobal.top < visTop) {
-      delta = caretGlobal.top - visTop;
-    }
-    if (delta == null) return;
-    final target = (pos.pixels + delta).clamp(
-      pos.minScrollExtent,
-      pos.maxScrollExtent,
-    );
-    if ((target - pos.pixels).abs() < 1) return;
-    pos.animateTo(
-      target,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-    );
+    _scrollRectIntoVisibleViewport(caretGlobal);
   }
 
   /// 宿主滚动视口的全局矩形(键盘遮挡部分已截掉)。
@@ -3657,11 +3734,33 @@ class _FluxdoEditorState extends State<FluxdoEditor>
           child: EditorTableGrid(
             key: _islandKeys.putIfAbsent(block.id, GlobalKey.new),
             node: block.node as TableNode,
+            tableId: block.id,
+            structureControlsBuilder: widget.tableStructureControlsBuilder,
+            onStructureMenuRequested:
+                widget.onTableStructureMenuRequested == null
+                ? null
+                : (row, anchor) => widget.onTableStructureMenuRequested!(
+                    block.id,
+                    row,
+                    anchor,
+                  ),
+            onEditingContextChanged: widget.onTableContextChanged == null
+                ? null
+                : (value) {
+                    if (value != null) {
+                      _contextTableId = block.id;
+                      widget.onTableContextChanged!(value);
+                    } else if (_contextTableId == block.id) {
+                      _contextTableId = null;
+                      widget.onTableContextChanged!(null);
+                    }
+                  },
+            commitEditing: widget.onTableCommit == null
+                ? null
+                : (markdown) => widget.onTableCommit!(block, markdown),
             autoEdit: widget.state.consumeIslandEditRequest(block.id),
-            // 宿主视口底部被键盘/工具栏遮挡的高度:编辑中追加滚动余量,
-            // 让内容末尾的表格也有路滚到遮挡区之上(与正文光标 reveal
-            // 同一数值口径)。
-            viewportBottomInset: widget.caretViewportInsets.bottom,
+            onEditingRectChanged: (geometry) =>
+                _onTableEditingRectChanged(block.id, geometry),
             onContextMenu: widget.objectToolbarManaged
                 ? _requestObjectMenu
                 : null,
@@ -4044,7 +4143,6 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         ),
       );
     }
-
     final content = Focus(
       focusNode: _focusNode,
       autofocus: widget.autofocus,

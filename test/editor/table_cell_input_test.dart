@@ -27,17 +27,19 @@ void main() {
             () => 'e_${id++}',
           ),
         );
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: FluxdoEditor(
-                state: state,
-                autofocus: true,
-                onTableEdited: (_, _) {},
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FluxdoEditor(
+                  state: state,
+                  autofocus: true,
+                  onTableEdited: (_, _) {},
+                ),
               ),
             ),
           ),
-        ));
+        );
         // 光标闪烁常驻帧,不能 pumpAndSettle
         await tester.pump();
         await tester.pump();
@@ -61,10 +63,12 @@ void main() {
             field.controller.text.length,
           );
           // 不用 tester.enterText:它会主动 showKeyboard,掩盖首击未接通 IME。
-          tester.testTextInput.updateEditingValue(const TextEditingValue(
-            text: '新内容',
-            selection: TextSelection.collapsed(offset: 3),
-          ));
+          tester.testTextInput.updateEditingValue(
+            const TextEditingValue(
+              text: '新内容',
+              selection: TextSelection.collapsed(offset: 3),
+            ),
+          );
           await tester.pump();
           expect(field.controller.text, '新内容');
           expect(state.selection, bodySelection);
@@ -78,22 +82,23 @@ void main() {
         await tester.pump();
         final selAfterLongPress = tester
             .widget<EditableText>(find.byType(EditableText))
-            .controller.selection;
+            .controller
+            .selection;
         if (platform == TargetPlatform.android) {
-          expect(selAfterLongPress.isCollapsed, isFalse,
-              reason: 'Android 长按应选出词段');
+          expect(
+            selAfterLongPress.isCollapsed,
+            isFalse,
+            reason: 'Android 长按应选出词段',
+          );
         } else {
-          expect(selAfterLongPress.isCollapsed, isTrue,
-              reason: 'iOS 聚焦态长按落光标');
+          expect(selAfterLongPress.isCollapsed, isTrue, reason: 'iOS 聚焦态长按落光标');
         }
         // 双击选词:同一识别器连续 tap 计数到 2 → onDoubleTapDown。
         // 先点文末空白收起长按遗留的选区/手柄（避免按点落在手柄热区），
         // 再双击首字（文本后的空白处无词可选）。
         final fieldTopLeft = tester.getTopLeft(find.byType(EditableText));
         final fieldSize = tester.getSize(find.byType(EditableText));
-        await tester.tapAt(
-          fieldTopLeft + Offset(fieldSize.width - 8, 14),
-        );
+        await tester.tapAt(fieldTopLeft + Offset(fieldSize.width - 8, 14));
         await tester.pump(const Duration(milliseconds: 400));
         final firstChar = fieldTopLeft + const Offset(4, 14);
         await tester.tapAt(firstChar);
@@ -102,8 +107,11 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(
-          tester.widget<EditableText>(find.byType(EditableText))
-              .controller.selection.isCollapsed,
+          tester
+              .widget<EditableText>(find.byType(EditableText))
+              .controller
+              .selection
+              .isCollapsed,
           isFalse,
           reason: '双击应选出词段',
         );
@@ -142,10 +150,7 @@ void main() {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 400),
-                    FluxdoEditor(
-                      state: state!,
-                      onTableEdited: (_, _) {},
-                    ),
+                    FluxdoEditor(state: state!, onTableEdited: (_, _) {}),
                     // 撑出滚动余量(maxScrollExtent > 0),否则键盘遮
                     // 挡时无路可滚
                     const SizedBox(height: 400),
@@ -190,10 +195,10 @@ void main() {
     }
   });
 
-  testWidgets('滚动余量不足时以宿主遮挡量补足定位', (tester) async {
-    // 真机场景:表格在内容末尾,下方仅剩极短内容,maxScrollExtent
-    // 不足以把编辑格顶到工具栏之上。编辑中按宿主遮挡量(bottomInset)
-    // 追加底部滚动余量后即可定位。
+  testWidgets('滚动余量不足时尽力滚动且不制造额外空白', (tester) async {
+    // 极端场景:表格在内容末尾且内容很短,maxScrollExtent 不足以把
+    // 编辑格完全顶到工具栏之上。正确行为:只用内容本身的滚动空间
+    // 尽力滚动(可能仍部分被遮),绝不在文档末尾追加额外空白。
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     EditorState? state;
     try {
@@ -206,44 +211,70 @@ void main() {
           () => 'e_${id++}',
         ),
       );
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MediaQuery(
-            data: MediaQueryData(
-              size: const Size(800, 600),
-              viewInsets: const EdgeInsets.only(bottom: 300),
-            ),
-            child: SizedBox(
-              height: 600,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 400),
-                    FluxdoEditor(
-                      state: state,
-                      onTableEdited: (_, _) {},
-                      caretViewportInsets: const EdgeInsets.only(bottom: 300),
-                    ),
-                  ],
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(800, 600),
+                viewInsets: const EdgeInsets.only(bottom: 300),
+              ),
+              child: SizedBox(
+                height: 600,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 400),
+                      FluxdoEditor(
+                        state: state,
+                        onTableEdited: (_, _) {},
+                        caretViewportInsets: const EdgeInsets.only(bottom: 300),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ));
+      );
       await tester.pump();
       await tester.pump();
-      final field = find.byType(EditableText);
+      final scroller = tester
+          .state<ScrollableState>(
+            find
+                .ancestor(
+                  of: find.byType(FluxdoEditor),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      final maxBefore = scroller.maxScrollExtent;
       // 键盘已弹出,格子下半截在遮挡区后但中心仍可点
       await tester.tap(find.text('A'));
       await tester.pump(); // reveal 注册
       await tester.pump(const Duration(milliseconds: 150));
       await tester.pump(const Duration(milliseconds: 150));
       await tester.pump(const Duration(milliseconds: 150));
-      final after = tester.getRect(field);
-      expect(after.bottom, lessThan(300), reason: '滚动余量补足后编辑格应滚到工具栏之上');
-      expect(after.top, greaterThanOrEqualTo(0));
+      // 内容太短时没有可滚空间,只能尽力而为(滚到极限或不动),
+      // 但绝不在文档末尾追加额外空白来换取定位。
+      expect(
+        scroller.pixels,
+        scroller.maxScrollExtent,
+        reason: '应滚到极限位置(无空间则保持 0)',
+      );
+      expect(
+        scroller.maxScrollExtent,
+        maxBefore,
+        reason: '不得为定位在文档末尾追加额外空白(滚动范围不得被人为撑大)',
+      );
+      expect(
+        find.byKey(const ValueKey('editor-bottom-inset')),
+        findsNothing,
+        reason: '编辑区末尾不得插入额外空白块',
+      );
       await tester.pumpWidget(const SizedBox.shrink());
     } finally {
       debugDefaultTargetPlatformOverride = null;
