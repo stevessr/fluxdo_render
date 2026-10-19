@@ -28,6 +28,8 @@ class EditorRectRevealTracker<T> {
     required Rect viewport,
     bool userScrolling = false,
     bool autoScrolling = false,
+    // Content-relative geometry changed, independent of the scroll offset.
+    bool layoutChanged = false,
   }) {
     final visible =
         caret.top >= viewport.top && caret.bottom <= viewport.bottom;
@@ -35,7 +37,9 @@ class EditorRectRevealTracker<T> {
     if (keyChanged) _cancelledKey = null;
     if (userScrolling) _cancelledKey = key;
     final cancelled = key == _cancelledKey;
-    final requested = keyChanged || (viewport != _viewport && _followingLayout);
+    final requested =
+        keyChanged ||
+        ((viewport != _viewport || layoutChanged) && _followingLayout);
     final reveal =
         requested && !userScrolling && !cancelled && key != _suppressedKey;
     _key = key;

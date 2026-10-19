@@ -544,13 +544,17 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   final Map<String, GlobalKey<EditorImageGridState>> _gridKeys = {};
   EditorObjectTarget? _explicitObjectTarget;
   EditorObjectSelection? _lastObjectSelection;
-  bool _objectGeometryScheduled = false;
+  bool _layoutGeometryScheduled = false;
 
-  void _scheduleObjectGeometry() {
-    if (_lastObjectSelection == null || _objectGeometryScheduled) return;
-    _objectGeometryScheduled = true;
+  void _scheduleLayoutGeometry() {
+    // 媒体异步加载也会移动文字光标，即使文档和选区都没有变化。
+    if ((!_focusNode.hasPrimaryFocus && _lastObjectSelection == null) ||
+        _layoutGeometryScheduled) {
+      return;
+    }
+    _layoutGeometryScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _objectGeometryScheduled = false;
+      _layoutGeometryScheduled = false;
       if (mounted) _afterFrame();
     });
   }
@@ -775,7 +779,8 @@ class _FluxdoEditorState extends State<FluxdoEditor>
         : null;
 
     final newCaret = _computeLocalCaretRect();
-    if (newCaret != _caretInfo.value.$1) {
+    final caretLayoutChanged = newCaret != _caretInfo.value.$1;
+    if (caretLayoutChanged) {
       _caretInfo.value = (newCaret, widget.state.docRevision);
     }
 
@@ -790,7 +795,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       final caretGlobal =
           rootBox.localToGlobal(newCaret.topLeft) & newCaret.size;
       widget.onCaretRectChanged?.call(caretGlobal);
-      _ensureCaretVisible(caretGlobal);
+      _ensureCaretVisible(caretGlobal, layoutChanged: caretLayoutChanged);
       _notifyLinkCaret();
     } else if (newCaret == null) {
       widget.onCaretRectChanged?.call(null);
@@ -1521,6 +1526,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   String? _contextTableId;
   final _caretReveal = EditorCaretRevealTracker();
   final _tableReveal = EditorRectRevealTracker<(String, (int, int))>();
+  int _revealScrollGeneration = 0;
   (String, (int, int))? _tableEditingKey;
   Rect? _tableEditingRect;
 
@@ -1571,7 +1577,12 @@ class _FluxdoEditorState extends State<FluxdoEditor>
     if (pos.userScrollDirection != ScrollDirection.idle) return;
     final visible = _visibleViewportRect(forCaret: true);
     if (visible == null) return;
-    const pad = 24.0;
+    // 键盘和宿主遮挡可能只留下一行空间。优先容纳编辑目标，
+    // 剩余空间才用于余量，避免固定上下 24px 把光标推出可见区。
+    final pad = math.min(
+      24.0,
+      math.max(0.0, (visible.height - targetRect.height) / 2),
+    );
     final visBottom = visible.bottom - pad;
     final visTop = visible.top + pad;
     if (visBottom <= visTop) return;
@@ -1588,11 +1599,31 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       pos.maxScrollExtent,
     );
     if ((scrollTarget - pos.pixels).abs() < 1) return;
-    pos.animateTo(
-      scrollTarget,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-    );
+    final generation = ++_revealScrollGeneration;
+    pos
+        .animateTo(
+          scrollTarget,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+        )
+        .then((_) {
+          if (!mounted ||
+              !identical(pos, _scrollPosition) ||
+              generation != _revealScrollGeneration ||
+              !pos.hasContentDimensions ||
+              pos.isScrollingNotifier.value ||
+              pos.userScrollDirection != ScrollDirection.idle) {
+            return;
+          }
+          // 动画期间内容可能缩短。框架不调整运动中的位置；下一 tick
+          // 撞到新边界会直接 goIdle，而非回弹，可能把整篇正文留在屏外。
+          // 仅收尾本次已停止的自动定位，不打断用户拖动或新的滚动活动。
+          if (pos.outOfRange) {
+            pos.jumpTo(
+              pos.pixels.clamp(pos.minScrollExtent, pos.maxScrollExtent),
+            );
+          }
+        });
   }
 
   /// 光标越出可见区(视口 ∩ 键盘上方)时滚动到可见。仅折叠光标态
@@ -1601,7 +1632,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
   /// 不用 Scrollable.ensureVisible:它按**整个 RenderObject**(编辑器是
   /// 一整块巨型 child)对齐,会瞬移到块顶。position.animateTo 按光标
   /// 矩形精确滚(宿主 markdown_editor 同构做法)。
-  void _ensureCaretVisible(Rect caretGlobal) {
+  void _ensureCaretVisible(Rect caretGlobal, {bool layoutChanged = false}) {
     final pos = _scrollPosition;
     if (pos == null || !pos.hasContentDimensions) return;
     // 手柄拖动/浮动光标中光标由手指驱动,滚动交给边缘自动滚 —— ensure
@@ -1618,6 +1649,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
       viewport: visible,
       userScrolling: userScrolling,
       autoScrolling: pos.isScrollingNotifier.value && !userScrolling,
+      layoutChanged: layoutChanged,
     )) {
       return;
     }
@@ -3977,7 +4009,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
                   block is IslandBlock &&
                   _isSingleIslandSelection(block.id));
       return EditorObjectFrame(
-        onLayout: _scheduleObjectGeometry,
+        onLayout: _scheduleLayoutGeometry,
         key: _blockKeys.putIfAbsent(block.id, GlobalKey.new),
         selected: selected,
         child: Stack(
@@ -4070,7 +4102,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
               ),
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: EditorObjectFrame(
-                onLayout: _scheduleObjectGeometry,
+                onLayout: _scheduleLayoutGeometry,
                 key: _containerKeys.putIfAbsent((
                   frame.groupId,
                   state.blocks[runStart].id,
