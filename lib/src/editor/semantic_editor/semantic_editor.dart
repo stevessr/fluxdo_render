@@ -281,7 +281,7 @@ class SemanticEditorProjection {
                     (!_validSemanticLinkAttrs(m.attrs) ||
                         m.attrs['href'] is! String ||
                         m.attrs['attachment'] == true ||
-                        m.attrs['markup'] != null)),
+                        !{null, 'linkify', 'bare'}.contains(m.attrs['markup']))),
           )) {
         return null;
       }
@@ -295,7 +295,9 @@ class SemanticEditorProjection {
             end: text.length,
             kind: _kinds[m.type]!,
             attr: m.type == 'link' ? m.attrs['href'] as String : null,
-            isAutoLink: m.type == 'link' ? false : null,
+            isAutoLink: m.type == 'link'
+                ? {'linkify', 'bare'}.contains(m.attrs['markup'])
+                : null,
           ),
         );
       }

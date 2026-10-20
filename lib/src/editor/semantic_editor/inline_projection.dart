@@ -196,10 +196,15 @@ InlineNode? _semanticInlineAtom(SemanticNode node) {
         return null;
       }
       final l = link.attrs;
+      // 裸自动链接保留逐字编辑坐标；若压成一个哨兵而仍渲染完整 URL，
+      // 链接及后续正文的命中位置就会与编辑偏移错位。
+      // 显式原子、附件和带特殊来源的链接继续保留原子协议。
       if (!_validSemanticLinkAttrs(l) ||
           l['href'] is! String ||
           !(l['isAtom'] == true || l['attachment'] == true ||
-              l['markup'] != null ||
+              (l['markup'] != null &&
+                  (!{'linkify', 'bare'}.contains(l['markup']) ||
+                      l['title'] != null)) ||
               l['filename'] != null)) {
         return null;
       }
