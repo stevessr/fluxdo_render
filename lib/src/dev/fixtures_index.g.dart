@@ -658,9 +658,8 @@ sha256 占位:本 fixture 为新引擎构造样例非线上抓取,提交前可�
     html: r'''<p>点击查看大图:<a href="https://example.com/lightbox/foo"><img src="https://example.com/upload/thumb.png" alt="thumbnail" width="100" height="100"></a></p>
 ''',
     notes: r'''img 嵌套在 link 内 — 验证 LinkRun.children 含 ImageRun 正常解析。
-注意:WidgetSpan 不带 recognizer,所以图片本身**不可点**(已知限制,
-跟 emoji-in-link 同源,留到阶段 5 自研选区时统一解决)。主项目接入
-通常会在 imageContentBuilder 内自己包 GestureDetector 处理 lightbox。''',
+WidgetSpan 不吃 TextSpan 的 recognizer:flattener 用 ImageLinkScope 把
+外层链接的点击回调递给图片,主项目图片 widget 读到后单击改为打开链接。''',
     source: r'''https://example.com/t/sample/1/img4''',
     edgeCase: true,
   ),

@@ -433,6 +433,7 @@ class InlineFlattener {
           node,
           p.imageBuilder,
           p.totalImagesInPost,
+          inheritedRecognizer: inheritedRecognizer,
         ),
       SpoilerRun(:final children) => _buildSpoilerSpan(children, p),
       FootnoteRefRun() => _buildFootnoteRefSpan(
@@ -988,15 +989,23 @@ class InlineFlattener {
   WidgetSpan _buildImageSpan(
     ImageRun image,
     ImageContentBuilder imageBuilder,
-    int totalImagesInPost,
-  ) {
+    int totalImagesInPost, {
+    GestureRecognizer? inheritedRecognizer,
+  }) {
     // lightbox 图(典型形态:Discourse cooked 上传图)单独成行,
     // 加上下小 margin 区隔相邻图片 / 文字。普通 inline <img> 不加。
     // builder 用挂载处活 ctx(编辑器路径一直如此),产物可跨挂载复用。
     final isLightbox = image.lightboxUrl != null;
-    final child = Builder(
+    Widget child = Builder(
       builder: (ctx) => imageBuilder(ctx, image, totalImagesInPost),
     );
+    // A WidgetSpan cannot inherit the outer TextSpan's tap recognizer.
+    final linkTap = inheritedRecognizer is TapGestureRecognizer
+        ? inheritedRecognizer.onTap
+        : null;
+    if (linkTap != null) {
+      child = ImageLinkScope(onTap: linkTap, child: child);
+    }
     return WidgetSpan(
       // bottom(≈ CSS img 默认 vertical-align:baseline):图底边贴文字
       // 底部。middle 会让大图行的文字挂在图片垂直中点(浏览器/官方
