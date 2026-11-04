@@ -125,3 +125,17 @@ class GridTileScope extends InheritedWidget {
   @override
   bool updateShouldNotify(GridTileScope oldWidget) => false;
 }
+/// Supplies the outer link tap handler to an image inside an anchor.
+/// WidgetSpan children do not inherit TextSpan gesture recognizers.
+class ImageLinkScope extends InheritedWidget {
+  const ImageLinkScope({super.key, required this.onTap, required super.child});
+
+  final VoidCallback onTap;
+
+  static VoidCallback? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ImageLinkScope>()?.onTap;
+
+  @override
+  bool updateShouldNotify(ImageLinkScope oldWidget) =>
+      onTap != oldWidget.onTap;
+}

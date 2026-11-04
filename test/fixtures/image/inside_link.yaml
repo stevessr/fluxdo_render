@@ -6,7 +6,6 @@ also_contains: [paragraph]
 edge_case: true
 notes: |
   img 嵌套在 link 内 — 验证 LinkRun.children 含 ImageRun 正常解析。
-  注意:WidgetSpan 不带 recognizer,所以图片本身**不可点**(已知限制,
-  跟 emoji-in-link 同源,留到阶段 5 自研选区时统一解决)。主项目接入
-  通常会在 imageContentBuilder 内自己包 GestureDetector 处理 lightbox。
+  WidgetSpan 不吃 TextSpan 的 recognizer:flattener 用 ImageLinkScope 把
+  外层链接的点击回调递给图片,主项目图片 widget 读到后单击改为打开链接。
 sanitized: true
