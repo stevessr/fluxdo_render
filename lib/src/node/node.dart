@@ -936,7 +936,7 @@ enum ImageGridMode {
 ///   主体:LayoutBuilder + Wrap(spacing 6, runSpacing 6)
 ///     列宽 = (avail - (cols-1)*6) / cols,瓦片高 = 宽 * (h/w) clamp 80..300
 ///     无尺寸时高 = 宽 * 0.75
-///   瓦片:ClipRRect 圆角 4 + 走 imageContentBuilder
+///   瓦片:ClipRSuperellipse 圆角 4 + 走 imageContentBuilder
 ///
 /// **简化**:
 /// - 子包不依赖 visibility_detector,瓦片不做 lazy load(主项目可在
@@ -1107,7 +1107,7 @@ enum LazyVideoProvider {
 /// ```
 ///
 /// 视觉对齐 legacy `lazy_video_builder.dart::_buildThumbnail`:
-///   Padding vertical 8 + ClipRRect 圆角 8 + 黑底
+///   Padding vertical 8 + ClipRSuperellipse 圆角 8 + 黑底
 ///   AspectRatio 16:9 缩略图 + 中央播放按钮(品牌色 60x42)
 ///   底部标题栏(可点跳 url + onSurfaceVariant 灰底 0.5)
 ///

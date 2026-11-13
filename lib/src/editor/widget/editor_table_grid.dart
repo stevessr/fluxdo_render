@@ -20,6 +20,7 @@ import 'package:flutter/rendering.dart' show RendererBinding;
 import '../../node/node.dart';
 import 'editor_table_actions.dart';
 import '../model/markdown_serializer.dart';
+import '../../config/render_shapes.dart';
 
 /// 编辑器自管交互区的命中标记(MetaData.metaData):FluxdoEditor 的
 /// tap/pan 手势命中带此标记的子树时完全让路 —— 区域内的焦点/光标/
@@ -681,8 +682,8 @@ class _EditorTableGridState extends State<EditorTableGrid>
       ),
       // 编辑器浮层统一规格:圆角 12 + 细边框 + 浮层底(composer 的
       // 斜杠/插入菜单同款)
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+      shape: RoundedSuperellipseBorder(
+        borderRadius: context.renderShapes.borderRadius(12),
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       color: scheme.surfaceContainerLow,
@@ -735,13 +736,10 @@ class _EditorTableGridState extends State<EditorTableGrid>
           width: tableWidth,
           child: IgnorePointer(
             child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
+              decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(
                   color: widget.selected ? scheme.primary : borderColor,
                   width: widget.selected ? 2 : 1,
-                ),
-              ),
+                ),),),
             ),
           ),
         ),
@@ -876,20 +874,16 @@ class _EditorTableGridState extends State<EditorTableGrid>
                         message: '选中表格(选中后退格删除)',
                         child: InkWell(
                           onTap: widget.onSelectRequest,
-                          borderRadius: BorderRadius.circular(4),
+                          customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(4)),
                           child: Container(
                             padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: widget.selected
+                            decoration: ShapeDecoration(color: widget.selected
                                   ? scheme.primary
-                                  : scheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
+                                  : scheme.surfaceContainerHighest,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(4), side: BorderSide(
                                 color: widget.selected
                                     ? scheme.primary
                                     : scheme.outlineVariant,
-                              ),
-                            ),
+                              ),),),
                             child: Icon(
                               Icons.drag_indicator,
                               size: 12,
@@ -917,8 +911,8 @@ class _EditorTableGridState extends State<EditorTableGrid>
     // cells 容器只管:表头/选中底色、行间分隔线、首末行内侧圆角裁剪
     // (外框+圆角描边由覆盖层统一画,见 build 的 rowsArea)。
     final radius = BorderRadius.vertical(
-      top: r == 0 ? const Radius.circular(8) : Radius.zero,
-      bottom: r == _rows - 1 ? const Radius.circular(8) : Radius.zero,
+      top: r == 0 ? FluxdoRenderShapes.current.radius(8) : Radius.zero,
+      bottom: r == _rows - 1 ? FluxdoRenderShapes.current.radius(8) : Radius.zero,
     );
     return MouseRegion(
       onEnter: (_) => setState(() => _hoverRow = r),
@@ -934,7 +928,7 @@ class _EditorTableGridState extends State<EditorTableGrid>
                 onHover: (h) => setState(() => _hoverRow = h ? r : null),
               ),
             if (!_mobileManaged) const SizedBox(width: 2),
-            ClipRRect(
+            ClipRSuperellipse(
               borderRadius: radius,
               child: Container(
                 decoration: BoxDecoration(
@@ -1093,12 +1087,9 @@ class _ColHandle extends StatelessWidget {
               child: Container(
                 width: 28,
                 height: 5,
-                decoration: BoxDecoration(
-                  color: scheme.onSurfaceVariant.withValues(
+                decoration: ShapeDecoration(color: scheme.onSurfaceVariant.withValues(
                     alpha: opacity >= 1 ? 0.7 : 0.45,
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                ),
+                  ),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(3), ),),
               ),
             ),
           ),
@@ -1138,12 +1129,9 @@ class _RowHandle extends StatelessWidget {
               child: Container(
                 width: 5,
                 height: 22,
-                decoration: BoxDecoration(
-                  color: scheme.onSurfaceVariant.withValues(
+                decoration: ShapeDecoration(color: scheme.onSurfaceVariant.withValues(
                     alpha: opacity >= 1 ? 0.7 : 0.45,
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                ),
+                  ),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(3), ),),
               ),
             ),
           ),
@@ -1191,12 +1179,9 @@ class _EdgeAddBarState extends State<_EdgeAddBar> {
         margin: horizontal
             ? const EdgeInsets.only(top: 2)
             : const EdgeInsets.only(left: 2),
-        decoration: BoxDecoration(
-          color: _hover
+        decoration: ShapeDecoration(color: _hover
               ? scheme.primary.withValues(alpha: 0.15)
-              : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(6),
-        ),
+              : scheme.surfaceContainerHighest.withValues(alpha: 0.5),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(6), ),),
         child: Icon(
           Icons.add,
           size: 11,

@@ -83,6 +83,48 @@ void main() {
   });
 
   group('parser picture 拆壳', () {
+    const redPacketUrl = 'https://hb.lafi.sh/🧧/📜🪀🚽💺🪺🍢🧱🪵🐋🩱👩🧞🧾☕';
+    const redPacketImageUrl = '$redPacketUrl/🖼️.svg';
+
+    test('链接内红包 picture 从 source 取地址并保留 img 属性和图片序号', () {
+      final r = parser.parse(
+        '<a href="$redPacketUrl" rel="noopener nofollow ugc">'
+        '<picture><source type="image/svg+xml" '
+        'srcset="$redPacketImageUrl 1x">'
+        '<img width="300" height="400" alt="猫猫头的红包"></picture></a>'
+        '<p>口令如题 w<img src="after.png"></p>',
+        imageIndexStart: 3,
+      );
+      final link = (r.first as ParagraphNode).inlines.single as LinkRun;
+      expect(link.href, redPacketUrl);
+      expect(link.children, hasLength(1));
+      final img = link.children.single as ImageRun;
+      expect(img.src, redPacketImageUrl);
+      expect(img.alt, '猫猫头的红包');
+      expect(img.width, 300);
+      expect(img.height, 400);
+      expect(img.srcset.single.url, redPacketImageUrl);
+      expect(img.srcset.single.scale, 1);
+      expect(collectImageRuns(r).map((img) => img.indexInPost), [3, 4]);
+      expect(
+        (r.last as ParagraphNode).inlines.whereType<TextRun>().single.text,
+        '口令如题 w',
+      );
+    });
+
+    test('块级 picture 的 img 无 src 时仍保留尺寸和替代文字', () {
+      final r = parser.parse(
+        '<picture><source srcset="first.svg 1x, second.svg 2x">'
+        '<img width="300" height="400" alt="红包"></picture>',
+      );
+      final img = collectImageRuns(r).single;
+      expect(img.src, 'first.svg');
+      expect(img.alt, '红包');
+      expect(img.width, 300);
+      expect(img.height, 400);
+      expect(img.srcset.map((candidate) => candidate.scale), [1, 2]);
+    });
+
     test('块级 picture>source+img → 取 img fallback', () {
       final r = parser.parse(
         '<picture><source srcset="b-480.webp 480w, b-800.webp 800w">'

@@ -1637,7 +1637,8 @@ class ParagraphParser {
   }
 
   /// 从一个普通 `<img>` 元素提 ImageRun(src/alt/width/height + indexInPost)。
-  /// src 为空返回 null。emoji / skip 判定由调用方负责。
+  /// src 为空时尝试父级 `<picture>` 的 source srcset,仍无地址才返回 null。
+  /// emoji / skip 判定由调用方负责。
   ///
   /// **客户端 cook 预览形态**:raw 里的 `upload://` 图被 cook 成
   /// `src="/images/transparent.png" data-orig-src="upload://…"`(真实 URL
@@ -1657,6 +1658,15 @@ class ParagraphParser {
     if (origSrc != null && origSrc.startsWith('upload://')) {
       src = origSrc;
     }
+    var srcset = _parseSrcset(img.attributes['srcset']);
+    final picture = img.parent;
+    if (src.isEmpty && picture != null && picture.localName == 'picture') {
+      // 红包等动态卡片只在 <source> 声明 SVG 地址,<img> 仅提供尺寸/alt。
+      // 在共同入口补地址,让链接、段落、figure 和块级 picture 一致处理,
+      // 并保留 <img> 元数据及全帖图片序号。
+      srcset = _pictureSourceSrcset(picture);
+      if (srcset.isNotEmpty) src = srcset.first.url;
+    }
     if (src.isEmpty) return null;
     final alt = img.attributes['alt']?.trim() ?? '';
     final w = double.tryParse(img.attributes['width'] ?? '');
@@ -1675,7 +1685,7 @@ class ParagraphParser {
       previewImageIndex: controls?.imageIndex,
       origWidth: controls?.origWidth,
       origHeight: controls?.origHeight,
-      srcset: _parseSrcset(img.attributes['srcset']),
+      srcset: srcset,
       dominantColor:
           (dominant == null || dominant.isEmpty) ? null : dominant,
       base62Sha1: (base62 == null || base62.isEmpty) ? null : base62,
@@ -2502,7 +2512,7 @@ class ParagraphParser {
         return;
       case 'source':
         // <picture>/<video>/<audio> 的 <source>:纯响应式候选,无可见文字。
-        // 行内场景跳过(srcset 的取用在块级 _parsePictureBlock 里处理)。
+        // 图片地址由 _imageRunFromImg / _parsePictureBlock 提取,此处跳过。
         return;
       case 'span':
         // 客户端 cook 预览的图片编辑控件(image-controls feature,

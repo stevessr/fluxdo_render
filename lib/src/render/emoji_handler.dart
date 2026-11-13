@@ -25,6 +25,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../node/inline_node.dart';
+import '../config/render_shapes.dart';
 
 /// Emoji 渲染 builder。
 ///
@@ -59,10 +60,7 @@ Widget defaultEmojiImageBuilder(
     final vPad = size * 0.15;
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 4, vertical: vPad),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(3),
-      ),
+      decoration: ShapeDecoration(color: scheme.surfaceContainerHigh,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(3), ),),
       child: Text(
         text,
         style: TextStyle(

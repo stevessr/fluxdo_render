@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import '../model/editor_block.dart';
 import 'editor_table_grid.dart' show kEditorSelfManagedRegion;
 import '../../node/node.dart' show CalloutKind;
+import '../../config/render_shapes.dart';
 
 /// 把一组同容器子块包上对应装饰壳。
 class EditorContainerShell extends StatelessWidget {
@@ -61,17 +62,13 @@ class EditorContainerShell extends StatelessWidget {
         // 阅读端 QuoteCard 视觉简化:灰底圆角 + 头部 username 行
         // (头像/徽章是服务端注入的展示字段,编辑态不渲染)
         final name = displayName ?? username;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
-            borderRadius: const BorderRadius.only(
-              topRight: Radius.circular(4),
-              bottomRight: Radius.circular(4),
-            ),
-            border: Border(
+        return ClipRSuperellipse(borderRadius: BorderRadius.only(
+              topRight: context.renderShapes.radius(4),
+              bottomRight: context.renderShapes.radius(4),
+            ), child: DecoratedBox(
+          decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),border: Border(
               left: BorderSide(color: scheme.outlineVariant, width: 4),
-            ),
-          ),
+            )),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
             child: Column(
@@ -93,18 +90,14 @@ class EditorContainerShell extends StatelessWidget {
               ],
             ),
           ),
-        );
+        ));
 
       case SpoilerFrame():
         // 编辑态剧透壳:淡遮罩底纹 + 顶部小标签(内容可见可编辑)
         return DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.onSurface.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
+          decoration: ShapeDecoration(color: scheme.onSurface.withValues(alpha: 0.06),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(6), side: BorderSide(
               color: scheme.outlineVariant.withValues(alpha: 0.6),
-            ),
-          ),
+            ),),),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
             child: Column(
@@ -137,10 +130,7 @@ class EditorContainerShell extends StatelessWidget {
       case DetailsFrame(:final summary):
         // 编辑态 details:边框 + summary 标题行(恒展开;点标题改文案)
         return DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: scheme.outlineVariant),
-          ),
+          decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(6), side: BorderSide(color: scheme.outlineVariant),),),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
             child: Column(
@@ -193,15 +183,11 @@ class EditorContainerShell extends StatelessWidget {
                   ? ''
                   : typeRaw[0].toUpperCase() + typeRaw.substring(1))
             : title!;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: calloutColor.withValues(alpha: 0.1),
-            borderRadius: const BorderRadius.only(
-              topRight: Radius.circular(4),
-              bottomRight: Radius.circular(4),
-            ),
-            border: Border(left: BorderSide(color: calloutColor, width: 4)),
-          ),
+        return ClipRSuperellipse(borderRadius: BorderRadius.only(
+              topRight: context.renderShapes.radius(4),
+              bottomRight: context.renderShapes.radius(4),
+            ), child: DecoratedBox(
+          decoration: BoxDecoration(color: calloutColor.withValues(alpha: 0.1),border: Border(left: BorderSide(color: calloutColor, width: 4))),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 8, 8),
             child: Column(
@@ -239,7 +225,7 @@ class EditorContainerShell extends StatelessWidget {
               ],
             ),
           ),
-        );
+        ));
     }
   }
 
@@ -285,7 +271,7 @@ class _TitleRow extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: onContextMenu,
-          borderRadius: BorderRadius.circular(4),
+          customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(4)),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: child,

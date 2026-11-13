@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../../config/render_shapes.dart';
 
 /// 块与容器共用的浅色选中背景，不增加 padding，不改变正文布局。
 class EditorObjectFrame extends StatelessWidget {
@@ -15,14 +16,11 @@ class EditorObjectFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     position: DecorationPosition.foreground,
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(6),
-      color: selected
+    decoration: ShapeDecoration(color: selected
           ? Theme.of(context).colorScheme.primary.withValues(
               alpha: MediaQuery.highContrastOf(context) ? .24 : .12,
             )
-          : Colors.transparent,
-    ),
+          : Colors.transparent,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(6), ),),
     child: _ObjectLayoutObserver(onLayout: onLayout, child: child),
   );
 }

@@ -47,6 +47,9 @@ import 'selectable_text_box.dart';
 import 'selectable_object_block.dart';
 import 'spoiler_effect.dart';
 import 'svg_handler.dart';
+import '../config/render_palette.dart';
+import '../config/render_shapes.dart';
+import '../config/render_style.dart';
 
 class NodeFactory {
   NodeFactory({
@@ -417,7 +420,9 @@ class NodeFactory {
     final baseStyle =
         baseTextStyle ?? theme.textTheme.bodyMedium ?? const TextStyle();
     final em = baseStyle.fontSize ?? 14;
-    final headingStyle = headingStyleFor(baseStyle, node.level);
+    final headingStyle = FluxdoRenderStyle.of(
+      theme,
+    ).applyHeading(headingStyleFor(baseStyle, node.level));
     final margin = em * kHeadingMargin[node.level - 1];
     // 锚点注册包装:无 HeadingAnchorScope 时(编辑器/分享卡等)零开销,
     // 话题阅读侧借它实现 TOC 跳转与 scroll-spy。
@@ -705,23 +710,16 @@ class NodeFactory {
   Widget buildBlockquote(BuildContext context, BlockquoteNode node) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final renderStyle = FluxdoRenderStyle.of(theme);
     final pos = node.chunkPos;
     final isFirst =
         pos == BlockquoteChunkPos.whole || pos == BlockquoteChunkPos.first;
     final isLast =
         pos == BlockquoteChunkPos.whole || pos == BlockquoteChunkPos.last;
-    return Container(
-      margin: EdgeInsets.only(top: isFirst ? 8 : 0, bottom: isLast ? 8 : 0),
-      padding: EdgeInsets.fromLTRB(12, isFirst ? 8 : 0, 12, isLast ? 8 : 0),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        border: Border(left: BorderSide(color: scheme.outline, width: 4)),
-        borderRadius: BorderRadius.only(
-          topRight: isFirst ? const Radius.circular(4) : Radius.zero,
-          bottomRight: isLast ? const Radius.circular(4) : Radius.zero,
-        ),
-      ),
-      child: DefaultTextStyle.merge(
+    return Padding(padding: EdgeInsets.only(top: isFirst ? 8 : 0, bottom: isLast ? 8 : 0), child: ClipRSuperellipse(borderRadius: BorderRadius.only(
+          topRight: isFirst ? FluxdoRenderShapes.current.radius(4) : Radius.zero,
+          bottomRight: isLast ? FluxdoRenderShapes.current.radius(4) : Radius.zero,
+        ),child: Container(padding: EdgeInsets.fromLTRB(12, isFirst ? 8 : 0, 12, isLast ? 8 : 0),decoration: BoxDecoration(color: renderStyle.quoteBackground ? scheme.surfaceContainerHighest.withValues(alpha: 0.3) : null,border: Border(left: BorderSide(color: scheme.outline, width: renderStyle.quoteBarWidth))),child: DefaultTextStyle.merge(
         style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -731,8 +729,7 @@ class NodeFactory {
               _compactCopy().build(context, child),
           ],
         ),
-      ),
-    );
+      ))));
   }
 
   /// 分割线 — `<hr>`。
@@ -876,11 +873,7 @@ class NodeFactory {
     final langLabel = (node.language ?? 'TEXT').toUpperCase();
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
+      decoration: ShapeDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),),),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -936,6 +929,7 @@ class NodeFactory {
   Widget buildQuoteCard(BuildContext context, QuoteCardNode node) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final renderStyle = FluxdoRenderStyle.of(theme);
     final avatarBuilder = quoteAvatarBuilder ?? defaultQuoteAvatarBuilder;
     final usernameStyle = theme.textTheme.labelLarge?.copyWith(
       color: scheme.onSurfaceVariant,
@@ -945,17 +939,10 @@ class NodeFactory {
       height: 1.2,
       color: scheme.primary,
     );
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        border: Border(left: BorderSide(color: scheme.outline, width: 4)),
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(4),
-          bottomRight: Radius.circular(4),
-        ),
-      ),
-      child: Column(
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: ClipRSuperellipse(borderRadius: BorderRadius.only(
+          topRight: context.renderShapes.radius(4),
+          bottomRight: context.renderShapes.radius(4),
+        ),child: Container(decoration: BoxDecoration(color: renderStyle.quoteBackground ? scheme.surfaceContainerHighest.withValues(alpha: 0.3) : null,border: Border(left: BorderSide(color: scheme.outline, width: renderStyle.quoteBarWidth))),child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 顶部:头像 + username + 可选标题
@@ -1034,8 +1021,7 @@ class NodeFactory {
               ),
             ),
         ],
-      ),
-    );
+      ))));
   }
 
   /// 块级 spoiler 渲染 — `<div class="spoiler">`。
@@ -1112,7 +1098,11 @@ class NodeFactory {
   Widget buildCallout(BuildContext context, CalloutNode node) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final config = _calloutConfigFor(node.kind, node.typeRaw, scheme);
+    final config = _calloutConfigFor(
+      node.kind,
+      node.typeRaw,
+      FluxdoRenderPalette.of(theme),
+    );
     // 内容是否为空(空时不渲染 body,且头部不留 8px 底 padding)
     final hasBody = node.children.isNotEmpty;
     final foldable = node.foldable;
@@ -1180,17 +1170,10 @@ class NodeFactory {
     }
 
     // 不可折叠 / 无内容形态(支持装饰下放位置感知)
-    return Container(
-      margin: EdgeInsets.only(top: isFirst ? 8 : 0, bottom: isLast ? 8 : 0),
-      decoration: BoxDecoration(
-        color: config.color.withValues(alpha: 0.1),
-        border: Border(left: BorderSide(color: config.color, width: 4)),
-        borderRadius: BorderRadius.only(
-          topRight: isFirst ? const Radius.circular(4) : Radius.zero,
-          bottomRight: isLast ? const Radius.circular(4) : Radius.zero,
-        ),
-      ),
-      child: Column(
+    return Padding(padding: EdgeInsets.only(top: isFirst ? 8 : 0, bottom: isLast ? 8 : 0), child: ClipRSuperellipse(borderRadius: BorderRadius.only(
+          topRight: isFirst ? FluxdoRenderShapes.current.radius(4) : Radius.zero,
+          bottomRight: isLast ? FluxdoRenderShapes.current.radius(4) : Radius.zero,
+        ),child: Container(decoration: BoxDecoration(color: config.color.withValues(alpha: 0.1),border: Border(left: BorderSide(color: config.color, width: 4))),child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 标题头只在首片(whole / first)出现。
@@ -1205,8 +1188,7 @@ class NodeFactory {
             ),
           if (hasBody) bodyWidget,
         ],
-      ),
-    );
+      ))));
   }
 
   /// 图片网格渲染 — `<div class="d-image-grid">`(对齐 legacy
@@ -1217,7 +1199,7 @@ class NodeFactory {
   ///   主体:LayoutBuilder + Wrap(spacing 6, runSpacing 6)
   ///     列宽 = (avail - (cols-1)*6) / cols
   ///     瓦片高 = 宽 * (h/w) clamp 80..300;无尺寸时 = 宽 * 0.75
-  ///   瓦片:ClipRRect 圆角 4 + 走 imageContentBuilder(主项目同款渲染)
+  ///   瓦片:ClipRSuperellipse 圆角 4 + 走 imageContentBuilder(主项目同款渲染)
   ///
   /// **carousel 模式 fallback**:子包不实现真 carousel(legacy 含分页 /
   /// 计数器 / 预加载 / 手势 — 量大且依赖 visibility_detector)。降级为
@@ -1242,8 +1224,8 @@ class NodeFactory {
             for (final img in node.images)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
+                child: ClipRSuperellipse(
+                  borderRadius: context.renderShapes.borderRadius(4),
                   child: builder(context, img, totalImagesInPost),
                 ),
               ),
@@ -1312,7 +1294,7 @@ class NodeFactory {
   /// `lazy_video_builder.dart::_buildThumbnail`)。
   ///
   /// 视觉:
-  ///   Padding vertical 8 + ClipRRect 圆角 8 + 黑底容器
+  ///   Padding vertical 8 + ClipRSuperellipse 圆角 8 + 黑底容器
   ///   主体:AspectRatio 16:9 缩略图 + 中央播放按钮(品牌色 60×42 圆角 8)
   ///   底部:标题栏(灰底 surfaceContainerHighest @ 0.5,可点跳 url)
   ///
@@ -1503,11 +1485,7 @@ class NodeFactory {
       child: Container(
         height: 96,
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: scheme.outlineVariant),
-        ),
+        decoration: ShapeDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant),),),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1552,8 +1530,8 @@ class _LazyVideoThumbnailCard extends StatelessWidget {
     final brand = _brandColorFor(node.provider);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+      child: ClipRSuperellipse(
+        borderRadius: context.renderShapes.borderRadius(8),
         child: Container(
           color: Colors.black,
           child: Column(
@@ -1579,10 +1557,7 @@ class _LazyVideoThumbnailCard extends StatelessWidget {
                     Container(
                       width: 60,
                       height: 42,
-                      decoration: BoxDecoration(
-                        color: brand.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      decoration: ShapeDecoration(color: brand.withValues(alpha: 0.9),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), ),),
                       child: const Icon(
                         Icons.play_arrow_rounded,
                         color: Colors.white,
@@ -1634,7 +1609,7 @@ class _VideoPlaceholder extends StatelessWidget {
   }
 }
 
-/// 网格中的单张图片瓦片 — 按 columnWidth 算高 + ClipRRect 圆角 + 内部
+/// 网格中的单张图片瓦片 — 按 columnWidth 算高 + ClipRSuperellipse 圆角 + 内部
 /// 走 imageContentBuilder。
 class _GridTile extends StatelessWidget {
   const _GridTile({
@@ -1657,8 +1632,8 @@ class _GridTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: tileHeight,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
+      child: ClipRSuperellipse(
+        borderRadius: context.renderShapes.borderRadius(4),
         // 给 builder 产物 tight 瓦片约束(列 stretch 提供宽、SizedBox
         // 提供高),由主项目按 GridTileScope 标记以 BoxFit.cover 填满。
         // 不用 FittedBox(cover) 包自然尺寸图:那会让图内 Hero 量到
@@ -1690,16 +1665,12 @@ class _DefaultOneboxCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: scheme.outlineVariant, width: 1),
-      ),
+      decoration: ShapeDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant, width: 1),),),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -1813,8 +1784,8 @@ class _Body extends StatelessWidget {
       children: [
         Expanded(child: textCol),
         const SizedBox(width: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+        ClipRSuperellipse(
+          borderRadius: context.renderShapes.borderRadius(6),
           child: SizedBox(
             width: 80,
             height: 80,
@@ -1971,7 +1942,7 @@ class _CodeBlockBodyState extends State<_CodeBlockBody> {
               controller: _vController,
               thumbVisibility: false,
               thickness: 4,
-              radius: const Radius.circular(2),
+              radius: FluxdoRenderShapes.current.radius(2),
               padding: const EdgeInsets.only(right: 2, top: 2, bottom: 2),
               thumbColor: thumbColor,
               child: SingleChildScrollView(
@@ -2079,14 +2050,12 @@ class _SpoilerBlockWidgetState extends State<_SpoilerBlockWidget>
     // 灰块)。点击触发涟漪揭开动画(Telegram 同款:圆形裁剪自点击处扩散,
     // 内容随圆扩大显形,遮罩同步淡出),动画结束才进入揭示态。
     final isDark = theme.brightness == Brightness.dark;
-    final bg = theme.scaffoldBackgroundColor;
+    // 遮罩必须不透明：页面有自定义背景时页面底色是透明的，取它会露出剧透内容
+    final bg = theme.colorScheme.surface;
     final Widget mask = spoilerReduceMotion
         // reduce-motion:静态灰块遮罩(可见、隐内容,无动画)。
         ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
-            ),
+            decoration: ShapeDecoration(color: scheme.surfaceContainerHighest,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(4), ),),
           )
         : RepaintBoundary(
             child: CustomPaint(
@@ -2105,8 +2074,8 @@ class _SpoilerBlockWidgetState extends State<_SpoilerBlockWidget>
       onTap: _onTap,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+        child: ClipRSuperellipse(
+          borderRadius: context.renderShapes.borderRadius(4),
           child: Stack(
             fit: StackFit.passthrough,
             children: [
@@ -2389,21 +2358,18 @@ class _DetailsWidgetState extends State<_DetailsWidget>
         : scheme.surfaceContainerLow;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: borderColor, width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(7),
+      decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: borderColor, width: 1),),),
+      child: ClipRSuperellipse(
+        borderRadius: context.renderShapes.borderRadius(7),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 头:可点击 + 旋转箭头 + summary
             Material(
               color: headerBgColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(7),
-              ),
+              shape: RoundedSuperellipseBorder(borderRadius: BorderRadius.vertical(
+                top: context.renderShapes.radius(7),
+              )),
               child: InkWell(
                 onTap: _toggle,
                 child: Padding(
@@ -2484,84 +2450,84 @@ class _CalloutConfig {
 _CalloutConfig _calloutConfigFor(
   CalloutKind kind,
   String typeRaw,
-  ColorScheme scheme,
+  FluxdoRenderPalette palette,
 ) {
   switch (kind) {
     case CalloutKind.note:
-      return const _CalloutConfig(
-        color: Colors.blue,
+      return _CalloutConfig(
+        color: palette.blue,
         icon: Icons.edit_note_rounded,
         defaultTitle: 'Note',
       );
     case CalloutKind.summary:
-      return const _CalloutConfig(
-        color: Colors.cyan,
+      return _CalloutConfig(
+        color: palette.cyan,
         icon: Icons.subject_rounded,
         defaultTitle: 'Summary',
       );
     case CalloutKind.info:
-      return const _CalloutConfig(
-        color: Colors.blue,
+      return _CalloutConfig(
+        color: palette.blue,
         icon: Icons.info_rounded,
         defaultTitle: 'Info',
       );
     case CalloutKind.todo:
-      return const _CalloutConfig(
-        color: Colors.blue,
+      return _CalloutConfig(
+        color: palette.blue,
         icon: Icons.check_circle_rounded,
         defaultTitle: 'Todo',
       );
     case CalloutKind.tip:
-      return const _CalloutConfig(
-        color: Colors.teal,
+      return _CalloutConfig(
+        color: palette.teal,
         icon: Icons.tips_and_updates_rounded,
         defaultTitle: 'Tip',
       );
     case CalloutKind.success:
-      return const _CalloutConfig(
-        color: Colors.green,
+      return _CalloutConfig(
+        color: palette.green,
         icon: Icons.check_circle_rounded,
         defaultTitle: 'Success',
       );
     case CalloutKind.question:
-      return const _CalloutConfig(
-        color: Colors.orange,
+      return _CalloutConfig(
+        color: palette.orange,
         icon: Icons.help_rounded,
         defaultTitle: 'Question',
       );
     case CalloutKind.warning:
-      return const _CalloutConfig(
-        color: Colors.orange,
+      return _CalloutConfig(
+        color: palette.orange,
         icon: Icons.warning_amber_rounded,
         defaultTitle: 'Warning',
       );
     case CalloutKind.failure:
-      return const _CalloutConfig(
-        color: Colors.red,
+      return _CalloutConfig(
+        color: palette.red,
         icon: Icons.close_rounded,
         defaultTitle: 'Failure',
       );
     case CalloutKind.danger:
-      return const _CalloutConfig(
-        color: Colors.red,
+      return _CalloutConfig(
+        color: palette.red,
         icon: Icons.dangerous_rounded,
         defaultTitle: 'Danger',
       );
     case CalloutKind.bug:
-      return const _CalloutConfig(
-        color: Colors.red,
+      return _CalloutConfig(
+        color: palette.red,
         icon: Icons.bug_report_rounded,
         defaultTitle: 'Bug',
       );
     case CalloutKind.example:
-      return const _CalloutConfig(
-        color: Colors.purple,
+      return _CalloutConfig(
+        color: palette.purple,
         icon: Icons.list_rounded,
         defaultTitle: 'Example',
       );
     case CalloutKind.quote:
-      return const _CalloutConfig(
-        color: Colors.grey,
+      return _CalloutConfig(
+        color: palette.grey,
         icon: Icons.format_quote_rounded,
         defaultTitle: 'Quote',
       );
@@ -2571,7 +2537,7 @@ _CalloutConfig _calloutConfigFor(
           ? 'Note'
           : '${typeRaw[0].toUpperCase()}${typeRaw.substring(1)}';
       return _CalloutConfig(
-        color: Colors.grey,
+        color: palette.grey,
         icon: Icons.format_quote_rounded,
         defaultTitle: defaultTitle,
       );
@@ -2686,17 +2652,10 @@ class _FoldableCalloutWidgetState extends State<_FoldableCalloutWidget>
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: config.color.withValues(alpha: 0.1),
-        border: Border(left: BorderSide(color: config.color, width: 4)),
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(4),
-          bottomRight: Radius.circular(4),
-        ),
-      ),
-      child: Column(
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: ClipRSuperellipse(borderRadius: BorderRadius.only(
+          topRight: context.renderShapes.radius(4),
+          bottomRight: context.renderShapes.radius(4),
+        ),child: Container(decoration: BoxDecoration(color: config.color.withValues(alpha: 0.1),border: Border(left: BorderSide(color: config.color, width: 4))),child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
@@ -2732,8 +2691,7 @@ class _FoldableCalloutWidgetState extends State<_FoldableCalloutWidget>
             ),
           ),
         ],
-      ),
-    );
+      ))));
   }
 }
 
@@ -2758,16 +2716,13 @@ class _IframePlaceholderCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Material(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
+        shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: scheme.outlineVariant, width: 1),
-            ),
+            decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant, width: 1),),),
             child: Row(
               children: [
                 Icon(
@@ -2831,7 +2786,7 @@ class _IframePlaceholderCard extends StatelessWidget {
 /// 原生上传视频占位卡（未注入 videoBuilder 时）。
 ///
 /// 有封面 poster：画封面 + 中央播放按钮（对齐 lazy_video 卡片观感，AspectRatio
-/// 16:9 黑底 + ClipRRect 圆角 8）；无封面：灰底卡 + 视频图标 + 文件名。
+/// 16:9 黑底 + ClipRSuperellipse 圆角 8）；无封面：灰底卡 + 视频图标 + 文件名。
 /// 整卡点击 → onTap（降级 linkHandler 跳浏览器）。
 class _VideoPlaceholderCard extends StatelessWidget {
   const _VideoPlaceholderCard({required this.node, required this.onTap});
@@ -2853,8 +2808,8 @@ class _VideoPlaceholderCard extends StatelessWidget {
     if (hasPoster) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+        child: ClipRSuperellipse(
+          borderRadius: context.renderShapes.borderRadius(8),
           child: GestureDetector(
             onTap: onTap,
             child: Container(
@@ -2882,10 +2837,7 @@ class _VideoPlaceholderCard extends StatelessWidget {
                     Container(
                       width: 60,
                       height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      decoration: ShapeDecoration(color: Colors.black.withValues(alpha: 0.55),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), ),),
                       child: const Icon(
                         Icons.play_arrow_rounded,
                         color: Colors.white,
@@ -2905,16 +2857,13 @@ class _VideoPlaceholderCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Material(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
+        shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: scheme.outlineVariant, width: 1),
-            ),
+            decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant, width: 1),),),
             child: Row(
               children: [
                 Icon(
@@ -2965,16 +2914,13 @@ class _AudioPlaceholderCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Material(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
+        shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8)),
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: scheme.outlineVariant, width: 1),
-            ),
+            decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant, width: 1),),),
             child: Row(
               children: [
                 Icon(
@@ -3092,12 +3038,9 @@ class _TableWidget extends StatelessWidget {
     final tableAlign = node.textAlign;
     final tableBox = Container(
       width: totalWidth,
-      decoration: BoxDecoration(
-        border: Border.all(color: borderColor, width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+      decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: borderColor, width: 1),),),
+      child: ClipRSuperellipse(
+        borderRadius: context.renderShapes.borderRadius(8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -3488,10 +3431,7 @@ class _PolicyFallbackCard extends StatelessWidget {
         : '接受';
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant, width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant, width: 1),),),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -3523,10 +3463,7 @@ class _PolicyFallbackCard extends StatelessWidget {
                     horizontal: 12,
                     vertical: 6,
                   ),
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                  decoration: ShapeDecoration(color: scheme.primary.withValues(alpha: 0.1),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(6), ),),
                   child: Text(
                     accept,
                     style: TextStyle(
@@ -3571,10 +3508,7 @@ class _PollFallbackCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant, width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(color: scheme.outlineVariant, width: 1),),),
       child: Row(
         children: [
           Icon(Icons.bar_chart_rounded, size: 20, color: scheme.primary),
@@ -3624,18 +3558,12 @@ class _ChatTranscriptFallbackCard extends StatelessWidget {
       margin: node.isChained
           ? EdgeInsets.zero
           : const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        border: node.isChained
+      decoration: ShapeDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),shape: RoundedSuperellipseBorder(borderRadius: node.isChained
             ? null
-            : Border(left: BorderSide(color: scheme.outline, width: 4)),
-        borderRadius: node.isChained
-            ? null
-            : const BorderRadius.only(
-                topRight: Radius.circular(4),
-                bottomRight: Radius.circular(4),
-              ),
-      ),
+            : BorderRadius.only(
+                topRight: context.renderShapes.radius(4),
+                bottomRight: context.renderShapes.radius(4),
+              ), side: node.isChained ? BorderSide.none : (Border(left: BorderSide(color: scheme.outline, width: 4))).top,),),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,

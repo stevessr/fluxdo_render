@@ -28,6 +28,7 @@ import '../model/editable_text_content.dart'
     show EditableTextContent, MarkKind, MarkSpan;
 import '../model/editor_state.dart';
 import '../model/inline_spin.dart' show scanInlineSyntax;
+import '../../config/render_shapes.dart';
 
 class EditableParagraph extends StatefulWidget {
   const EditableParagraph({
@@ -464,25 +465,25 @@ class _SpoilerDecorPainter extends CustomPainter {
         TextSelection(baseOffset: rs, extentOffset: re),
       );
       for (final box in boxes) {
-        final rect = RRect.fromLTRBR(
+        final rect = RSuperellipse.fromLTRBR(
           box.left - 1,
           box.top,
           box.right + 1,
           box.bottom,
-          const Radius.circular(3),
+          FluxdoRenderShapes.current.radius(3),
         );
-        canvas.drawRRect(rect, fill);
+        canvas.drawRSuperellipse(rect, fill);
         if (dashed) {
           _drawDashedRRect(canvas, rect, border);
         } else {
-          canvas.drawRRect(rect, border);
+          canvas.drawRSuperellipse(rect, border);
         }
       }
     }
   }
 
   /// 简易虚线圆角框:上下边画 dash(左右短边省略 —— 视觉足够)。
-  void _drawDashedRRect(Canvas canvas, RRect rect, Paint paint) {
+  void _drawDashedRRect(Canvas canvas, RSuperellipse rect, Paint paint) {
     const dash = 4.0;
     const gap = 3.0;
     for (final y in [rect.top + 0.5, rect.bottom - 0.5]) {

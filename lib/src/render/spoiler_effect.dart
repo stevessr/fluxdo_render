@@ -274,10 +274,10 @@ class SpoilerEffectPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(borderRadius));
+    final rrect = RSuperellipse.fromRectAndRadius(rect, Radius.circular(borderRadius));
 
     canvas.save();
-    canvas.clipRRect(rrect);
+    canvas.clipRSuperellipse(rrect);
     final s = shader;
     if (s != null && size.width > 0 && size.height > 0) {
       final baseColor = isDark ? Colors.white : Colors.grey.shade800;
@@ -297,7 +297,7 @@ class SpoilerEffectPainter extends CustomPainter {
       canvas.drawRect(rect, Paint()..shader = s);
     } else {
       // shader 未就绪/加载失败:纯色静态遮罩,内容照样被完全遮盖。
-      canvas.drawRRect(rrect, Paint()..color = backgroundColor);
+      canvas.drawRSuperellipse(rrect, Paint()..color = backgroundColor);
     }
     canvas.restore();
   }

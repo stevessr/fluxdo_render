@@ -16,6 +16,7 @@ import 'projection.dart';
 import 'selection_geometry.dart';
 import 'selection_range.dart';
 import 'selection_registry.dart';
+import '../config/render_shapes.dart';
 
 class SelectionHighlight extends StatelessWidget {
   const SelectionHighlight({
@@ -115,8 +116,8 @@ class _HighlightPainter extends CustomPainter {
     // 整行等高(防 emoji 处参差);tight 间隙保证不跨行。
     for (final rowRect in rects) {
       if (outline) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rowRect, const Radius.circular(4)),
+        canvas.drawRSuperellipse(
+          RSuperellipse.fromRectAndRadius(rowRect, FluxdoRenderShapes.current.radius(4)),
           paint,
         );
       } else {

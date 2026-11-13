@@ -42,6 +42,8 @@ import '../render/mention_handler.dart';
 import '../render/spoiler_effect.dart';
 import '../selection/projection.dart';
 import '../selection/projection_builder.dart';
+import '../config/render_palette.dart';
+import '../config/render_shapes.dart';
 
 /// 挂载上下文宿主:flatten 产物与当前挂载点(State)之间的活 context 桥。
 ///
@@ -491,10 +493,7 @@ class InlineFlattener {
             child: Container(
               height: lineHeight,
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(6),
-              ),
+              decoration: ShapeDecoration(color: scheme.surfaceContainerHigh,shape: RoundedSuperellipseBorder(borderRadius: FluxdoRenderShapes.current.borderRadius(6), ),),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -943,10 +942,7 @@ class InlineFlattener {
             child: Container(
               height: lineHeight,
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(10),
-              ),
+              decoration: ShapeDecoration(color: scheme.surfaceContainerHigh,shape: RoundedSuperellipseBorder(borderRadius: FluxdoRenderShapes.current.borderRadius(10), ),),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -999,7 +995,10 @@ class InlineFlattener {
     Widget child = Builder(
       builder: (ctx) => imageBuilder(ctx, image, totalImagesInPost),
     );
-    // A WidgetSpan cannot inherit the outer TextSpan's tap recognizer.
+    // 链接内图片(`<a href><img></a>`):WidgetSpan 不吃 TextSpan 的
+    // recognizer,链接点击经 ImageLinkScope 递给图片 widget 自行处理。
+    // inheritedRecognizer 只来自 _buildLinkSpan(编辑态 context 为 null
+    // 时不创建,自然不挂)。
     final linkTap = inheritedRecognizer is TapGestureRecognizer
         ? inheritedRecognizer.onTap
         : null;
@@ -1156,13 +1155,11 @@ class _SpoilerInlineWidgetState extends State<_SpoilerInlineWidget>
     // 静态块)。点击触发涟漪揭开动画(Telegram 同款:圆形裁剪自点击处扩散,
     // 内容随圆扩大显形,遮罩同步淡出),动画结束才进入揭示态。
     final isDark = theme.brightness == Brightness.dark;
-    final bg = theme.scaffoldBackgroundColor;
+    // 遮罩必须不透明：页面有自定义背景时页面底色是透明的，取它会露出剧透内容
+    final bg = theme.colorScheme.surface;
     final Widget mask = spoilerReduceMotion
         ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(3),
-            ),
+            decoration: ShapeDecoration(color: scheme.surfaceContainerHighest,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(3), ),),
           )
         : RepaintBoundary(
             child: CustomPaint(
@@ -1294,17 +1291,16 @@ class _ClickCountWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor =
-        isDark ? const Color(0xFF3A3D47) : const Color(0xFFE8EBEF);
-    final textColor =
-        isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final palette = FluxdoRenderPalette.of(theme);
+    final bgColor = palette.clickCountBackground ??
+        (isDark ? const Color(0xFF3A3D47) : const Color(0xFFE8EBEF));
+    final textColor = palette.clickCountForeground ??
+        (isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: ShapeDecoration(color: bgColor,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(10), ),),
       child: Text(
         count,
         style: TextStyle(color: textColor, fontSize: 10),

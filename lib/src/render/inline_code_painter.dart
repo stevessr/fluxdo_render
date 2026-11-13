@@ -1,5 +1,5 @@
 /// 行内代码背景自绘 —— 在 InlineSpanText 的文字**下层**画圆角灰底,跨行时按行
-/// 合并成连续 RRect(首行圆左角、末行圆右角)。
+/// 合并成连续 RSuperellipse(首行圆左角、末行圆右角)。
 ///
 /// 对齐 legacy 装饰架构(`CombinedDecoratorOverlay` + `InlineCodePainter` +
 /// `ScanBoundary`):legacy 给 `<code>` 设**透明 CSS 背景** + 标记字体,布局后
@@ -71,8 +71,8 @@ class InlineCodeBackgroundPainter extends CustomPainter {
   RenderParagraph? _cacheParagraph;
   RenderTextProjection? _cacheProjection;
   Size? _cacheSize;
-  List<RRect>? _cacheRRects;
-  List<RRect>? _cacheMentionRRects;
+  List<RSuperellipse>? _cacheRRects;
+  List<RSuperellipse>? _cacheMentionRRects;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -114,16 +114,16 @@ class InlineCodeBackgroundPainter extends CustomPainter {
         identical(_cacheProjection, projection) &&
         _cacheSize == paragraph.size) {
       for (final rrect in cachedMention) {
-        canvas.drawRRect(rrect, mentionPaint);
+        canvas.drawRSuperellipse(rrect, mentionPaint);
       }
       for (final rrect in cached) {
-        canvas.drawRRect(rrect, paint);
+        canvas.drawRSuperellipse(rrect, paint);
       }
       return;
     }
 
-    final rrects = <RRect>[];
-    final mentionRRects = <RRect>[];
+    final rrects = <RSuperellipse>[];
+    final mentionRRects = <RSuperellipse>[];
     final entries = projection.entries;
     for (var idx = 0; idx < entries.length; idx++) {
       final e = entries[idx];
@@ -178,7 +178,7 @@ class InlineCodeBackgroundPainter extends CustomPainter {
         // 首行圆左角、末行圆右角(单行 = 四角全圆);中间行直角 → 跨行连成一条。
         final lr = isFirst ? Radius.circular(radius) : Radius.zero;
         final rr = isLast ? Radius.circular(radius) : Radius.zero;
-        (isCode ? rrects : mentionRRects).add(RRect.fromRectAndCorners(
+        (isCode ? rrects : mentionRRects).add(RSuperellipse.fromRectAndCorners(
           merged,
           topLeft: lr,
           bottomLeft: lr,
@@ -188,10 +188,10 @@ class InlineCodeBackgroundPainter extends CustomPainter {
       }
     }
     for (final rrect in mentionRRects) {
-      canvas.drawRRect(rrect, mentionPaint);
+      canvas.drawRSuperellipse(rrect, mentionPaint);
     }
     for (final rrect in rrects) {
-      canvas.drawRRect(rrect, paint);
+      canvas.drawRSuperellipse(rrect, paint);
     }
     _cacheParagraph = paragraph;
     _cacheProjection = projection;

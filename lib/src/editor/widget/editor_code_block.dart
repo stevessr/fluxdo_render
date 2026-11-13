@@ -22,6 +22,7 @@ import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 
 import '../../node/node.dart';
 import 'editor_table_grid.dart' show kEditorSelfManagedRegion;
+import '../../config/render_shapes.dart';
 
 class EditorCodeBlock extends StatefulWidget {
   const EditorCodeBlock({
@@ -188,7 +189,7 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
                     vertical: 4,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: context.renderShapes.borderRadius(4),
                     borderSide: BorderSide(color: scheme.outlineVariant),
                   ),
                 ),
@@ -262,10 +263,16 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
             style: codeStyle,
             maxLines: null,
             minLines: 3,
+            // 主题的 enabledBorder / focusedBorder 优先于 border，需逐个清掉
             decoration: const InputDecoration(
               isDense: true,
               isCollapsed: true,
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
             ),
           ),
         ),
@@ -302,18 +309,14 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
       metaData: kEditorSelfManagedRegion,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
+        decoration: ShapeDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(8), side: BorderSide(
             color: widget.selected
                 ? scheme.primary
                 : _editing
                 ? scheme.primary.withValues(alpha: 0.6)
                 : scheme.outlineVariant.withValues(alpha: 0.5),
             width: widget.selected || _editing ? 1.5 : 1,
-          ),
-        ),
+          ),),),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -353,20 +356,16 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
                   message: '选中代码块(选中后退格删除)',
                   child: InkWell(
                     onTap: widget.onSelectRequest,
-                    borderRadius: BorderRadius.circular(4),
+                    customBorder: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(4)),
                     child: Container(
                       padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: widget.selected
+                      decoration: ShapeDecoration(color: widget.selected
                             ? scheme.primary
-                            : scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
+                            : scheme.surfaceContainerHighest,shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(4), side: BorderSide(
                           color: widget.selected
                               ? scheme.primary
                               : scheme.outlineVariant,
-                        ),
-                      ),
+                        ),),),
                       child: Icon(
                         Icons.drag_indicator,
                         size: 12,

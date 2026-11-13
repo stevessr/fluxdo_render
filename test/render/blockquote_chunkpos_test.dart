@@ -34,39 +34,49 @@ void main() {
     return tester.widget<Container>(find.byType(Container).first);
   }
 
-  ({double top, double bottom}) margin(Container c) {
-    final m = c.margin! as EdgeInsets;
+  ({double top, double bottom}) margin(WidgetTester tester, Container c) {
+    final m = tester.widget<Padding>(find.byWidgetPredicate((w) => w is Padding && w.child is ClipRSuperellipse && (w.child as ClipRSuperellipse).child == c)).padding as EdgeInsets;
     return (top: m.top, bottom: m.bottom);
   }
 
-  ({double tr, double br}) corners(Container c) {
-    final d = c.decoration! as BoxDecoration;
-    final r = d.borderRadius! as BorderRadius;
+  ({double tr, double br}) corners(WidgetTester tester, Container c) {
+    final r =
+        tester
+                .widget<ClipRSuperellipse>(
+                  find
+                      .ancestor(
+                        of: find.byWidget(c),
+                        matching: find.byType(ClipRSuperellipse),
+                      )
+                      .first,
+                )
+                .borderRadius
+            as BorderRadius;
     return (tr: r.topRight.x, br: r.bottomRight.x);
   }
 
   testWidgets('whole:上下都有外边距 + 上下圆角(原行为)', (tester) async {
     final c = await bqContainer(tester, BlockquoteChunkPos.whole);
-    expect(margin(c), (top: 8.0, bottom: 8.0));
-    expect(corners(c), (tr: 4.0, br: 4.0));
+    expect(margin(tester, c), (top: 8.0, bottom: 8.0));
+    expect(corners(tester, c), (tr: 4.0, br: 4.0));
   });
 
   testWidgets('first:仅上外边距 + 上圆角(无下圆角,接 mid)', (tester) async {
     final c = await bqContainer(tester, BlockquoteChunkPos.first);
-    expect(margin(c), (top: 8.0, bottom: 0.0));
-    expect(corners(c), (tr: 4.0, br: 0.0));
+    expect(margin(tester, c), (top: 8.0, bottom: 0.0));
+    expect(corners(tester, c), (tr: 4.0, br: 0.0));
   });
 
   testWidgets('mid:无外边距、无圆角(上下无缝拼接)', (tester) async {
     final c = await bqContainer(tester, BlockquoteChunkPos.mid);
-    expect(margin(c), (top: 0.0, bottom: 0.0));
-    expect(corners(c), (tr: 0.0, br: 0.0));
+    expect(margin(tester, c), (top: 0.0, bottom: 0.0));
+    expect(corners(tester, c), (tr: 0.0, br: 0.0));
   });
 
   testWidgets('last:仅下外边距 + 下圆角(无上圆角,接 mid)', (tester) async {
     final c = await bqContainer(tester, BlockquoteChunkPos.last);
-    expect(margin(c), (top: 0.0, bottom: 8.0));
-    expect(corners(c), (tr: 0.0, br: 4.0));
+    expect(margin(tester, c), (top: 0.0, bottom: 8.0));
+    expect(corners(tester, c), (tr: 0.0, br: 4.0));
   });
 
   testWidgets('各片左条 + 背景一致(连续)', (tester) async {

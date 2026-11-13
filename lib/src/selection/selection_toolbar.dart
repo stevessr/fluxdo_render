@@ -26,6 +26,7 @@ import 'package:flutter/services.dart';
 
 import 'selection_data.dart';
 import 'selection_process_text.dart';
+import '../config/render_shapes.dart';
 
 class SelectionToolbar {
   SelectionToolbar({
@@ -170,7 +171,7 @@ class SelectionToolbar {
             anchorBelow: anchorBelow,
             toolbarBuilder: (context, child) => Material(
               // 44(SDK _kToolbarHeight)/ 2:与默认容器同形的胶囊圆角。
-              borderRadius: const BorderRadius.all(Radius.circular(22)),
+              shape: RoundedSuperellipseBorder(borderRadius: BorderRadius.all(context.renderShapes.radius(22))),
               clipBehavior: Clip.antiAlias,
               color: Theme.of(context).colorScheme.surfaceContainerHigh,
               elevation: 3,

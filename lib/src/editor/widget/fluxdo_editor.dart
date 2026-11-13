@@ -76,6 +76,7 @@ import 'editor_image_grid.dart';
 import 'editor_island.dart';
 import 'editor_table_grid.dart';
 import 'editor_table_actions.dart';
+import '../../config/render_shapes.dart';
 
 /// 图片原子选中态(官方 ProseMirror NodeSelection 对应物)。
 ///
@@ -1333,17 +1334,13 @@ class _FluxdoEditorState extends State<FluxdoEditor>
               key: kFloatingCursorGhostKey,
               width: 2.5,
               height: _caretLineHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(ctx).colorScheme.primary,
-                borderRadius: BorderRadius.circular(1.25),
-                boxShadow: const [
+              decoration: ShapeDecoration(color: Theme.of(ctx).colorScheme.primary,shadows: const [
                   BoxShadow(
                     color: Colors.black26,
                     blurRadius: 3,
                     offset: Offset(0, 1),
                   ),
-                ],
-              ),
+                ],shape: RoundedSuperellipseBorder(borderRadius: context.renderShapes.borderRadius(1.25), ),),
             ),
           ),
         );
