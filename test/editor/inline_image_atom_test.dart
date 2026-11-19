@@ -2,7 +2,7 @@
 /// 写回、投影宽 1(图后打字光标坐标正确)、行高不被 strut 压制。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart';

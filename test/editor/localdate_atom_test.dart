@@ -1,7 +1,7 @@
 /// M5:local date 行内原子化 —— 不再把含时间 chip 的段落岛化。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/editor/model/doc_converter.dart';
 import 'package:fluxdo_render/src/editor/model/editor_state.dart';

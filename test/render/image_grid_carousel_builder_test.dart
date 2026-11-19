@@ -2,7 +2,7 @@
 /// 降级单列大图(走 imageContentBuilder)。grid 形态不调 imageGridBuilder。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/node.dart';
 import 'package:fluxdo_render/src/render/node_factory.dart';

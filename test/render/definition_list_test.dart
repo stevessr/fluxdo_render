@@ -1,7 +1,7 @@
 /// 验证 DefinitionListNode 渲染:dt 文本可见(常规字重)+ dd 左缩进 1.25em。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/node.dart';
 import 'package:fluxdo_render/src/render/node_factory.dart';

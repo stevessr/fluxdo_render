@@ -32,6 +32,7 @@ export 'src/render/cached_paragraph_text.dart'
     show ParagraphLayoutCache, CachedParagraphText;
 export 'src/render/paragraph_warmup.dart'
     show ParagraphWarmup, ParagraphWarmupProbe, WarmupContext;
+export 'src/render/spoiler_effect.dart' show SpoilerShader;
 export 'src/render/video_handler.dart';
 export 'src/render/image_handler.dart';
 export 'src/render/inline_span_text.dart';

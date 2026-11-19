@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../node/node.dart';
 import '../parser/paragraph_parser.dart';

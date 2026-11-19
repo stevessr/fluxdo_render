@@ -3,7 +3,7 @@
 /// 无对齐时保持原有「内容贴左缘铺满」布局(防回归)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/node.dart';
 import 'package:fluxdo_render/src/render/list_item_layout.dart';

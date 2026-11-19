@@ -9,7 +9,7 @@
 /// 不遮蔽 —— 编辑时内容必须可见,对齐官方 rich editor 行为)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../model/editor_block.dart';
 import 'editor_table_grid.dart' show kEditorSelfManagedRegion;

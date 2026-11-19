@@ -28,7 +28,7 @@ import 'package:flutter/gestures.dart'
         PointerDownEvent,
         TapGestureRecognizer,
         kDoubleTapTimeout;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../render/selectable_object_block.dart';
 import 'package:flutter/rendering.dart'
     show BoxHitTestResult, RenderMetaData, RenderParagraph, ScrollDirection;

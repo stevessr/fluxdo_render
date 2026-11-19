@@ -6,7 +6,7 @@
 /// padding。这条 test 直接断言 bullet 顶部 Y ≈ 首块文字顶部 Y(防回归)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/node.dart';
 import 'package:fluxdo_render/src/render/node_factory.dart';

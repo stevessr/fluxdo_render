@@ -34,7 +34,7 @@
 
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../node/node.dart';
 import '../config/render_shapes.dart';

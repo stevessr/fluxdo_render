@@ -1,7 +1,7 @@
 /// 孤岛集成 widget 测试:选岛/删岛/registry 隔离/岛前后建段。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/src/node/node.dart';

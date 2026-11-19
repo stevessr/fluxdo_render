@@ -13,7 +13,7 @@
 /// (代码块复制 ```lang)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 
 import '../selection/block_text_geometry.dart';

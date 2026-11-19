@@ -6,7 +6,7 @@
 /// 光标就没了 —— M1 踩过的坑)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../model/editable_text_content.dart';
 import '../model/editor_state.dart';

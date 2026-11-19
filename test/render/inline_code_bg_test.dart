@@ -3,7 +3,7 @@
 /// - 代码**块** `<pre><code>`(整块自带背景)不挂该 painter(避免双重背景)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/render/inline_code_painter.dart';
 import 'package:fluxdo_render/src/widget/fluxdo_render.dart';

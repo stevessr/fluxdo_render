@@ -13,7 +13,7 @@
 /// 只会留一块 44px 隐形命中区,挡住光标附近的 tap。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 /// 测试定位用(widget test 无法 find 系统私有的 handle painter)。

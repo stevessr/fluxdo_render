@@ -11,7 +11,7 @@
 /// 并管理 [MagnifierController] 的 show/hide。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SelectionMagnifier {
   SelectionMagnifier(this.context);

@@ -6,7 +6,7 @@
 
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../flatten/flatten_cache.dart';
 import '../flatten/inline_flattener.dart';

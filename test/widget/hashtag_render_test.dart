@@ -1,7 +1,7 @@
 /// 阅读端 hashtag 药丸的整链路回归(cooked → 解析 → flatten → 渲染)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/fluxdo_render.dart';
 

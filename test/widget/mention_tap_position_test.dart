@@ -5,7 +5,7 @@
 /// 否则浮层只能锚整个段落的 rect,飘到段落角上。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/flatten/inline_flattener.dart';
 import 'package:fluxdo_render/src/node/inline_node.dart';

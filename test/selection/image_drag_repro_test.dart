@@ -4,7 +4,7 @@
 /// 断言 positionAt 在图片各处都能命中(不返回 null),且能拖到 B。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/inline_node.dart';
 import 'package:fluxdo_render/src/render/inline_span_text.dart';

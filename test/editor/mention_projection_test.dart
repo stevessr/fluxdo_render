@@ -4,7 +4,7 @@
 /// 所有偏移全部错位(真机症状:@arch_linux 的光标停在 "ar|ch")。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/editor/model/editable_text_content.dart';
 import 'package:fluxdo_render/src/flatten/inline_flattener.dart';

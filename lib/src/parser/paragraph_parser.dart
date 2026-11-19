@@ -111,7 +111,7 @@ class ParagraphParser {
   /// 所有 `<li id="fnId">` → contentHtml 映射。
   ///
   /// contentHtml 处理:
-  /// - 移除 backref(`<a class="footnote-backref">↩︎</a>`)
+  /// - 移除回链和嵌套脚注引用，与 Discourse 弹层内容一致
   /// - 若整体被 `<p>...</p>` 单层包裹,剥掉外层 p(legacy 同处理)
   /// - trim
   ///
@@ -127,19 +127,22 @@ class ParagraphParser {
       final id = li.attributes['id']?.trim();
       if (id == null || id.isEmpty) continue;
       if (out.containsKey(id)) continue;
-      var html = li.innerHtml;
-      // 去掉 backref(可能在末尾,可能含 emoji ↩)
-      html = html.replaceAll(
-        RegExp(
-          r'<a[^>]*class="[^"]*footnote-backref[^"]*"[^>]*>[\s\S]*?</a>',
-          caseSensitive: false,
-        ),
-        '',
-      );
-      // 剥掉单层 <p>...</p>
-      html = html
-          .replaceAll(RegExp(r'^\s*<p>\s*'), '')
-          .replaceAll(RegExp(r'\s*</p>\s*$'), '')
+      final content = li.clone(true);
+      for (final nested in content.querySelectorAll(
+        'sup.footnote-ref, .footnote-backref',
+      )) {
+        nested.remove();
+      }
+      // 仅剥离唯一的普通段落；多段、列表和图片保持完整块结构。
+      final nodes = content.nodes
+          .where((node) => node is! dom.Text || node.text.trim().isNotEmpty)
+          .toList();
+      final onlyChild = nodes.length == 1 ? nodes.single : null;
+      final html = (onlyChild is dom.Element &&
+                  onlyChild.localName == 'p' &&
+                  onlyChild.attributes.isEmpty
+              ? onlyChild.innerHtml
+              : content.innerHtml)
           .trim();
       if (html.isNotEmpty) out[id] = html;
     }
@@ -501,9 +504,8 @@ class ParagraphParser {
                 // 折叠块:<details><summary>标题</summary>内容</details>
                 out.add(_parseDetails(node, nextId, nextImageIndex));
               case 'section' when node.classes.contains('footnotes'):
-                // 脚注列表区:解析成 FootnotesSectionNode(带 entries),
-                // node_factory 渲染底部「分隔线 + 编号列表」。
-                // 上标 popover 仍由 FootnoteRefRun.contentHtml 提供(并存)。
+                // 保留脚注数据供编辑和截图；阅读时由 node_factory 决定隐藏。
+                // 上标弹层独立使用 FootnoteRefRun.contentHtml。
                 out.add(FootnotesSectionNode(
                   id: nextId(),
                   entries: _parseFootnoteEntries(node, nextImageIndex),

@@ -2,7 +2,7 @@
 /// 整个编辑区糊成一块底色(真机症状:选了个标签,正文变成一大块灰)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/src/editor/widget/editable_paragraph.dart';

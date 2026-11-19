@@ -5,7 +5,7 @@
 /// 对齐 Flutter SelectionArea / CodeMirror state.doc 行为的关键回归。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/inline_node.dart';
 import 'package:fluxdo_render/src/render/inline_span_text.dart';

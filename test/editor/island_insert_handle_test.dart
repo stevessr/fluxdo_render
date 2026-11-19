@@ -1,7 +1,7 @@
 /// 岛选中态「加段」把手:首块是岛时移动端的加段途径。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart' show CodeBlockNode;

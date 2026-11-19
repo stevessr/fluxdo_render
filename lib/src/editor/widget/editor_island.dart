@@ -17,7 +17,7 @@
 /// EditorImageGrid(经 [contentOverride] 注入),此处不再有 grid 专属逻辑。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../node/node.dart';
 import '../../render/node_factory.dart';

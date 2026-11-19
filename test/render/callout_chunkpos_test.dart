@@ -2,7 +2,7 @@
 /// 中/尾片无标题、连续装饰(左条+主色背景每片都画),仅尾片下外边距/下圆角。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/node.dart';
 import 'package:fluxdo_render/src/render/node_factory.dart';

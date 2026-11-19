@@ -9,6 +9,7 @@ environment:
 # 独立 app,不进主项目 workspace(避免污染主项目依赖图)
 # fluxdo_render 通过 path 引用上级目录
 dependencies:
+  material_ui: ^1.11.1
   flutter:
     sdk: flutter
   fluxdo_render:

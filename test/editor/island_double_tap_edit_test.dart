@@ -4,7 +4,7 @@
 /// 命中面积最小的一个 —— 双击"点不中"的回归专门盯它。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart' show HorizontalRuleNode;

@@ -1,7 +1,7 @@
 /// onIslandSelected:岛整选态上抛(onebox 工具条锚定数据)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart' show CodeBlockNode;

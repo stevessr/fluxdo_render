@@ -37,7 +37,7 @@ library;
 
 import 'dart:collection';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../node/inline_node.dart';
 import 'inline_flattener.dart';

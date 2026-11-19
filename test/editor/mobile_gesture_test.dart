@@ -3,7 +3,7 @@
 library;
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind, kLongPressTimeout;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/editor.dart';

@@ -9,8 +9,8 @@
 /// base/extent 自然交换(由 orderedEndpoints 视觉序归一化吸收)。
 library;
 
-import 'package:flutter/cupertino.dart' show cupertinoTextSelectionControls;
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart' show cupertinoTextSelectionControls;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import 'hit_tester.dart';

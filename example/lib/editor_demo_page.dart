@@ -5,7 +5,7 @@
 /// mention 可编辑;代码块/表格是只读孤岛。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fluxdo_render/editor.dart';
 import 'package:fluxdo_render/fluxdo_render.dart' show ParagraphParser;
 

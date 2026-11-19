@@ -14,7 +14,7 @@ library;
 import 'dart:math' show Random;
 import 'dart:ui' as ui show FragmentShader;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:flutter/services.dart';
 
@@ -749,9 +749,8 @@ class NodeFactory {
 
   /// 底部脚注区渲染 — `<section class="footnotes">`。
   ///
-  /// 设计取舍(legacy 此处 `SizedBox.shrink()`,见 FootnotesSectionNode 文档):
-  ///   上分隔线 + 有序编号悬挂列表。与上标 [FootnoteRefRun] popover 并存:
-  ///   popover 即时预览、底部列表完整可读(截图分享场景必需)。
+  /// 提供上标点击处理时，与 Discourse 行内脚注一致，隐藏文末重复列表。
+  /// 截图无法点击，或宿主未接入弹层时，保留分隔线及编号列表供阅读。
   ///
   /// 样式(锚定 Discourse 网页 ol.footnotes-list 语义 + 子包既有 token):
   ///   分隔线:同 buildHorizontalRule(outlineVariant@0.5,上下各 12,但合并到本区顶部)
@@ -764,7 +763,10 @@ class NodeFactory {
     BuildContext context,
     FootnotesSectionNode node,
   ) {
-    if (node.entries.isEmpty) return const SizedBox.shrink();
+    if (node.entries.isEmpty ||
+        (footnoteTapHandler != null && !screenshotMode)) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final base =

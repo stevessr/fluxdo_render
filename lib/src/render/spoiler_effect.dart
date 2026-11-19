@@ -6,7 +6,7 @@
 ///
 /// GPU 侧成本 ∝ 可见面积 × 每像素 ops,且 Impeller 无 raster cache、
 /// 可见区域每帧重执行 shader —— 所以 .frag 必须保持每像素几十 ops 量级
-/// (见 frag 头注释),widget 侧动画更新率压到 ~30fps。
+/// (见 frag 头注释),widget 侧动画更新率压到 ~30fps([SpoilerClock])。
 ///
 /// 未揭示时 shader 输出不透明色(背景并入)**完全遮盖**内容;shader
 /// 未加载/加载失败时退化为纯色静态遮罩。
@@ -17,34 +17,92 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 
-/// spoiler 动画 Ticker 的统一门控(块级 [_SpoilerBlockWidget] / 行内
-/// [_SpoilerInlineWidget] 共用,此前两处复制导致同款缺陷):
+import 'frame_aligned_wakeup.dart';
+
+/// 所有 spoiler 共用的粒子时钟：约 30fps、对齐 vsync，只在该推进时才请求
+/// 一帧（[FrameAlignedWakeup]）。
 ///
-/// - ~30fps 节流:尘埃闪烁无需满帧率;
-/// - **屏幕可见性门控**(修复项):sliver 挂载(cacheExtent 预取区)≠ 可见。
-///   Ticker 常驻会让整个 app 永不进入空闲帧 —— Priority.idle 的 chunk
-///   预热被饿死、帧管线全速空转,视口外的遮罩还在每 33ms 烧一次 GPU
-///   (Impeller 无 raster cache,shader 全量重执行)。现在不可见即停表,
-///   降级为 500ms 低频探针待命(普通 Timer,不驱动帧调度),回到屏内
-///   自动复跑;粒子场取全局时钟,复跑不回卷。
+/// 每个实例各开一个常驻 Ticker 时，Ticker 每个 vsync 都会请求下一帧，即使
+/// 本帧被节流跳过不更新，引擎照样整帧合成、整屏重新光栅化 —— 屏上有一个
+/// 未揭开的 spoiler，应用就按刷新率（120Hz 屏即 120 帧）持续出帧。现在粒子
+/// 仍按约 33ms 的稳定节拍更新（时间取全局时钟，画面与原来一致），两次更新
+/// 之间不再出空帧；多个 spoiler 同一帧推进，不会互相错拍。
+class SpoilerClock {
+  SpoilerClock._();
+
+  static final SpoilerClock instance = SpoilerClock._();
+
+  static const Duration interval = Duration(microseconds: 33333);
+
+  final Set<VoidCallback> _listeners = {};
+  FrameAlignedWakeup? _wakeup;
+
+  @visibleForTesting
+  int get debugListenerCount => _listeners.length;
+
+  void addListener(VoidCallback listener) {
+    _listeners.add(listener);
+    // 第一个订阅者：下一帧就推进一次，从那一帧起按节拍走
+    _wakeup ??= FrameAlignedWakeup(
+      target: Duration.zero,
+      now: null,
+      onFrame: _onFrame,
+    );
+  }
+
+  void removeListener(VoidCallback listener) {
+    _listeners.remove(listener);
+    if (_listeners.isEmpty) {
+      _wakeup?.cancel();
+      _wakeup = null;
+    }
+  }
+
+  void _onFrame(Duration timeStamp) {
+    _wakeup = null;
+    if (_listeners.isEmpty) return;
+    for (final listener in List.of(_listeners)) {
+      if (_listeners.contains(listener)) listener();
+    }
+    if (_listeners.isNotEmpty) {
+      _wakeup ??= FrameAlignedWakeup(
+        target: timeStamp + interval,
+        now: timeStamp,
+        onFrame: _onFrame,
+      );
+    }
+  }
+}
+
+/// spoiler 动画的统一门控(块级 [_SpoilerBlockWidget] / 行内
+/// [_SpoilerInlineWidget] 共用):
+///
+/// - 粒子闪烁订阅全局 [SpoilerClock](约 30fps,只在推进时出帧);
+/// - **屏幕可见性门控**:sliver 挂载(cacheExtent 预取区)≠ 可见。不可见即
+///   退订,降级为 500ms 低频探针待命(普通 Timer,不驱动帧调度),回到屏内
+///   自动复订;粒子场取全局时钟,复订不回卷;
+/// - 所在路由被盖住(TickerMode 关闭)时同样退订;
+/// - 揭开涟漪是短动画,用自身 Ticker 满帧率推进;
 /// - reveal / reduce-motion 语义与原实现一致。
 mixin SpoilerTickerGate<T extends StatefulWidget>
     on State<T>, SingleTickerProviderStateMixin<T> {
-  static const Duration _tickInterval = Duration(milliseconds: 33);
   static const Duration _wakeProbeInterval = Duration(milliseconds: 500);
 
-  /// shader 时间源 —— Ticker 只更新 value(painter 以其为 repaint
+  /// shader 时间源 —— 只更新 value(painter 以其为 repaint
   /// Listenable),不 setState 重建 widget 子树。
-  final ValueNotifier<double> spoilerTime =
-      ValueNotifier(SpoilerShader.timeSeconds);
+  final ValueNotifier<double> spoilerTime = ValueNotifier(
+    SpoilerShader.timeSeconds,
+  );
 
-  Ticker? _gateTicker;
+  /// 揭开涟漪的 Ticker(只在涟漪期间运行)
+  Ticker? _revealTicker;
   Timer? _wakeProbe;
-  Duration _lastTick = Duration.zero;
+  bool _clockSubscribed = false;
   Size _screenSize = Size.zero;
+  bool _tickerModeEnabled = true;
 
   bool spoilerRevealed = false;
   bool spoilerReduceMotion = false;
@@ -61,30 +119,38 @@ mixin SpoilerTickerGate<T extends StatefulWidget>
 
   /// initState 里调用。
   void initSpoilerTicker() {
-    _gateTicker = createTicker(_onSpoilerTick);
+    _revealTicker = createTicker(_onRevealTick);
   }
 
-  /// didChangeDependencies 里调用:同步 reduce-motion,并缓存屏幕尺寸
-  /// (tick 回调里不能 depend InheritedWidget)。
+  /// didChangeDependencies 里调用:同步 reduce-motion 与 TickerMode,并缓存
+  /// 屏幕尺寸(时钟回调里不能 depend InheritedWidget)。
   void syncSpoilerDeps() {
     final mq = MediaQuery.maybeOf(context);
     spoilerReduceMotion = mq?.disableAnimations ?? false;
     _screenSize = mq?.size ?? Size.zero;
+    _tickerModeEnabled = TickerMode.valuesOf(context).enabled;
     syncSpoilerTicker();
   }
 
-  /// 按「未揭示 + 非 reduce-motion」启停(reduce-motion 渲染静态遮罩,
-  /// 不跑动画 → 也让 golden/pumpAndSettle 能 settle)。
+  /// 按「未揭示 + 非 reduce-motion + 路由可见」启停(reduce-motion 渲染静态
+  /// 遮罩,不跑动画 → 也让 golden/pumpAndSettle 能 settle)。
   void syncSpoilerTicker() {
-    final t = _gateTicker;
-    if (t == null) return;
-    final shouldRun = !spoilerRevealed && !spoilerReduceMotion;
-    if (shouldRun && !t.isActive) {
-      _cancelWakeProbe();
-      _lastTick = Duration.zero;
-      t.start();
-    } else if (!shouldRun && t.isActive) {
-      t.stop();
+    final animate =
+        !spoilerRevealed && !spoilerReduceMotion && _tickerModeEnabled;
+    final reveal = _revealTicker;
+    if (reveal != null) {
+      final runReveal = animate && spoilerRevealing;
+      if (runReveal && !reveal.isActive) {
+        reveal.start();
+      } else if (!runReveal && reveal.isActive) {
+        reveal.stop();
+      }
+    }
+    if (animate && !spoilerRevealing) {
+      // 离屏探针待命中则交给探针决定何时复订
+      if (_wakeProbe == null) _subscribeClock();
+    } else {
+      _unsubscribeClock();
       _cancelWakeProbe();
     }
   }
@@ -99,8 +165,7 @@ mixin SpoilerTickerGate<T extends StatefulWidget>
       syncSpoilerTicker();
       return;
     }
-    final diag =
-        math.sqrt(size.width * size.width + size.height * size.height);
+    final diag = math.sqrt(size.width * size.width + size.height * size.height);
     _revealDurationMs = (diag * 0.3).clamp(250.0, 550.0);
     spoilerRevealOrigin = localPosition;
     spoilerRevealProgress.value = 0;
@@ -109,37 +174,47 @@ mixin SpoilerTickerGate<T extends StatefulWidget>
     syncSpoilerTicker();
   }
 
-  void _onSpoilerTick(Duration elapsed) {
-    if (!mounted || spoilerRevealed) return;
-    // 揭开动画进行中:跳过节流(短动画要满帧率)与离屏门控,推进涟漪
-    // 进度;粒子场继续走全局时钟(淡出中仍在漂移)。到点一次性置揭示态,
-    // syncSpoilerTicker 随即停表。
-    if (spoilerRevealing) {
-      _revealClockStart ??= elapsed;
-      final p = (elapsed - _revealClockStart!).inMicroseconds /
-          (_revealDurationMs * 1000);
-      if (p >= 1) {
-        spoilerRevealProgress.value = 1;
-        setState(() {
-          spoilerRevealing = false;
-          spoilerRevealed = true;
-        });
-        syncSpoilerTicker();
-        return;
-      }
-      spoilerRevealProgress.value = p;
-      _lastTick = elapsed;
-      spoilerTime.value = SpoilerShader.timeSeconds;
+  /// 揭开动画:满帧率推进涟漪进度;粒子场继续走全局时钟(淡出中仍在
+  /// 漂移)。到点一次性置揭示态,syncSpoilerTicker 随即停表。
+  void _onRevealTick(Duration elapsed) {
+    if (!mounted || spoilerRevealed || !spoilerRevealing) return;
+    _revealClockStart ??= elapsed;
+    final p =
+        (elapsed - _revealClockStart!).inMicroseconds /
+        (_revealDurationMs * 1000);
+    if (p >= 1) {
+      spoilerRevealProgress.value = 1;
+      setState(() {
+        spoilerRevealing = false;
+        spoilerRevealed = true;
+      });
+      syncSpoilerTicker();
       return;
     }
-    if (elapsed - _lastTick < _tickInterval) return; // ~30fps 节流
+    spoilerRevealProgress.value = p;
+    spoilerTime.value = SpoilerShader.timeSeconds;
+  }
+
+  void _onClockTick() {
+    if (!mounted || spoilerRevealed) return;
     if (!_isOnScreen()) {
-      _gateTicker?.stop();
+      _unsubscribeClock();
       _startWakeProbe();
       return;
     }
-    _lastTick = elapsed;
     spoilerTime.value = SpoilerShader.timeSeconds;
+  }
+
+  void _subscribeClock() {
+    if (_clockSubscribed) return;
+    _clockSubscribed = true;
+    SpoilerClock.instance.addListener(_onClockTick);
+  }
+
+  void _unsubscribeClock() {
+    if (!_clockSubscribed) return;
+    _clockSubscribed = false;
+    SpoilerClock.instance.removeListener(_onClockTick);
   }
 
   /// 自身全局矩形是否与屏幕(含 64px 余量)相交。拿不到屏幕尺寸时视为
@@ -157,9 +232,7 @@ mixin SpoilerTickerGate<T extends StatefulWidget>
       if (!mounted || spoilerRevealed || spoilerReduceMotion) return;
       if (_isOnScreen()) {
         _cancelWakeProbe();
-        _lastTick = Duration.zero;
-        final t = _gateTicker;
-        if (t != null && !t.isActive) t.start();
+        syncSpoilerTicker();
       }
     });
   }
@@ -172,8 +245,9 @@ mixin SpoilerTickerGate<T extends StatefulWidget>
   /// dispose 里调用(宿主自持的 shader 仍由宿主释放)。
   void disposeSpoilerTicker() {
     _cancelWakeProbe();
-    _gateTicker?.dispose();
-    _gateTicker = null;
+    _unsubscribeClock();
+    _revealTicker?.dispose();
+    _revealTicker = null;
     spoilerTime.dispose();
     spoilerRevealProgress.dispose();
   }
@@ -232,10 +306,9 @@ class SpoilerShader {
         shader.setFloat(i, i < 2 ? 0.0 : 1.0); // time/seed=0,颜色=白
       }
       final recorder = ui.PictureRecorder();
-      Canvas(recorder).drawRect(
-        const Rect.fromLTWH(0, 0, 1, 1),
-        Paint()..shader = shader,
-      );
+      Canvas(
+        recorder,
+      ).drawRect(const Rect.fromLTWH(0, 0, 1, 1), Paint()..shader = shader);
       final picture = recorder.endRecording();
       final image = picture.toImageSync(1, 1); // 触发 raster 线程真实执行
       image.dispose();
@@ -274,7 +347,10 @@ class SpoilerEffectPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final rrect = RSuperellipse.fromRectAndRadius(rect, Radius.circular(borderRadius));
+    final rrect = RSuperellipse.fromRectAndRadius(
+      rect,
+      Radius.circular(borderRadius),
+    );
 
     canvas.save();
     canvas.clipRSuperellipse(rrect);
@@ -322,11 +398,15 @@ class SpoilerRevealClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    final maxRadius =
-        math.sqrt(size.width * size.width + size.height * size.height);
-    return Path()
-      ..addOval(Rect.fromCircle(
-          center: origin, radius: maxRadius * progress.clamp(0.0, 1.0)));
+    final maxRadius = math.sqrt(
+      size.width * size.width + size.height * size.height,
+    );
+    return Path()..addOval(
+      Rect.fromCircle(
+        center: origin,
+        radius: maxRadius * progress.clamp(0.0, 1.0),
+      ),
+    );
   }
 
   @override

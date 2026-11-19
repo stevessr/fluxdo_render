@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 渲染引擎的语义色：ColorScheme 之外、随宿主主题变化的颜色。
 ///

@@ -2,7 +2,7 @@
 /// 一大块底色(真机症状:选了个标签,整篇正文变成一个灰方块)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/flatten/inline_flattener.dart';
 import 'package:fluxdo_render/src/node/inline_node.dart';

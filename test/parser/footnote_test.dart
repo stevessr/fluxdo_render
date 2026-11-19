@@ -6,6 +6,30 @@ void main() {
   final parser = ParagraphParser();
 
   group('parser footnote 识别', () {
+    test('弹层移除嵌套脚注和回链，保留多段、链接及图片', () {
+      final result = parser.parse(
+        '<p>引用<sup class="footnote-ref"><a href="#fn:1">1</a></sup></p>'
+        '<ol class="footnotes-list"><li id="fn:1">'
+        '<p>第一段<sup class="footnote-ref"><a href="#fn:2">2</a></sup></p>'
+        '<p>第二段<a href="https://example.com">链接</a><img src="note.png">'
+        '<a class="footnote-backref" href="#ref">↩︎</a></p>'
+        '</li><li id="fn:2"><p>嵌套脚注</p></li></ol>',
+      );
+      final ref = (result.first as ParagraphNode).inlines
+          .whereType<FootnoteRefRun>()
+          .single;
+      expect(
+        ref.contentHtml,
+        '<p>第一段</p><p>第二段<a href="https://example.com">链接</a><img src="note.png"></p>',
+      );
+      // 清理只作用于弹层副本，编辑器仍能取得原始脚注引用。
+      final section = result.whereType<FootnotesSectionNode>().single;
+      expect(
+        section.entries.first.inlines.whereType<FootnoteRefRun>(),
+        hasLength(1),
+      );
+    });
+
     test('sup.footnote-ref → FootnoteRefRun + content 从 section 取', () {
       final result = parser.parse(
         '<p>引用 <sup class="footnote-ref"><a href="#fn:a">1</a></sup> 这里。</p>'
@@ -82,8 +106,7 @@ void main() {
         '<section class="footnotes"><ol class="footnotes-list">'
         '<li id="fn:a">x</li></ol></section>',
       );
-      final ref = (result[0] as ParagraphNode)
-          .inlines
+      final ref = (result[0] as ParagraphNode).inlines
           .whereType<FootnoteRefRun>()
           .single;
       expect(ref.number, '3'); // [] 被剥
@@ -102,8 +125,7 @@ void main() {
         '<li id="fn:a"><p>正文 <a class="footnote-backref" href="#x">↩︎</a></p></li>'
         '</ol></section>',
       );
-      final ref = (result[0] as ParagraphNode)
-          .inlines
+      final ref = (result[0] as ParagraphNode).inlines
           .whereType<FootnoteRefRun>()
           .single;
       expect(ref.contentHtml, '正文');

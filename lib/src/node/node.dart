@@ -1035,12 +1035,10 @@ bool _listEq(List<Object?> a, List<Object?> b) {
 
 /// 脚注列表区域 — `<section class="footnotes">` / `<ol class="footnotes-list">`。
 ///
-/// 渲染:**底部脚注区**(上分隔线 + 编号悬挂列表),见 NodeFactory.buildFootnotesSection。
-///
-/// 设计取舍:legacy `buildFootnotesList` 返回 `SizedBox.shrink()`(只靠 sup popover),
-/// 但截图分享 / 长文通读场景下 popover 不可用 / 不便,故本引擎额外渲染底部列表。
-/// 与上标 [FootnoteRefRun] 的 popover **并存**:上标点按即时预览,底部列表完整可读。
-/// [entries] 为空时本节点渲染 `SizedBox.shrink()`(退化为隐藏,行为同 legacy)。
+/// 接入上标弹层的阅读场景隐藏此区，避免与 [FootnoteRefRun] 重复展示。
+/// 截图分享及没有点击处理的场景保留分隔线和编号列表。
+/// 节点数据始终保留，供弹层、编辑器及 Markdown 序列化使用。
+/// [entries] 为空时不占空间，见 NodeFactory.buildFootnotesSection。
 @immutable
 class FootnotesSectionNode extends BlockNode {
   const FootnotesSectionNode({

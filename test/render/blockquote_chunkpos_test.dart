@@ -2,7 +2,7 @@
 /// 确保拆片后堆叠视觉连续(左条+背景每片都画,仅首尾留外边距/圆角)。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo_render/src/node/node.dart';
 import 'package:fluxdo_render/src/render/node_factory.dart';

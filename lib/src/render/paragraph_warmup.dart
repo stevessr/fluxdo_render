@@ -22,7 +22,7 @@
 /// 后果只是缓存 miss 重做,不会串色 —— 挂载路径永远自建正确产物。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../flatten/flatten_cache.dart';
 import '../flatten/inline_flattener.dart';
