@@ -5,10 +5,17 @@ BlockNode? _projectSemanticBlock(SemanticNode n, String id) {
   switch (n.type) {
     case 'code_block':
     case 'html_block':
+      final params = n.attrs['params'] as String? ?? '';
+      final options = n.attrs['aiFenceOptions'] as String?;
+      final info = params.trimRight();
+      final language = options != null && info.endsWith(options)
+          ? info.substring(0, info.length - options.length).trim()
+          : params;
       return CodeBlockNode(
         id: id,
         code: n.textContent,
-        language: n.attrs['params'] as String? ?? '',
+        language: language,
+        aiGenerated: options != null,
         rawHtml: n.type == 'html_block',
       );
     case 'math_block':
@@ -131,10 +138,17 @@ SemanticNode? _synchronizeSemanticBlock(
     if (old.rawHtml != next.rawHtml) {
       throw const SemanticEditorUnsupported('不能隐式切换 HTML 代码类型');
     }
+    final options = source.attrs['aiFenceOptions'] as String? ?? 'ai';
+    final needsDefaultLanguage = next.aiGenerated &&
+        (next.language ?? '').isEmpty && !RegExp(r'^ai(?:[\s,]|$)').hasMatch(options);
+    final language = needsDefaultLanguage ? 'auto' : next.language ?? '';
     return _replaceBlockText(source, next.code).copy(
       attrs: {
         ...source.attrs,
-        if (old.language != next.language) 'params': next.language,
+        if (old.language != next.language)
+          'params': next.aiGenerated
+              ? '$language $options'
+              : next.language,
       },
     );
   }
@@ -401,7 +415,10 @@ SemanticNode _semanticNodeFromBlock(BlockNode block) {
   if (block is CodeBlockNode) {
     return SemanticNode(
       block.rawHtml ? 'html_block' : 'code_block',
-      attrs: {'params': block.language},
+      attrs: {
+        'params': block.aiGenerated ? "${block.language ?? ''} ai" : block.language,
+        if (block.aiGenerated) 'aiFenceOptions': 'ai',
+      },
       content: text(block.code),
     );
   }

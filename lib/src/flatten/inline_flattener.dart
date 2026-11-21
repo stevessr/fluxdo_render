@@ -30,6 +30,7 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../node/inline_node.dart';
+import '../render/content_tap_target.dart';
 import 'soft_break.dart';
 import '../render/emoji_handler.dart';
 import '../render/footnote_handler.dart';
@@ -115,6 +116,15 @@ class FlattenResult {
   });
 
   final TextSpan span;
+
+  /// 纯文本段落直接使用块的选取光标，悬停时可以跳过字形定位。
+  late final bool hasInteractiveText = !span.visitChildren(
+    (run) => run is! TextSpan ||
+        (run.recognizer == null &&
+            run.mouseCursor == MouseCursor.defer &&
+            run.onEnter == null &&
+            run.onExit == null),
+  );
 
   /// 这次 flatten 创建的所有 GestureRecognizer,调用方必须在 widget
   /// dispose 时遍历 `recognizer.dispose()`。
@@ -481,15 +491,18 @@ class InlineFlattener {
           // 图标解析放在 build 里:宿主要拿 context 去查分类表(cooked 给
           // 的默认图标是个色块,分类自己配的图标才是想要的那个)。
           final icon = resolver?.call(ctx, iconName, href);
-          return _maybeTappable(
-            enabled: interactive,
-            onTap: () {
-              final bare = label.startsWith('#') ? label.substring(1) : label;
-              if (hashtagTapHandler?.call(ctx, href, ref, bare) == true) {
-                return;
-              }
-              handler(ctx, href);
-            },
+          return ContentTapTarget(
+            onTap: interactive
+                ? () {
+                    final bare = label.startsWith('#')
+                        ? label.substring(1)
+                        : label;
+                    if (hashtagTapHandler?.call(ctx, href, ref, bare) == true) {
+                      return;
+                    }
+                    handler(ctx, href);
+                  }
+                : null,
             child: Container(
               height: lineHeight,
               padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -521,13 +534,6 @@ class InlineFlattener {
       ),
     );
   }
-
-  static Widget _maybeTappable({
-    required bool enabled,
-    required VoidCallback onTap,
-    required Widget child,
-  }) =>
-      enabled ? GestureDetector(onTap: onTap, child: child) : child;
 
   /// 取 hashtag 锚文本(cooked 里就是 `<span>名称</span>`,可能带前导 `#`)。
   String _hashtagLabel(List<InlineNode> children) {
@@ -605,7 +611,7 @@ class InlineFlattener {
     final linkChildren = _build(children, p, inheritedRecognizer: recognizer);
 
     // 附件:在文件名前加一个下载图标(WidgetSpan)。图标本体用
-    // GestureDetector 兜底点击(WidgetSpan 不吃 TextSpan.recognizer):
+    // 图标自行处理点击(WidgetSpan 不吃 TextSpan.recognizer):
     // 优先 onDownloadAttachment,否则降级 handler。图标用自己的活
     // iconCtx(Theme/onTap 都不依赖 flatten context)。
     //
@@ -636,7 +642,7 @@ class InlineFlattener {
                 color: Theme.of(iconCtx).colorScheme.primary,
               );
               if (!interactive) return icon;
-              return GestureDetector(
+              return ContentTapTarget(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
                   if (onDownloadAttachment != null) {
@@ -813,10 +819,7 @@ class InlineFlattener {
   /// 选区注意:WidgetSpan 默认不参与选区文本,实际选区文本由 SelectionArea
   /// 自处理(阶段 5 自研选区时通过 EmojiRun.name 提供 ":heart:" 作选区文本)。
   ///
-  /// recognizer 透传:emoji 嵌套在 LinkRun 子树时,WidgetSpan 没有
-  /// `recognizer` 字段,tap 通过 WidgetSpan 内部的 GestureDetector 处理。
-  /// 当前实现:link 内 emoji **直接显示但不可点**。阶段 2 加 mention 节点
-  /// 时统一处理(mention 内的状态 emoji 也是同样问题)。
+  /// 链接中的 emoji 由占位组件承接链接的点击回调和光标。
   WidgetSpan _buildEmojiSpan(
     EmojiRun emoji,
     _FlattenPass p, {
@@ -831,7 +834,7 @@ class InlineFlattener {
     // 选区文本由自研选区的映射表(buildInlineProjection)统一投影成 `:name:`,
     // 不在此处用 SelectableAdapter(那是已废弃的 SelectionArea 方案)。
     // builder 用挂载处的活 Builder ctx(编辑器路径一直如此),产物可跨挂载复用。
-    final child = Padding(
+    Widget child = Padding(
       padding: margin,
       child: Builder(
         builder: (ctx) {
@@ -839,6 +842,13 @@ class InlineFlattener {
         },
       ),
     );
+    if (inheritedRecognizer is TapGestureRecognizer) {
+      child = ContentTapTarget(
+        onTap: inheritedRecognizer.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: child,
+      );
+    }
     final span = WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: child,
@@ -928,7 +938,7 @@ class InlineFlattener {
           // chip 高度锁定 = 正文行高(主项目正文统一 height:1.5),让 chip
           // 填满整行、不矮浮也不撑高;小一号文字在内部垂直居中。
           final lineHeight = emojiBaseSize * 1.5;
-          return GestureDetector(
+          return ContentTapTarget(
             // 与 TextSpan 版同源:全局坐标给宿主锚浮层。漏掉的话点带
             // 状态 emoji 的 mention 会读到上一次点击的陈旧坐标。
             onTapDown: (d) {
@@ -992,8 +1002,12 @@ class InlineFlattener {
     // 加上下小 margin 区隔相邻图片 / 文字。普通 inline <img> 不加。
     // builder 用挂载处活 ctx(编辑器路径一直如此),产物可跨挂载复用。
     final isLightbox = image.lightboxUrl != null;
-    Widget child = Builder(
-      builder: (ctx) => imageBuilder(ctx, image, totalImagesInPost),
+    Widget child = MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      hitTestBehavior: HitTestBehavior.deferToChild,
+      child: Builder(
+        builder: (ctx) => imageBuilder(ctx, image, totalImagesInPost),
+      ),
     );
     // 链接内图片(`<a href><img></a>`):WidgetSpan 不吃 TextSpan 的
     // recognizer,链接点击经 ImageLinkScope 递给图片 widget 自行处理。
@@ -1069,7 +1083,7 @@ class _FootnoteRefWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return GestureDetector(
+    return ContentTapTarget(
       onTap: () => handler(context, node.fnId, node.contentHtml),
       behavior: HitTestBehavior.opaque,
       child: Padding(
@@ -1173,7 +1187,7 @@ class _SpoilerInlineWidgetState extends State<_SpoilerInlineWidget>
               ),
             ),
           );
-    return GestureDetector(
+    return ContentTapTarget(
       behavior: HitTestBehavior.opaque,
       onTapDown: (d) => _tapDownPosition = d.localPosition,
       onTap: _onTap,

@@ -11,6 +11,7 @@ import 'package:fluxdo_render/src/selection/selection_gesture_layer.dart';
 import 'package:fluxdo_render/src/selection/selection_registry.dart';
 import 'package:fluxdo_render/src/selection/selection_scope.dart';
 import 'package:fluxdo_render/src/selection/block_text_geometry.dart';
+import 'package:fluxdo_render/src/widget/fluxdo_render.dart';
 import '../test_text_finders.dart';
 
 const _style = TextStyle(fontSize: 14, height: 1.5);
@@ -294,22 +295,108 @@ void main() {
         }
       });
 
-      parity('阅读态手机触摸连击不借用编辑态规则', (tester) async {
-        final expected = <String>[];
-        for (var implementation = 0; implementation < 3; implementation++) {
-          final h = await _mount(tester, implementation);
-          for (var i = 0; i < 3; i++) {
-            await h.tap(0, 7, kind: PointerDeviceKind.touch);
-            if (h.native) {
-              expected.add(h.selected);
-            } else {
-              expect(h.selected, expected[i]);
-            }
+      for (final richText in [false, true]) {
+        parity('触屏双击选词、三击选段并可引用（RichText=$richText）', (tester) async {
+          InlineSpanText.debugForceRichText = richText;
+          const paragraph = '选中「词」以后继续阅读';
+          const nextParagraph = '下一段';
+          String? quoted;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: PageView(
+                  children: [
+                    ListView(
+                      padding: const EdgeInsets.only(top: 120),
+                      children: [
+                        FluxdoRender(
+                          cookedHtml: '<p>$paragraph</p><p>$nextParagraph</p>',
+                          baseTextStyle: _style,
+                          onQuoteRequest: (text) => quoted = text,
+                        ),
+                        const SizedBox(height: 900),
+                      ],
+                    ),
+                    const SizedBox.expand(),
+                  ],
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final block = findRenderedText(paragraph);
+          final controller = SelectionScope.maybeOfNoDepend(
+            tester.element(block),
+          )!;
+          final geometry = controller.registry.liveHandles.first.geometry!;
+          final wordOffset = paragraph.indexOf('词');
+          final box = geometry
+              .getBoxesForSelection(
+                TextSelection(
+                  baseOffset: wordOffset,
+                  extentOffset: wordOffset + 1,
+                ),
+              )
+              .single
+              .toRect();
+          final point = geometry.renderBox.localToGlobal(
+            box.centerLeft + const Offset(1, 0),
+          );
+          String? selected() {
+            final selection = controller.selection;
+            if (selection == null) return null;
+            return expandSelection(
+              controller.registry,
+              selection,
+            ).map((r) => r.projection.project(r.start, r.end)).join();
           }
+
+          Future<void> tap() async {
+            await tester.tapAt(point);
+            await tester.pump(const Duration(milliseconds: 60));
+          }
+
+          await tap();
+          expect(selected(), isNull);
+          await tap();
+          expect(selected(), '词');
+          expect(find.text('引用'), findsOneWidget);
+          // 落点靠近短词边缘，第三击仍应送达手柄下的正文。
+          await tap();
+          expect(selected(), paragraph);
+          await tester.tap(find.text('引用'));
+          await tester.pump();
+          expect(quoted, paragraph);
           expect(tester.testTextInput.hasAnyClients, isFalse);
-          await h.close();
-        }
-      });
+
+          // 在可滚动的帖子中，手柄仍应接收拖动。
+          await tester.pump(kDoubleTapTimeout);
+          await tap();
+          await tap();
+          await tester.pump(kDoubleTapTimeout);
+          final handles = find.byWidgetPredicate(
+            (w) =>
+                w is TapRegion &&
+                w.groupId == controller &&
+                w.behavior == HitTestBehavior.translucent,
+          );
+          expect(handles, findsNWidgets(2));
+          final drag = await tester.startGesture(
+            tester.getCenter(handles.last),
+          );
+          await tester.pump(kPressTimeout);
+          await drag.moveBy(const Offset(0, 22));
+          await tester.pump();
+          await drag.moveBy(const Offset(0, 22));
+          await tester.pump();
+          await drag.moveBy(const Offset(80, 30));
+          await drag.up();
+          await tester.pump();
+          expect(selected(), startsWith('词」以后继续阅读下'));
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(milliseconds: 400));
+        });
+      }
     }
   }
 }

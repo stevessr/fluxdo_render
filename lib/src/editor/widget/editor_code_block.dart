@@ -16,6 +16,7 @@
 /// 自动升 ````)。
 library;
 
+import '../../render/ai_content_badge.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart' show RendererBinding;
 import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
@@ -211,6 +212,7 @@ class _EditorCodeBlockState extends State<EditorCodeBlock> {
               ),
             ),
           const Spacer(),
+          if (widget.node.aiGenerated) const AiContentBadge(),
           if (widget.onContextMenu != null)
             IconButton(
               tooltip: '代码块操作',

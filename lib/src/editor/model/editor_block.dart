@@ -52,14 +52,18 @@ String nextFrameGroupId() => 'fg_${_frameGroupCounter++}';
 /// 纯引用 `> `(BlockquoteNode)。
 @immutable
 class QuoteFrame extends ContainerFrame {
-  const QuoteFrame({required super.groupId});
+  const QuoteFrame({this.aiGenerated = false, required super.groupId});
+
+  final bool aiGenerated;
 
   @override
   bool operator ==(Object other) =>
-      other is QuoteFrame && groupId == other.groupId;
+      other is QuoteFrame &&
+      aiGenerated == other.aiGenerated &&
+      groupId == other.groupId;
 
   @override
-  int get hashCode => Object.hash(QuoteFrame, groupId);
+  int get hashCode => Object.hash(aiGenerated, QuoteFrame, groupId);
 
   @override
   String toString() => 'Quote#$groupId';
@@ -73,6 +77,7 @@ class QuoteFrame extends ContainerFrame {
 class QuoteCardFrame extends ContainerFrame {
   const QuoteCardFrame({
     required super.groupId,
+    this.aiGenerated = false,
     this.username = '',
     this.displayName,
     this.postNumber,
@@ -86,9 +91,12 @@ class QuoteCardFrame extends ContainerFrame {
   final int? topicId;
   final bool full;
 
+  final bool aiGenerated;
+
   @override
   bool operator ==(Object other) =>
       other is QuoteCardFrame &&
+      aiGenerated == other.aiGenerated &&
       groupId == other.groupId &&
       username == other.username &&
       displayName == other.displayName &&
@@ -98,7 +106,7 @@ class QuoteCardFrame extends ContainerFrame {
 
   @override
   int get hashCode =>
-      Object.hash(groupId, username, displayName, postNumber, topicId, full);
+      Object.hash(aiGenerated, groupId, username, displayName, postNumber, topicId, full);
 
   @override
   String toString() => 'QuoteCard#$groupId(@$username)';
@@ -125,6 +133,7 @@ class SpoilerFrame extends ContainerFrame {
 class DetailsFrame extends ContainerFrame {
   const DetailsFrame({
     required super.groupId,
+    this.aiGenerated = false,
     this.summary = '',
     this.open = false,
   });
@@ -132,15 +141,18 @@ class DetailsFrame extends ContainerFrame {
   final String summary;
   final bool open;
 
+  final bool aiGenerated;
+
   @override
   bool operator ==(Object other) =>
       other is DetailsFrame &&
+      aiGenerated == other.aiGenerated &&
       groupId == other.groupId &&
       summary == other.summary &&
       open == other.open;
 
   @override
-  int get hashCode => Object.hash(groupId, summary, open);
+  int get hashCode => Object.hash(aiGenerated, groupId, summary, open);
 
   @override
   String toString() => 'Details#$groupId("$summary")';

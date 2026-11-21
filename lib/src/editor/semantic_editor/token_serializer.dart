@@ -277,7 +277,10 @@ class _SemanticSerializerState {
       case 'hard_break':
         write(a['soft'] == true ? '\n' : '  \n');
       case 'blockquote':
-        wrapBlock('> ', null, node, () => renderContent(node));
+        wrapBlock('> ', null, node, () {
+          if (a['ai'] == true) write('[!AI]\n');
+          renderContent(node);
+        });
       case 'code_block':
         final ticks = RegExp(
           r'`{3,}',
@@ -311,16 +314,17 @@ class _SemanticSerializerState {
         final params = _present(name)
             ? '="${_scalar(name)}${_present(a['postNumber']) ? ', post:${_scalar(a['postNumber'])}' : ''}${_present(a['topicId']) ? ', topic:${_scalar(a['topicId'])}' : ''}${_present(a['displayName']) && _present(a['username']) ? ', username:${_scalar(a['username'])}' : ''}${a['full'] == true ? ', full:true' : ''}"'
             : '';
-        write('[quote$params]\n');
+        write('[quote$params${a['ai'] == true ? ' ai' : ''}]\n');
         renderContent(node);
         write('[/quote]\n\n');
       case 'details':
         renderContent(node);
         write('[/details]\n\n');
       case 'summary':
+        final flags = "${parent.attrs['open'] == true ? ' open' : ''}${parent.attrs['ai'] == true ? ' ai' : ''}";
         // 官方空引号参数产生字面两个引号，不应替换为弯引号。
         if (node.textContent == '""') {
-          write('[details=""]\n');
+          write('[details=""$flags]\n');
           break;
         }
         write(node.content.isEmpty ? '[details' : '[details="');
@@ -330,7 +334,7 @@ class _SemanticSerializerState {
             text(child.text!.replaceAll('"', '“'), inAutolink ?? true);
           }
         }
-        write(node.content.isEmpty ? ']\n' : '"]\n');
+        write(node.content.isEmpty ? '$flags]\n' : '"$flags]\n');
       case 'image':
         var label = a['alt'] as String? ?? '';
         final width = a['origWidth'] ?? a['width'];

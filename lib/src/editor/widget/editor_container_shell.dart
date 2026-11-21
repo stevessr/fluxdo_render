@@ -9,6 +9,7 @@
 /// 不遮蔽 —— 编辑时内容必须可见,对齐官方 rich editor 行为)。
 library;
 
+import '../../render/ai_content_badge.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../model/editor_block.dart';
@@ -39,7 +40,11 @@ class EditorContainerShell extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final column = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: children,
+      children: switch (frame) {
+        QuoteFrame(aiGenerated: true) || QuoteCardFrame(aiGenerated: true) =>
+          [const AiContentBadge(), ...children],
+        _ => children,
+      },
     );
 
     switch (frame) {
@@ -158,6 +163,7 @@ class EditorContainerShell extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if ((frame as DetailsFrame).aiGenerated) const AiContentBadge(),
                       if (onTitleTap != null)
                         Icon(
                           Icons.edit_outlined,

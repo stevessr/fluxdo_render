@@ -66,7 +66,6 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
 
   /// 本次选区是否由触摸/长按产生(决定上层是否显示移动端拖拽手柄)。
   bool _lastInputWasTouch = false;
-  PointerDeviceKind? _pointerKind;
   bool _shiftPressed = false;
   TextSelectionRules get _rules =>
       TextSelectionRules(defaultTargetPlatform, TextSelectionSurface.readOnly);
@@ -357,8 +356,6 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
     return false;
   }
 
-  int _effectiveTapCount(int raw) => _rules.tapCount(raw, _pointerKind);
-
   // ── 触摸:长按(词粒度)──────────────────────────────────────
   void _onLongPressStart(LongPressStartDetails d) {
     _longPressActive = true;
@@ -404,8 +401,7 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
   // tap-down 定位,drag-update 扩展,drag-end 定选。
   void _onMouseTapDown(TapDragDownDetails d) {
     _lastInputWasTouch = false;
-    _pointerKind = d.kind;
-    final count = _effectiveTapCount(d.consecutiveTapCount);
+    final count = _rules.tapCount(d.consecutiveTapCount);
     switch (count) {
       case 1:
         if (_canShiftExtend) {
@@ -426,11 +422,11 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
   }
 
   void _onMouseTapUp(TapDragUpDetails d) {
-    if (_toggleToolbarOnSelection(d.globalPosition)) return;
     // 单击(无 drag)落定:折叠选区无内容 → 清除 + 收 toolbar;
     // 双击/三击已选中内容 → 导出弹 toolbar。
-    final count = _effectiveTapCount(d.consecutiveTapCount);
+    final count = _rules.tapCount(d.consecutiveTapCount);
     if (count == 1 && !_canShiftExtend) {
+      if (_toggleToolbarOnSelection(d.globalPosition)) return;
       _clear();
     } else {
       _finish();
@@ -439,7 +435,7 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
 
   void _onMouseDragStart(TapDragStartDetails d) {
     _beginDrag(d.globalPosition);
-    final count = _effectiveTapCount(d.consecutiveTapCount);
+    final count = _rules.tapCount(d.consecutiveTapCount);
     if (count == 1) {
       _collapseAt(d.globalPosition);
     } else if (_dragAnchor == null) {
@@ -469,8 +465,7 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
   // ── 触摸:连击(单击清除/toggle、双击选词、三击选段、双/三击拖扩)────
   void _onTouchTapDown(TapDragDownDetails d) {
     _lastInputWasTouch = true;
-    _pointerKind = d.kind;
-    final count = _effectiveTapCount(d.consecutiveTapCount);
+    final count = _rules.tapCount(d.consecutiveTapCount);
     switch (count) {
       case 1:
         // 移动端单击的选区处理在 tap-up(对齐 SDK「selection is set on tap up」)。
@@ -483,16 +478,14 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
           }
         }
       default:
-        if (_rules.supportsTripleTap(d.kind)) {
-          _selectParagraphAt(d.globalPosition);
-        }
+        _selectParagraphAt(d.globalPosition);
     }
   }
 
   void _onTouchTapUp(TapDragUpDetails d) {
-    final count = _effectiveTapCount(d.consecutiveTapCount);
-    if (_toggleToolbarOnSelection(d.globalPosition)) return;
+    final count = _rules.tapCount(d.consecutiveTapCount);
     if (count == 1) {
+      if (_toggleToolbarOnSelection(d.globalPosition)) return;
       _clear();
     } else {
       // 双击/三击松手:定选弹 toolbar(Android 此刻一并显托柄,
@@ -513,14 +506,12 @@ class _SelectionGestureLayerState extends State<SelectionGestureLayer>
   void _onTouchDragStart(TapDragStartDetails d) {
     // 触摸单击拖 = 滚动,不进选区(SDK「Drag to select is only enabled with a
     // precise pointer device」);双/三击拖 = 词/段粒度扩选。
-    final count = _effectiveTapCount(d.consecutiveTapCount);
-    if (count < 2 || (count == 3 && !_rules.supportsTripleTap(d.kind))) return;
+    if (_rules.tapCount(d.consecutiveTapCount) < 2) return;
     _beginDrag(d.globalPosition);
   }
 
   void _onTouchDragUpdate(TapDragUpdateDetails d) {
-    final count = _effectiveTapCount(d.consecutiveTapCount);
-    if (count < 2 || (count == 3 && !_rules.supportsTripleTap(d.kind))) return;
+    if (_rules.tapCount(d.consecutiveTapCount) < 2) return;
     _lastDragGlobal = d.globalPosition;
     final before = widget.controller.selection?.extent;
     _extendRangedTo(d.globalPosition);

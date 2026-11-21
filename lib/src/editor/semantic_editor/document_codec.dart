@@ -447,7 +447,8 @@ class SemanticSchema {
         throw const SemanticCodecUnsupported('timezones 必须为字符串数组');
       }
     }
-    if (n.type == 'code_block') _fields(a, strings: {'params'});
+    if (n.type == 'code_block') _fields(a, strings: {'params', 'aiFenceOptions'});
+    if ({'details', 'quote', 'blockquote'}.contains(n.type)) _fields(a, booleans: {'ai'});
     if (n.type == 'hard_break') _fields(a, booleans: {'soft'});
     if (n.type == 'details') _fields(a, booleans: {'open'});
     var rank = -1;

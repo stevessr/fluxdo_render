@@ -257,6 +257,7 @@ enum BlockquoteChunkPos { whole, first, mid, last }
 class BlockquoteNode extends BlockNode {
   const BlockquoteNode({
     required super.id,
+    this.aiGenerated = false,
     required this.children,
     this.chunkPos = BlockquoteChunkPos.whole,
   });
@@ -267,16 +268,19 @@ class BlockquoteNode extends BlockNode {
   /// 装饰下放分块位置(整帖渲染 / 未拆分时为 [BlockquoteChunkPos.whole])。
   final BlockquoteChunkPos chunkPos;
 
+  final bool aiGenerated;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is BlockquoteNode &&
           runtimeType == other.runtimeType &&
+          aiGenerated == other.aiGenerated &&
           chunkPos == other.chunkPos &&
           listEquals(children, other.children);
 
   @override
-  int get hashCode => Object.hash(chunkPos, Object.hashAll(children));
+  int get hashCode => Object.hash(aiGenerated, chunkPos, Object.hashAll(children));
 
   @override
   String toString() =>
@@ -345,6 +349,7 @@ class BlankLineNode extends BlockNode {
 class CodeBlockNode extends BlockNode {
   const CodeBlockNode({
     required super.id,
+    this.aiGenerated = false,
     required this.code,
     this.language,
     this.rawHtml = false,
@@ -364,17 +369,20 @@ class CodeBlockNode extends BlockNode {
   /// 未指定 / 未识别时 null。
   final String? language;
 
+  final bool aiGenerated;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is CodeBlockNode &&
           runtimeType == other.runtimeType &&
+          aiGenerated == other.aiGenerated &&
           code == other.code &&
           language == other.language &&
           rawHtml == other.rawHtml && rawMarkdown == other.rawMarkdown;
 
   @override
-  int get hashCode => Object.hash(code, language, rawHtml, rawMarkdown);
+  int get hashCode => Object.hash(aiGenerated, code, language, rawHtml, rawMarkdown);
 
   @override
   String toString() =>
@@ -409,6 +417,7 @@ class CodeBlockNode extends BlockNode {
 class QuoteCardNode extends BlockNode {
   const QuoteCardNode({
     required super.id,
+    this.aiGenerated = false,
     required this.username,
     this.avatarUrl,
     this.titleText,
@@ -480,11 +489,14 @@ class QuoteCardNode extends BlockNode {
   /// `<blockquote>` 内的递归 BlockNode。
   final List<BlockNode> children;
 
+  final bool aiGenerated;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is QuoteCardNode &&
           runtimeType == other.runtimeType &&
+          aiGenerated == other.aiGenerated &&
           username == other.username &&
           avatarUrl == other.avatarUrl &&
           titleText == other.titleText &&
@@ -503,6 +515,7 @@ class QuoteCardNode extends BlockNode {
 
   @override
   int get hashCode => Object.hash(
+        aiGenerated,
         username,
         avatarUrl,
         titleText,
@@ -868,6 +881,7 @@ class CalloutNode extends BlockNode {
 class DetailsNode extends BlockNode {
   const DetailsNode({
     required super.id,
+    this.aiGenerated = false,
     required this.summary,
     required this.children,
     this.initiallyOpen = false,
@@ -883,17 +897,21 @@ class DetailsNode extends BlockNode {
   /// `<details open>` 属性,默认 false。
   final bool initiallyOpen;
 
+  final bool aiGenerated;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is DetailsNode &&
           runtimeType == other.runtimeType &&
+          aiGenerated == other.aiGenerated &&
           summary == other.summary &&
           initiallyOpen == other.initiallyOpen &&
           listEquals(children, other.children);
 
   @override
   int get hashCode => Object.hash(
+        aiGenerated,
         summary,
         initiallyOpen,
         Object.hashAll(children),

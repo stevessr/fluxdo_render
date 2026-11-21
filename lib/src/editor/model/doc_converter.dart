@@ -193,7 +193,7 @@ List<EditorBlock> blockNodesToDoc(
         if (blocksEditable(children)) {
           final frame = [
             ...containers,
-            QuoteFrame(groupId: nextFrameGroupId()),
+            QuoteFrame(groupId: nextFrameGroupId(), aiGenerated: node.aiGenerated),
           ];
           // 空引用也是文档内容：保留容器和可编辑落点，不能因没有子节点丢弃。
           if (children.isEmpty) {
@@ -218,6 +218,7 @@ List<EditorBlock> blockNodesToDoc(
           final frame = [
             ...containers,
             QuoteCardFrame(
+              aiGenerated: node.aiGenerated,
               groupId: nextFrameGroupId(),
               username: node.username,
               displayName: node.displayName,
@@ -256,6 +257,7 @@ List<EditorBlock> blockNodesToDoc(
           final frame = [
             ...containers,
             DetailsFrame(
+              aiGenerated: node.aiGenerated,
               groupId: nextFrameGroupId(),
               summary: summary,
               open: initiallyOpen,
@@ -475,7 +477,7 @@ BlockNode _wrapInFrame(
   String Function() nextId,
 ) =>
     switch (frame) {
-      QuoteFrame() => BlockquoteNode(id: nextId(), children: children),
+      QuoteFrame() => BlockquoteNode(aiGenerated: frame.aiGenerated, id: nextId(), children: children),
       QuoteCardFrame(
         :final username,
         :final displayName,
@@ -484,6 +486,7 @@ BlockNode _wrapInFrame(
         :final full,
       ) =>
         QuoteCardNode(
+          aiGenerated: frame.aiGenerated,
           id: nextId(),
           username: username,
           displayName: displayName,
@@ -494,6 +497,7 @@ BlockNode _wrapInFrame(
         ),
       SpoilerFrame() => SpoilerBlockNode(id: nextId(), children: children),
       DetailsFrame(:final summary, :final open) => DetailsNode(
+          aiGenerated: frame.aiGenerated,
           id: nextId(),
           summary: summary,
           children: children,

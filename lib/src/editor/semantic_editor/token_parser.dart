@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 import 'document.dart';
 import '../model/raw_media_html.dart' show importRawMediaHtml;
@@ -45,7 +46,7 @@ class SemanticTokenParser {
         frame.content.add(SemanticNode('paragraph'));
       }
     }
-    if (frame.type == 'blockquote' &&
+    if (frame.type == 'blockquote' && frame.attrs['ai'] != true &&
         frame.content.isNotEmpty &&
         frame.content.first.type == 'paragraph') {
       final paragraph = frame.content.first;
@@ -505,6 +506,18 @@ class SemanticTokenParser {
           if (_top.type != 'quote') {
             throw SemanticCodecUnsupported('引用正文包裹位置非法');
           }
+          if (type == 'bbcode_open' && _attr(t, 'data-ai-generated') == 'true') {
+            _top.attrs['ai'] = true;
+            // 上游在引用正文前插入一个仅用于显示标识的空 span。
+            final badge = i + 1 < tokens.length ? tokens[i + 1] : null;
+            if (badge?['type'] == 'html_inline') {
+              final span = html.parseFragment(badge['content'] as String).nodes.singleOrNull;
+              if (span is dom.Element && span.localName == 'span' &&
+                  span.classes.contains('ai-badge') && span.nodes.isEmpty) {
+                i++;
+              }
+            }
+          }
           continue;
         }
         if (tag == 'div' &&
@@ -539,7 +552,11 @@ class SemanticTokenParser {
             'full': _quoteBoolean(_attr(t, 'data-full')),
           });
         } else {
-          _open(tag as String, _sourceAttrs(t));
+          _open(tag as String, {
+            ..._sourceAttrs(t),
+            if (tag == 'details' && _attr(t, 'class') == 'ai-quote') 'ai': true,
+            if (tag == 'details' && _attr(t, 'open') != null) 'open': true,
+          });
         }
         continue;
       }
@@ -635,6 +652,7 @@ class SemanticTokenParser {
             continue;
           }
           final attrs = _sourceAttrs(t);
+          if (base == 'blockquote' && _attr(t, 'data-ai-generated') == 'true') attrs['ai'] = true;
           if (base == 'footnote') {
             attrs.addAll(Map<String, dynamic>.from(t['meta'] as Map? ?? {}));
           }

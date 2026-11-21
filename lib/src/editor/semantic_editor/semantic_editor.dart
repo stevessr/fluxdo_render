@@ -146,11 +146,12 @@ class SemanticEditorProjection {
     } else if (n.type == 'spoiler') {
       nextFrames = [...frames, SpoilerFrame(groupId: 'semantic_frame_$path')];
     } else if (n.type == 'blockquote') {
-      nextFrames = [...frames, QuoteFrame(groupId: 'semantic_frame_$path')];
+      nextFrames = [...frames, QuoteFrame(groupId: 'semantic_frame_$path', aiGenerated: n.attrs['ai'] == true)];
     } else if (n.type == 'quote') {
       nextFrames = [
         ...frames,
         QuoteCardFrame(
+          aiGenerated: n.attrs['ai'] == true,
           groupId: 'semantic_frame_$path',
           username: '${n.attrs['username'] ?? ''}',
           displayName: n.attrs['displayName']?.toString(),
@@ -165,6 +166,7 @@ class SemanticEditorProjection {
       nextFrames = [
         ...frames,
         DetailsFrame(
+          aiGenerated: n.attrs['ai'] == true,
           groupId: 'semantic_frame_$path',
           summary: children.first.textContent,
           open: n.attrs['open'] == true,

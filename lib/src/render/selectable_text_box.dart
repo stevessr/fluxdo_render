@@ -255,6 +255,15 @@ class _SelectableTextBoxState extends State<SelectableTextBox> {
 
     final controller = _controller;
     if (controller == null) return keyedChild;
+    // 文字块提供选取光标，链接和内嵌控件的命中优先。整块图片等对象沿用自身光标。
+    if (projection.entries.any((entry) => !entry.isAtomic)) {
+      keyedChild = MouseRegion(
+        cursor: DefaultSelectionStyle.of(context).mouseCursor ??
+            SystemMouseCursors.text,
+        hitTestBehavior: HitTestBehavior.deferToChild,
+        child: keyedChild,
+      );
+    }
     // 每次 build 刷新逻辑块表 projection 快照(内容变即更新;块回收后保留)。
     final handle = _handle;
     if (handle != null) {

@@ -38,6 +38,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../node/node.dart';
 import '../config/render_shapes.dart';
+import 'content_tap_target.dart';
 
 /// 内容图片 builder。
 ///
@@ -59,15 +60,17 @@ Widget defaultImageContentBuilder(
   ImageRun image,
   int totalImagesInPost,
 ) {
-  if (image.src.isEmpty) {
-    return _placeholder(context, image);
-  }
-  return Image.network(
-    image.src,
-    width: image.width,
-    height: image.height,
-    fit: BoxFit.contain,
-    errorBuilder: (_, _, _) => _placeholder(context, image),
+  return ContentTapTarget(
+    onTap: ImageLinkScope.maybeOf(context),
+    child: image.src.isEmpty
+        ? _placeholder(context, image)
+        : Image.network(
+            image.src,
+            width: image.width,
+            height: image.height,
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) => _placeholder(context, image),
+          ),
   );
 }
 
@@ -136,7 +139,7 @@ class ImageLinkScope extends InheritedWidget {
 
   /// 当前 context 所在链接的点击回调;不在链接内 → null
   static VoidCallback? maybeOf(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<ImageLinkScope>()?.onTap;
+      context.dependOnInheritedWidgetOfExactType<ImageLinkScope>()?.onTap;
 
   @override
   bool updateShouldNotify(ImageLinkScope oldWidget) =>

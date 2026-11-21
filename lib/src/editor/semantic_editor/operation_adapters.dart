@@ -493,8 +493,10 @@ SemanticNode _structureFrame(ContainerFrame frame, SemanticNode? old) {
   switch (frame) {
     case QuoteFrame():
       type = 'blockquote';
+      if (frame.aiGenerated) attrs['ai'] = true;
     case QuoteCardFrame f:
       type = 'quote';
+      if (frame.aiGenerated) attrs['ai'] = true;
       attrs['username'] = f.username;
       if (f.postNumber != null || attrs.containsKey('postNumber')) {
         attrs['postNumber'] = f.postNumber;
@@ -508,6 +510,7 @@ SemanticNode _structureFrame(ContainerFrame frame, SemanticNode? old) {
       }
     case DetailsFrame f:
       type = 'details';
+      if (frame.aiGenerated) attrs['ai'] = true;
       if (f.open || attrs.containsKey('open')) attrs['open'] = f.open;
       if (content.firstOrNull?.textContent != f.summary) {
         content = [

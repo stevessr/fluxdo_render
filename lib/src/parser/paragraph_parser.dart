@@ -427,11 +427,12 @@ class ParagraphParser {
                 // (无 [!type] 文本),按属性识别 callout;否则先试文本识别 callout,
                 // 再退普通 BlockquoteNode。
                 final calloutAttr = node.attributes['data-fxd-callout'];
-                if (calloutAttr != null) {
+                final aiGenerated = node.attributes['data-ai-generated'] == 'true';
+                if (!aiGenerated && calloutAttr != null) {
                   out.add(_calloutFromAttrs(
                       node, calloutAttr, nextId, nextImageIndex));
                 } else {
-                  final callout =
+                  final callout = aiGenerated ? null :
                       _tryParseCalloutFromClass(node, nextId, nextImageIndex) ??
                           _tryParseCallout(node, nextId, nextImageIndex);
                   if (callout != null) {
@@ -439,6 +440,7 @@ class ParagraphParser {
                   } else {
                     out.add(BlockquoteNode(
                       id: nextId(),
+                      aiGenerated: aiGenerated,
                       children: _parseBlocks(
                           node.nodes, nextId, nextImageIndex,
                           keepBlankEdges: true),
@@ -472,6 +474,7 @@ class ParagraphParser {
                 out.add(CodeBlockNode(
                   id: nextId(),
                   code: code,
+                  aiGenerated: node.attributes['data-code-ai'] == 'true',
                   language: language,
                 ));
               case 'aside':
@@ -980,6 +983,7 @@ class ParagraphParser {
             keepBlankEdges: true);
 
     return QuoteCardNode(
+      aiGenerated: blockquoteEl?.attributes['data-ai-generated'] == 'true',
       id: nextId(),
       username: username,
       avatarUrl: (avatarUrl ?? '').isEmpty ? null : avatarUrl,
@@ -1112,7 +1116,13 @@ class ParagraphParser {
     String Function() nextId,
     int Function() nextImageIndex,
   ) {
-    final summaryEl = detailsEl.querySelector('summary');
+    final summaryEl = detailsEl.children
+        .where((child) => child.localName == 'summary').firstOrNull;
+    final aiGenerated = detailsEl.classes.contains('ai-quote') ||
+        detailsEl.attributes['data-ai-generated'] == 'true';
+    if (aiGenerated) {
+      summaryEl?.querySelector('.ai-details-label')?.remove();
+    }
     final summary = summaryEl?.text.trim() ?? '';
 
     // 收集非 summary 子节点用于递归解析
@@ -1127,6 +1137,7 @@ class ParagraphParser {
         keepBlankEdges: true);
 
     return DetailsNode(
+      aiGenerated: aiGenerated,
       id: nextId(),
       summary: summary,
       children: children,
@@ -1734,26 +1745,28 @@ class ParagraphParser {
   /// 往返 cook 逐像素一致。
   ({double? scale, int? imageIndex, double? origWidth, double? origHeight})?
       _imageControlsOf(dom.Element img) {
-    dom.Element? wrapper = img.parent;
-    // image-wrapper 直接包 img(官方 ruleWithImageControls 结构),留 2 层
-    // 余量容忍未来插层。
-    for (var i = 0; wrapper != null && i < 2; i++) {
-      if (wrapper.classes.contains('image-wrapper')) break;
-      wrapper = wrapper.parent;
+    // 新版 cook 把预览控件数据直接放在图片上，旧版放在相邻的按钮组里。
+    var indexAttr = img.attributes['data-image-index'];
+    var scaleAttr = img.attributes['data-scale'];
+    if (indexAttr == null) {
+      dom.Element? wrapper = img.parent;
+      for (var i = 0; wrapper != null && i < 2; i++) {
+        if (wrapper.classes.contains('image-wrapper')) break;
+        wrapper = wrapper.parent;
+      }
+      if (wrapper == null || !wrapper.classes.contains('image-wrapper')) {
+        return null;
+      }
+      final buttons = wrapper.querySelector('span.button-wrapper');
+      indexAttr = buttons?.attributes['data-image-index'];
+      scaleAttr = buttons?.querySelector('span.scale-btn.active')?.attributes['data-scale'];
     }
-    if (wrapper == null || !wrapper.classes.contains('image-wrapper')) {
-      return null;
-    }
-    final btnWrapper = wrapper.querySelector('span.button-wrapper');
-    if (btnWrapper == null) return null;
-    final imageIndex = int.tryParse(
-        btnWrapper.attributes['data-image-index']?.trim() ?? '');
-    final active = btnWrapper.querySelector('span.scale-btn.active');
-    final scale = double.tryParse(active?.attributes['data-scale'] ?? '');
+    final imageIndex = int.tryParse(indexAttr ?? '');
+    final scale = double.tryParse(scaleAttr ?? '');
     if (imageIndex == null && scale == null) return null;
 
     double? origW, origH;
-    if (scale != null && scale > 0 && scale != 100) {
+    if (scale != null && scale.isFinite && scale.round() > 0 && scale != 100) {
       final s = scale.round();
       final w = double.tryParse(img.attributes['width'] ?? '');
       final h = double.tryParse(img.attributes['height'] ?? '');

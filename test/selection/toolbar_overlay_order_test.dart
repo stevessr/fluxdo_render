@@ -59,9 +59,9 @@ void main() {
       final menuRender = tester.renderObject(toolbar);
       final handles = find.byWidgetPredicate(
         (widget) =>
-            widget is GestureDetector &&
-            widget.onPanStart != null &&
-            widget.onPanUpdate != null,
+            widget is TapRegion &&
+            widget.groupId == controller &&
+            widget.behavior == HitTestBehavior.translucent,
       );
       expect(handles, findsAtLeastNWidgets(2));
       for (final handle in handles.evaluate()) {

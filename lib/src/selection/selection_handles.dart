@@ -9,7 +9,9 @@
 /// base/extent 自然交换(由 orderedEndpoints 视觉序归一化吸收)。
 library;
 
-import 'package:cupertino_ui/cupertino_ui.dart' show cupertinoTextSelectionControls;
+import 'package:cupertino_ui/cupertino_ui.dart'
+    show cupertinoTextSelectionControls;
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
@@ -133,27 +135,23 @@ class SelectionHandlesController {
         ? cupertinoTextSelectionControls
         : materialTextSelectionControls;
 
-    // 与内容/toolbar 同 groupId(= controller):点手柄不触发 onTapOutside 清除。
-    return TapRegion(
-      groupId: controller,
-      child: Stack(
-        children: [
-          _handle(
-            ctx,
-            controls,
-            _DragSide.start,
-            anchors.start,
-            anchors.startLineHeight,
-          ),
-          _handle(
-            ctx,
-            controls,
-            _DragSide.end,
-            anchors.end,
-            anchors.endLineHeight,
-          ),
-        ],
-      ),
+    return Stack(
+      children: [
+        _handle(
+          ctx,
+          controls,
+          _DragSide.start,
+          anchors.start,
+          anchors.startLineHeight,
+        ),
+        _handle(
+          ctx,
+          controls,
+          _DragSide.end,
+          anchors.end,
+          anchors.endLineHeight,
+        ),
+      ],
     );
   }
 
@@ -189,19 +187,32 @@ class SelectionHandlesController {
       top: top,
       width: touch.clamp(size.width, double.infinity),
       height: touch.clamp(size.height, double.infinity),
-      child: GestureDetector(
+      child: TapRegion(
+        groupId: controller,
         behavior: HitTestBehavior.translucent,
-        onPanStart: (d) => _onDragStart(side, d.globalPosition),
-        onPanUpdate: (d) => _onDragUpdate(d.delta),
-        onPanEnd: (_) => _onDragEnd(),
-        // PointerCancel(如系统手势/来电抢占)不走 onPanEnd —— 不收会导致
-        // 放大镜永久残留在 Overlay(对齐 SDK dispose 中 hideMagnifier 注释)。
-        onPanCancel: _onDragEnd,
-        child: Center(
-          child: SizedBox(
-            width: size.width,
-            height: size.height,
-            child: controls.buildHandle(ctx, type, lineHeight, null),
+        child: RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          gestures: {
+            _HandlePanGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  _HandlePanGestureRecognizer
+                >(_HandlePanGestureRecognizer.new, (recognizer) {
+                  recognizer.onStart = (d) =>
+                      _onDragStart(side, d.globalPosition);
+                  recognizer.onUpdate = (d) => _onDragUpdate(d.delta);
+                  recognizer.onEnd = (_) => _onDragEnd(side);
+                  recognizer.onCancel = () => _onDragEnd(side);
+                }),
+          },
+          child: Center(
+            child: SizedBox(
+              width: size.width,
+              height: size.height,
+              // 由外层接管拖动。手柄图形透传点击，让落在词边缘的下一击能选段。
+              child: IgnorePointer(
+                child: controls.buildHandle(ctx, type, lineHeight, null),
+              ),
+            ),
           ),
         ),
       ),
@@ -349,7 +360,8 @@ class SelectionHandlesController {
     );
   }
 
-  void _onDragEnd() {
+  void _onDragEnd(_DragSide side) {
+    if (_dragging != side) return;
     _dragging = null;
     _fixedAnchor = null;
     _dragDocPosition = null;
@@ -361,3 +373,12 @@ class SelectionHandlesController {
 }
 
 enum _DragSide { start, end }
+
+/// 让手柄上的拖动与下方列表或翻页使用相同的识别距离，手柄先收到移动事件。
+class _HandlePanGestureRecognizer extends PanGestureRecognizer {
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind kind,
+    double? deviceTouchSlop,
+  ) => globalDistanceMoved.abs() > computeHitSlop(kind, gestureSettings);
+}

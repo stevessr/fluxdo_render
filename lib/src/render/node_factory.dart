@@ -23,7 +23,9 @@ import '../node/node.dart';
 import '../selection/projection.dart';
 import '../widget/heading_anchor.dart';
 import 'block_text_styles.dart';
+import 'ai_content_badge.dart';
 import 'code_block_handler.dart';
+import 'content_tap_target.dart';
 import 'emoji_handler.dart';
 import 'footnote_handler.dart';
 import 'audio_handler.dart';
@@ -118,6 +120,12 @@ class NodeFactory {
   /// 链接点击 callback,主项目注入。
   /// 不传时用 [defaultLinkHandler](仅 debugPrint)。
   final LinkActionHandler? linkHandler;
+
+  VoidCallback? _linkTap(BuildContext context, String? href) {
+    final handler = linkHandler;
+    if (handler == null || href == null || href.isEmpty) return null;
+    return () => handler(context, href);
+  }
 
   /// Emoji 图片 builder,主项目注入。
   /// 不传时用 [defaultEmojiImageBuilder](Image.network 兜底,无缓存池)。
@@ -724,6 +732,7 @@ class NodeFactory {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (isFirst && node.aiGenerated) const AiContentBadge(),
             // 容器内子节点走 compact factory(消除嵌套 paragraph 多余 margin)
             for (final child in node.children)
               _compactCopy().build(context, child),
@@ -866,7 +875,10 @@ class NodeFactory {
         chunkIndex: chunkIndex,
         text: node.code,
         codeLanguage: node.language ?? '',
-        child: custom,
+        child: node.aiGenerated
+            ? Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [const AiContentBadge(), custom])
+            : custom,
       );
     }
     final theme = Theme.of(context);
@@ -895,6 +907,7 @@ class NodeFactory {
                   ),
                 ),
                 const Spacer(),
+                if (node.aiGenerated) const AiContentBadge(),
                 _CopyButton(code: node.code),
               ],
             ),
@@ -952,6 +965,8 @@ class NodeFactory {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: Row(
               children: [
+                if (node.aiGenerated) const Padding(
+                  padding: EdgeInsetsDirectional.only(end: 6), child: AiContentBadge()),
                 avatarBuilder(context, node.username, node.avatarUrl, 24),
                 const SizedBox(width: 8),
                 // 话题引用(cooked 无 data-username)不显示 "用户名:";
@@ -987,9 +1002,7 @@ class NodeFactory {
                       text: node.titleText!,
                       href: node.titleHref,
                       style: titleStyle,
-                      onTap: node.titleHref == null || linkHandler == null
-                          ? null
-                          : () => linkHandler!(context, node.titleHref!),
+                      onTap: _linkTap(context, node.titleHref),
                     ),
                   ),
                 ],
@@ -998,9 +1011,7 @@ class NodeFactory {
                   _QuoteCategoryBadge(
                     name: node.categoryName!,
                     color: _hexColor(node.categoryColor),
-                    onTap: node.categoryHref == null || linkHandler == null
-                        ? null
-                        : () => linkHandler!(context, node.categoryHref!),
+                    onTap: _linkTap(context, node.categoryHref),
                   ),
                 ],
               ],
@@ -1054,12 +1065,7 @@ class NodeFactory {
     if (custom != null) return custom;
     return _DefaultOneboxCard(
       node: node,
-      onTap: () {
-        final url = node.url;
-        if (url != null && url.isNotEmpty && linkHandler != null) {
-          linkHandler!(context, url);
-        }
-      },
+      onTap: _linkTap(context, node.url),
     );
   }
 
@@ -1076,6 +1082,7 @@ class NodeFactory {
     // 子节点递归走 compact factory(消除嵌套 paragraph 多余 margin)
     final childFactory = _compactCopy();
     return _DetailsWidget(
+      aiGenerated: node.aiGenerated,
       summary: node.summary,
       initiallyOpen: node.initiallyOpen,
       body: Column(
@@ -1314,13 +1321,7 @@ class NodeFactory {
     }
     return _LazyVideoThumbnailCard(
       node: node,
-      onTap: () {
-        // 没注入 lazyVideoBuilder → 降级走 linkHandler 跳浏览器
-        final url = node.url;
-        if (url.isNotEmpty && linkHandler != null) {
-          linkHandler!(context, url);
-        }
-      },
+      onTap: _linkTap(context, node.url),
     );
   }
 
@@ -1341,11 +1342,7 @@ class NodeFactory {
     }
     return _IframePlaceholderCard(
       node: node,
-      onTap: () {
-        if (node.src.isNotEmpty && linkHandler != null) {
-          linkHandler!(context, node.src);
-        }
-      },
+      onTap: _linkTap(context, node.src),
     );
   }
 
@@ -1366,11 +1363,7 @@ class NodeFactory {
     }
     return _VideoPlaceholderCard(
       node: node,
-      onTap: () {
-        if (node.src.isNotEmpty && linkHandler != null) {
-          linkHandler!(context, node.src);
-        }
-      },
+      onTap: _linkTap(context, node.src),
     );
   }
 
@@ -1381,11 +1374,7 @@ class NodeFactory {
     if (custom != null) return custom;
     return _AudioPlaceholderCard(
       node: node,
-      onTap: () {
-        if (node.src.isNotEmpty && linkHandler != null) {
-          linkHandler!(context, node.src);
-        }
-      },
+      onTap: _linkTap(context, node.src),
     );
   }
 
@@ -1523,7 +1512,7 @@ Color _brandColorFor(LazyVideoProvider p) => switch (p) {
 class _LazyVideoThumbnailCard extends StatelessWidget {
   const _LazyVideoThumbnailCard({required this.node, required this.onTap});
   final LazyVideoNode node;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1540,7 +1529,7 @@ class _LazyVideoThumbnailCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 缩略图 + 中央播放按钮
-              GestureDetector(
+              ContentTapTarget(
                 onTap: onTap,
                 child: Stack(
                   alignment: Alignment.center,
@@ -1659,7 +1648,7 @@ class _GridTile extends StatelessWidget {
 class _DefaultOneboxCard extends StatelessWidget {
   const _DefaultOneboxCard({required this.node, required this.onTap});
   final OneboxNode node;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2070,7 +2059,7 @@ class _SpoilerBlockWidgetState extends State<_SpoilerBlockWidget>
               ),
             ),
           );
-    return GestureDetector(
+    return ContentTapTarget(
       behavior: HitTestBehavior.opaque,
       onTapDown: (d) => _tapDownPosition = d.localPosition,
       onTap: _onTap,
@@ -2143,8 +2132,7 @@ class _QuoteTitle extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: style,
     );
-    if (onTap == null) return textWidget;
-    return GestureDetector(onTap: onTap, child: textWidget);
+    return ContentTapTarget(onTap: onTap, child: textWidget);
   }
 }
 
@@ -2205,8 +2193,7 @@ class _QuoteCategoryBadge extends StatelessWidget {
         ),
       ],
     );
-    if (onTap == null) return row;
-    return GestureDetector(onTap: onTap, child: row);
+    return ContentTapTarget(onTap: onTap, child: row);
   }
 }
 
@@ -2275,11 +2262,13 @@ abstract final class FoldShiftHook {
 /// 清掉 child),节省树深 + memory。
 class _DetailsWidget extends StatefulWidget {
   const _DetailsWidget({
+    required this.aiGenerated,
     required this.summary,
     required this.body,
     required this.initiallyOpen,
   });
 
+  final bool aiGenerated;
   final String summary;
   final Widget body;
   final bool initiallyOpen;
@@ -2398,6 +2387,7 @@ class _DetailsWidgetState extends State<_DetailsWidget>
                           ),
                         ),
                       ),
+                      if (widget.aiGenerated) const AiContentBadge(),
                     ],
                   ),
                 ),
@@ -2706,7 +2696,7 @@ class _FoldableCalloutWidgetState extends State<_FoldableCalloutWidget>
 class _IframePlaceholderCard extends StatelessWidget {
   const _IframePlaceholderCard({required this.node, required this.onTap});
   final IframeNode node;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2793,7 +2783,7 @@ class _IframePlaceholderCard extends StatelessWidget {
 class _VideoPlaceholderCard extends StatelessWidget {
   const _VideoPlaceholderCard({required this.node, required this.onTap});
   final VideoNode node;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2812,7 +2802,7 @@ class _VideoPlaceholderCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: ClipRSuperellipse(
           borderRadius: context.renderShapes.borderRadius(8),
-          child: GestureDetector(
+          child: ContentTapTarget(
             onTap: onTap,
             child: Container(
               color: Colors.black,
@@ -2903,7 +2893,7 @@ class _VideoPlaceholderCard extends StatelessWidget {
 class _AudioPlaceholderCard extends StatelessWidget {
   const _AudioPlaceholderCard({required this.node, required this.onTap});
   final AudioNode node;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

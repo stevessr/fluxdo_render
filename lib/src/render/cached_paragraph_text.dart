@@ -27,14 +27,12 @@
 ///
 /// ## 适用面(分路判据,由 InlineSpanText 把关)
 ///
-/// 只吃纯 TextSpan 段落(hasPlaceholders == false):WidgetSpan 原子
-/// ui.Paragraph 画不出。链接可点(命中反查 recognizer,见下)。
+/// 支持纯文本及占位尺寸确定的行内组件，其他段落走 RichText。
 ///
 /// ## 链接命中
 ///
-/// RichText 的 recognizer 分发是 RenderParagraph 的能力,直绘自建等价物:
-/// hitTestSelf 命中后经 getPositionForOffset 拿偏移,从 span 树
-/// getSpanForPosition 反查 recognizer,addPointer 转发(SDK 同款语义)。
+/// 与 RenderParagraph 一样，把字形下的 TextSpan 加入命中路径，
+/// 让悬停光标和点击手势落在同一个目标上。
 ///
 /// ## 选区 / 语义
 ///
@@ -46,7 +44,6 @@ library;
 import 'dart:collection';
 import 'dart:ui' as ui;
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -393,7 +390,7 @@ class CachedParagraphText extends MultiChildRenderObjectWidget {
 class _IslandParentData extends ContainerBoxParentData<RenderBox> {}
 
 /// 直绘 RenderObject。布局 = 缓存查询 + 岛坑位回填;绘制 = drawParagraph
-/// + 岛子节点;命中 = 岛子节点优先,再偏移反查 recognizer;选区 =
+/// + 岛子节点;命中 = 岛子节点优先，再命中字形所在的 TextSpan;选区 =
 /// BlockTextGeometry;语义 = 整段 label。
 class RenderCachedParagraph extends RenderBox
     with
@@ -554,23 +551,19 @@ class RenderCachedParagraph extends RenderBox
   bool hitTestSelf(Offset position) => true;
 
   @override
-  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
-      defaultHitTestChildren(result, position: position); // 岛子节点优先
-
-  @override
-  void handleEvent(PointerEvent event, covariant BoxHitTestEntry entry) {
-    if (event is! PointerDownEvent) return;
-    _recognizerAt(entry.localPosition)?.addPointer(event);
-  }
-
-  GestureRecognizer? _recognizerAt(Offset local) {
-    final paragraph = _entry?.paragraph;
-    if (paragraph == null) return null;
-    final pos = paragraph.getPositionForOffset(local);
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    if (defaultHitTestChildren(result, position: position)) return true;
+    if (!_result.hasInteractiveText) return false;
+    final glyph = _entry?.paragraph.getClosestGlyphInfoForOffset(position);
+    if (glyph == null || !glyph.graphemeClusterLayoutBounds.contains(position)) {
+      return false;
+    }
     final span = _result.span.getSpanForPosition(
-      TextPosition(offset: pos.offset, affinity: pos.affinity),
+      TextPosition(offset: glyph.graphemeClusterCodeUnitRange.start),
     );
-    return span is TextSpan ? span.recognizer : null;
+    if (span is! TextSpan) return false;
+    result.add(HitTestEntry(span));
+    return true;
   }
 
   // ---- BlockTextGeometry ----

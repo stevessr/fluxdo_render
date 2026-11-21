@@ -39,8 +39,9 @@ EditorBlock _fragmentBlockId(
 
 ContainerFrame _fragmentFrameId(ContainerFrame frame, String id) =>
     switch (frame) {
-      QuoteFrame() => QuoteFrame(groupId: id),
+      QuoteFrame() => QuoteFrame(groupId: id, aiGenerated: frame.aiGenerated),
       QuoteCardFrame f => QuoteCardFrame(
+        aiGenerated: f.aiGenerated,
         groupId: id,
         username: f.username,
         displayName: f.displayName,
@@ -49,6 +50,7 @@ ContainerFrame _fragmentFrameId(ContainerFrame frame, String id) =>
         full: f.full,
       ),
       DetailsFrame f => DetailsFrame(
+        aiGenerated: f.aiGenerated,
         groupId: id,
         summary: f.summary,
         open: f.open,

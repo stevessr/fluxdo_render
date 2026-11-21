@@ -14,14 +14,13 @@ class TextSelectionRules {
   final TargetPlatform platform;
   final TextSelectionSurface surface;
 
-  int tapCount(int raw, PointerDeviceKind? kind) {
-    final readOnly = surface == TextSelectionSurface.readOnly;
+  int tapCount(int raw) {
+    // 阅读时触摸和鼠标都可三击选段，后续连击沿用各平台的循环方式。
     return switch (platform) {
-      TargetPlatform.android || TargetPlatform.fuchsia =>
-        (raw - 1) % (readOnly && kind != PointerDeviceKind.mouse ? 2 : 3) + 1,
-      TargetPlatform.linux => (raw - 1) % 3 + 1,
+      TargetPlatform.android || TargetPlatform.fuchsia || TargetPlatform.linux =>
+        (raw - 1) % 3 + 1,
       TargetPlatform.windows =>
-        readOnly
+        surface == TextSelectionSurface.readOnly
             ? math.min(raw, 3)
             : raw < 2
             ? raw
@@ -33,15 +32,6 @@ class TextSelectionRules {
   bool get tripleSelectsLine =>
       surface == TextSelectionSurface.editable &&
       platform == TargetPlatform.linux;
-
-  bool supportsTripleTap(PointerDeviceKind? kind) =>
-      surface == TextSelectionSurface.editable ||
-      ![
-        TargetPlatform.android,
-        TargetPlatform.iOS,
-        TargetPlatform.fuchsia,
-      ].contains(platform) ||
-      kind == PointerDeviceKind.mouse;
 
   TextRange wordBoundary(
     BlockTextGeometry geometry,

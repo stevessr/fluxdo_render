@@ -99,7 +99,7 @@ String _serializeFrame(ContainerFrame frame, List<EditorBlock> run, int level) {
 
   switch (frame) {
     case QuoteFrame():
-      return prefixQuote(inner);
+      return frame.aiGenerated ? '> [!AI]\n${prefixQuote(inner)}' : prefixQuote(inner);
     case CalloutFrame(:final typeRaw, :final title, :final foldable):
       final fold = switch (foldable) { true => '+', false => '-', null => '' };
       final t = (title ?? '').isEmpty ? '' : ' $title';
@@ -125,15 +125,15 @@ String _serializeFrame(ContainerFrame frame, List<EditorBlock> run, int level) {
         parts.add('username:$username');
       }
       if (full) parts.add('full:true');
-      final open =
-          parts.isEmpty ? '[quote]' : '[quote="${parts.join(', ')}"]';
+      final attribution = parts.isEmpty ? '' : '="${parts.join(', ')}"';
+      final open = '[quote$attribution${frame.aiGenerated ? ' ai' : ''}]';
       return '$open\n$inner\n[/quote]';
     case SpoilerFrame():
       return '[spoiler]\n$inner\n[/spoiler]';
     case DetailsFrame(:final summary, :final open):
       final summaryAttr = summary.isEmpty ? '' : '="$summary"';
       final openAttr = open ? ' open' : '';
-      return '[details$summaryAttr$openAttr]\n$inner\n[/details]';
+      return '[details$summaryAttr$openAttr${frame.aiGenerated ? ' ai' : ''}]\n$inner\n[/details]';
   }
 }
 
@@ -690,7 +690,7 @@ String serializeIslandNode(BlockNode node) {
       final longest = RegExp(r'`+').allMatches(code).fold<int>(2,
           (length, match) => math.max(length, match.end - match.start));
       final fence = '`' * (longest + 1);
-      return '$fence${language ?? ''}\n$code\n$fence';
+      return '$fence${language ?? ''}${node.aiGenerated ? ' ai' : ''}\n$code\n$fence';
     case HorizontalRuleNode():
       return '---';
     case BlankLineNode():
@@ -711,7 +711,8 @@ String serializeIslandNode(BlockNode node) {
           .map(serializeIslandNode)
           .where((s) => s.isNotEmpty)
           .join('\n\n');
-      return inner.split('\n').map((l) => l.isEmpty ? '>' : '> $l').join('\n');
+      final quoted = inner.split('\n').map((l) => l.isEmpty ? '>' : '> $l').join('\n');
+      return node.aiGenerated ? '> [!AI]\n$quoted' : quoted;
     case QuoteCardNode():
       // onebox 展开物(编辑器预览 cook 标记):raw 是裸 URL,写回
       // [quote] 块即毁帖(静态引用不跟随原帖)
@@ -732,7 +733,7 @@ String serializeIslandNode(BlockNode node) {
           .join('\n\n');
       final summaryAttr = summary.isEmpty ? '' : '="$summary"';
       final openAttr = initiallyOpen ? ' open' : '';
-      return '[details$summaryAttr$openAttr]\n$inner\n[/details]';
+      return '[details$summaryAttr$openAttr${node.aiGenerated ? ' ai' : ''}]\n$inner\n[/details]';
     case CalloutNode():
       return _serializeCallout(node);
     case ImageGridNode(:final images, :final mode):
@@ -835,7 +836,8 @@ String _serializeQuoteCard(QuoteCardNode node) {
   }
   if (node.full) parts.add('full:true');
 
-  final open = parts.isEmpty ? '[quote]' : '[quote="${parts.join(', ')}"]';
+  final attribution = parts.isEmpty ? '' : '="${parts.join(', ')}"';
+  final open = '[quote$attribution${node.aiGenerated ? ' ai' : ''}]';
   final inner = node.children
       .map(serializeIslandNode)
       .where((s) => s.isNotEmpty)

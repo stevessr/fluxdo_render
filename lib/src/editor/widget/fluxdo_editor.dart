@@ -2355,7 +2355,7 @@ class _FluxdoEditorState extends State<FluxdoEditor>
 
   TextSelectionRules get _selectionRules =>
       TextSelectionRules(defaultTargetPlatform, TextSelectionSurface.editable);
-  int _effectiveTapCount(int count) => _selectionRules.tapCount(count, null);
+  int _effectiveTapCount(int count) => _selectionRules.tapCount(count);
   int _tapCount = 1;
   bool _shiftPressed = false;
   bool _focusedAtDown = false;
