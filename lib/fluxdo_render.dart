@@ -49,6 +49,7 @@ export 'src/render/policy_handler.dart';
 export 'src/render/chat_transcript_handler.dart';
 export 'src/render/poll_handler.dart';
 export 'src/render/quote_avatar_handler.dart';
+export 'src/render/quote_card.dart';
 export 'src/render/svg_handler.dart';
 export 'src/selection/selection_coordinator.dart' show SelectionCoordinator;
 export 'src/selection/selection_data.dart';
