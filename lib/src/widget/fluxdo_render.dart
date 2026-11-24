@@ -21,6 +21,7 @@ import '../render/policy_handler.dart';
 import '../render/chat_transcript_handler.dart';
 import '../render/poll_handler.dart';
 import '../render/quote_avatar_handler.dart';
+import '../render/quote_card.dart';
 import '../render/svg_handler.dart';
 import '../selection/selection_data.dart';
 import '../selection/selection_registry.dart';
@@ -49,6 +50,7 @@ class FluxdoRender extends StatefulWidget {
     this.codeBlockHighlighter,
     this.codeBlockBuilder,
     this.quoteAvatarBuilder,
+    this.quoteCardBuilder,
     this.oneboxBuilder,
     this.imageGridBuilder,
     this.footnoteTapHandler,
@@ -126,6 +128,7 @@ class FluxdoRender extends StatefulWidget {
   /// 引用卡头像 builder —— 主项目注入,走 SmartAvatar(鉴权 + CDN 重写)。
   /// 不传则首字母 chip。
   final QuoteAvatarBuilder? quoteAvatarBuilder;
+  final QuoteCardBuilder? quoteCardBuilder;
 
   /// Onebox 卡片 builder —— 主项目注入,根据 OneboxKind dispatch 到 6 种
   /// 子 builder(github / video / social / tech / user / default)。
@@ -352,6 +355,7 @@ class _FluxdoRenderState extends State<FluxdoRender> {
       !identical(old.codeBlockHighlighter, widget.codeBlockHighlighter) ||
       !identical(old.codeBlockBuilder, widget.codeBlockBuilder) ||
       !identical(old.quoteAvatarBuilder, widget.quoteAvatarBuilder) ||
+      !identical(old.quoteCardBuilder, widget.quoteCardBuilder) ||
       !identical(old.oneboxBuilder, widget.oneboxBuilder) ||
       !identical(old.imageGridBuilder, widget.imageGridBuilder) ||
       !identical(old.footnoteTapHandler, widget.footnoteTapHandler) ||
@@ -465,6 +469,7 @@ class _FluxdoRenderState extends State<FluxdoRender> {
           codeBlockHighlighter: widget.codeBlockHighlighter,
           codeBlockBuilder: widget.codeBlockBuilder,
           quoteAvatarBuilder: widget.quoteAvatarBuilder,
+          quoteCardBuilder: widget.quoteCardBuilder,
           oneboxBuilder: widget.oneboxBuilder,
           imageGridBuilder: widget.imageGridBuilder,
           footnoteTapHandler: widget.footnoteTapHandler,

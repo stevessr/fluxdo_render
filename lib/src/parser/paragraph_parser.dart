@@ -935,26 +935,36 @@ class ParagraphParser {
     final full = asideEl.attributes['data-full']?.trim() == 'true';
     final displayName = asideEl.attributes['data-display-name']?.trim();
 
-    final avatarEl = asideEl.querySelector('img.avatar');
+    final header = asideEl.children
+        .where((child) => child.classes.contains('title'))
+        .firstOrNull;
+    final avatarEl = header?.querySelector('img.avatar');
     final avatarUrl = avatarEl?.attributes['src']?.trim();
 
     // 标题:新版 .quote-title__text-content > a;老版 .title > a
-    final titleAEl = asideEl.querySelector(
-          '.quote-title__text-content a',
-        ) ??
-        asideEl.querySelector('.title a');
+    final topicHeader = header?.querySelector('.quote-title__text-content');
+    final titleContainer = topicHeader ?? header;
+    final titleAEl = titleContainer?.children
+        .where((child) => child.localName == 'a' &&
+            child.attributes.containsKey('href') &&
+            !child.classes.contains('badge-category__wrapper'))
+        .firstOrNull;
     String? titleText;
     String? titleHref;
     final titleInlines = <InlineNode>[];
     if (titleAEl != null) {
-      titleText = titleAEl.text.trim();
       titleHref = titleAEl.attributes['href']?.trim();
-      if (titleText.isEmpty) titleText = null;
       if ((titleHref ?? '').isEmpty) titleHref = null;
-      // 标题行内(保留 emoji / 链接,对齐 legacy htmlBuilder(titleHtml));
-      // titleAEl 是 <a> → _collectInline 产 LinkRun(children 含文字 + emoji)。
-      _collectInline(titleAEl, titleInlines, nextImageIndex);
-      _normalizeWhitespace(titleInlines);
+      final sourceOnly = topicHeader == null &&
+          username.isNotEmpty &&
+          titleAEl.children.isEmpty &&
+          _isSluglessPostSource(titleHref, topicId, postNumber);
+      if (!sourceOnly) {
+        titleText = titleAEl.text.trim();
+        if (titleText.isEmpty) titleText = null;
+        _collectInline(titleAEl, titleInlines, nextImageIndex);
+        _normalizeWhitespace(titleInlines);
+      }
     }
 
     // 分类徽章 .badge-category__wrapper:legacy 从标题 remove 出来单独渲染彩色
@@ -963,7 +973,7 @@ class ParagraphParser {
     String? categoryColor;
     String? categoryTextColor;
     String? categoryHref;
-    final badgeEl = asideEl.querySelector('.badge-category__wrapper');
+    final badgeEl = header?.querySelector('.badge-category__wrapper');
     if (badgeEl != null) {
       categoryHref = badgeEl.attributes['href']?.trim();
       categoryName =
@@ -976,7 +986,9 @@ class ParagraphParser {
       if ((categoryHref ?? '').isEmpty) categoryHref = null;
     }
 
-    final blockquoteEl = asideEl.querySelector('blockquote');
+    final blockquoteEl = asideEl.children
+        .where((child) => child.localName == 'blockquote')
+        .firstOrNull;
     final children = blockquoteEl == null
         ? const <BlockNode>[]
         : _parseBlocks(blockquoteEl.nodes, nextId, nextImageIndex,
@@ -998,10 +1010,23 @@ class ParagraphParser {
       categoryHref: categoryHref,
       children: children,
       full: full,
+      sourceMissing: asideEl.classes.contains('quote-post-not-found'),
+      excerptText: blockquoteEl?.text.trim() ?? '',
       displayName:
           (displayName == null || displayName.isEmpty) ? null : displayName,
       oneboxUrl: asideEl.attributes['data-fluxdo-onebox-url'],
     );
+  }
+
+  static bool _isSluglessPostSource(String? href, int? topicId, int? postNumber) {
+    if (href == null || topicId == null || postNumber == null ||
+        topicId <= 0 || postNumber <= 0) {
+      return false;
+    }
+    final uri = Uri.tryParse(href);
+    return uri != null && !uri.hasScheme && !uri.hasAuthority &&
+        uri.path.startsWith('/') &&
+        uri.path.endsWith('/t/$topicId/$postNumber');
   }
 
   /// 解析 `<aside class="onebox">` / `<aside class="*-onebox">` 为 OneboxNode。

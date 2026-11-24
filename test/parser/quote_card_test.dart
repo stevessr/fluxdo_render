@@ -39,6 +39,42 @@ void main() {
       expect(qc.titleHref, '/t/topic-slug/999/3');
     });
 
+    test('跨帖引用的来源占位保留链接而不是标题，不依赖占位文案的语言', () {
+      for (final (label, href) in [
+        ('在另一个话题中', '/t/421/2'),
+        ('任意本地化文案', '/forum/t/421/2?view=1#post_2'),
+      ]) {
+        final quote = parser.parse(
+          '<aside class="quote no-group" data-username="sam" data-display-name="山岚" '
+          'data-post="2" data-topic="421"><div class="title"><div class="quote-controls"></div>'
+          '<img class="avatar" src="/sam.png"><a href="$href">$label</a></div>'
+          '<blockquote><p>原文</p></blockquote></aside>',
+        ).single as QuoteCardNode;
+        expect(quote.titleText, isNull);
+        expect(quote.titleInlines, isEmpty);
+        expect(quote.titleHref, href);
+        expect(quote.displayName, '山岚');
+        expect(quote.avatarUrl, '/sam.png');
+        expect(quote.excerptText, '原文');
+      }
+    });
+
+    test('真实标题不会因为和占位文字同名或使用数字链接而被过滤', () {
+      const label = '在另一个话题中';
+      for (final header in [
+        '<a href="/t/real-title/421/2">$label</a>',
+        '<a href="https://forum.example/t/421/2">$label</a>',
+        '<div class="quote-title__text-content"><a href="/t/421/2">$label</a></div>',
+      ]) {
+        final quote = parser.parse(
+          '<aside class="quote" data-username="sam" data-topic="421" data-post="2">'
+          '<div class="title">$header</div><blockquote>原文</blockquote></aside>',
+        ).single as QuoteCardNode;
+        expect(quote.titleText, label);
+        expect(quote.titleInlines.single, isA<LinkRun>());
+      }
+    });
+
     test('.quote-title__text-content > a 优先(新版)', () {
       final result = parser.parse(
         '<aside class="quote" data-username="x">'
@@ -97,6 +133,25 @@ void main() {
       final inner = outer.children[1] as QuoteCardNode;
       expect(inner.username, 'inner');
       expect(inner.children, hasLength(1));
+    });
+
+    test('外层引用不会借用内层的头像、标题或分类', () {
+      final outer = parser.parse('<aside class="quote quote-post-not-found" data-full="true">'
+          '<blockquote><aside class="quote" data-username="inner" data-display-name="里层">'
+          '<div class="title"><img class="avatar" src="inner.png">'
+          '<a href="/t/88">里层话题</a><a class="badge-category__wrapper" href="/c/8">'
+          '<span class="badge-category__name">分类</span></a></div>'
+          '<blockquote><p>只在<b>里层</b>出现</p></blockquote></aside></blockquote></aside>').single as QuoteCardNode;
+      expect(outer.sourceMissing, isTrue);
+      expect(outer.full, isTrue);
+      expect([outer.titleHref, outer.avatarUrl, outer.categoryName], everyElement(isNull));
+      final inner = outer.children.single as QuoteCardNode;
+      expect(inner.avatarUrl, 'inner.png');
+      expect(inner.titleText, '里层话题');
+      expect(inner.categoryName, '分类');
+      expect(inner.displayName, '里层');
+      expect(inner.excerptText, '只在里层出现');
+      expect(inner.sourceMissing, isFalse);
     });
 
     test('引用内含 list / strong 等混合块', () {

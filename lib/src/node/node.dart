@@ -405,14 +405,6 @@ class CodeBlockNode extends BlockNode {
 /// </aside>
 /// ```
 ///
-/// 视觉对齐 legacy `quote_card_builder.dart`:
-///   margin 上下 8;灰底 + 左 4px 竖条 + 右上右下圆角 4
-///   头部:头像 + "username:" + 可选标题(主色)
-///   内容:嵌套 BlockNode 递归渲染(走 buildBlockquote 同样的子样式)
-///
-/// **不持 categoryHtml**:Discourse badge 是独立组件,主项目接入再补。
-/// 头像复用主项目 [imageContentBuilder](通过一个 ImageRun adapter),
-/// 这样头像也走 discourseImageProvider 缓存池。
 @immutable
 class QuoteCardNode extends BlockNode {
   const QuoteCardNode({
@@ -433,6 +425,8 @@ class QuoteCardNode extends BlockNode {
     this.full = false,
     this.displayName,
     this.oneboxUrl,
+    this.sourceMissing = false,
+    this.excerptText = '',
   });
 
   /// `data-username`,主项目用它构造用户卡跳转(同 MentionRun.username)。
@@ -442,6 +436,9 @@ class QuoteCardNode extends BlockNode {
   /// `data-full="true"`(raw 里 `full:true` —— 引用了原帖全文)。
   /// markdown 序列化写回时必须保留,否则"全文引用"退化成"节选"。
   final bool full;
+
+  final bool sourceMissing;
+  final String excerptText;
 
   /// `data-display-name`(raw 里 `[quote="张三, …, username:sam"]` 的
   /// 显示名形态)。null = raw 第一段就是 username。序列化写回用。
@@ -509,6 +506,8 @@ class QuoteCardNode extends BlockNode {
           categoryTextColor == other.categoryTextColor &&
           categoryHref == other.categoryHref &&
           full == other.full &&
+          sourceMissing == other.sourceMissing &&
+          excerptText == other.excerptText &&
           displayName == other.displayName &&
           oneboxUrl == other.oneboxUrl &&
           listEquals(children, other.children);
@@ -528,6 +527,8 @@ class QuoteCardNode extends BlockNode {
         categoryTextColor,
         categoryHref,
         full,
+        sourceMissing,
+        excerptText,
         displayName,
         oneboxUrl,
         Object.hashAll(children),

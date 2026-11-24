@@ -45,6 +45,7 @@ import 'policy_handler.dart';
 import 'chat_transcript_handler.dart';
 import 'poll_handler.dart';
 import 'quote_avatar_handler.dart';
+import 'quote_card.dart';
 import 'selectable_text_box.dart';
 import 'selectable_object_block.dart';
 import 'spoiler_effect.dart';
@@ -63,6 +64,7 @@ class NodeFactory {
     this.codeBlockHighlighter,
     this.codeBlockBuilder,
     this.quoteAvatarBuilder,
+    this.quoteCardBuilder,
     this.oneboxBuilder,
     this.imageGridBuilder,
     this.footnoteTapHandler,
@@ -150,6 +152,7 @@ class NodeFactory {
   /// 引用卡头像 builder,主项目注入(主项目用 SmartAvatar 走鉴权 +
   /// CDN 重写)。不传时用 [defaultQuoteAvatarBuilder](首字母 chip)。
   final QuoteAvatarBuilder? quoteAvatarBuilder;
+  final QuoteCardBuilder? quoteCardBuilder;
 
   /// Onebox 卡片 builder,主项目注入(根据 OneboxKind dispatch 到 6 种
   /// 子 builder:github / video / social / tech / user / default)。
@@ -234,9 +237,10 @@ class NodeFactory {
 
   /// 派生一个"紧凑"版本(给 buildBlockquote / buildQuoteCard / 等
   /// 渲染子节点用)。所有 handlers / builders 完全相同,只是 [compact]
-  /// 切到 true。
-  NodeFactory _compactCopy() {
-    if (compact) return this;
+  /// 切到 true;支持按需覆盖 [baseTextStyle]。
+  NodeFactory _compactCopy({TextStyle? baseTextStyle}) {
+    final nextStyle = baseTextStyle ?? this.baseTextStyle;
+    if (compact && nextStyle == this.baseTextStyle) return this;
     return NodeFactory(
       inlineFlattener: _inlineFlattener,
       linkHandler: linkHandler,
@@ -246,6 +250,7 @@ class NodeFactory {
       codeBlockHighlighter: codeBlockHighlighter,
       codeBlockBuilder: codeBlockBuilder,
       quoteAvatarBuilder: quoteAvatarBuilder,
+      quoteCardBuilder: quoteCardBuilder,
       oneboxBuilder: oneboxBuilder,
       imageGridBuilder: imageGridBuilder,
       footnoteTapHandler: footnoteTapHandler,
@@ -261,7 +266,7 @@ class NodeFactory {
       mathInlineBuilder: mathInlineBuilder,
       svgBuilder: svgBuilder,
       onDownloadAttachment: onDownloadAttachment,
-      baseTextStyle: baseTextStyle,
+      baseTextStyle: nextStyle,
       screenshotMode: screenshotMode,
       totalImagesInPost: totalImagesInPost,
       compact: true,
@@ -932,109 +937,90 @@ class NodeFactory {
     );
   }
 
-  /// 引用卡渲染 — `<aside class="quote">`(Discourse 经典"@回复")。
-  ///
-  /// 样式对齐 legacy `quote_card_builder.dart`:
-  ///   外容器:跟 buildBlockquote 同款(灰底 + 左 4px 竖条 + 右上右下圆角)
-  ///   顶部:头像(radius 12)+ `username:` + 可选标题(主色,可点)
-  ///   内容:子 BlockNode 递归 build,DefaultTextStyle 注入 onSurfaceVariant
-  ///
-  /// 标题 onTap 走 [linkHandler] + titleHref(主项目走 launchContentLink)。
-  /// avatar 走 [quoteAvatarBuilder] callback,默认首字母 chip。
   Widget buildQuoteCard(BuildContext context, QuoteCardNode node) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final renderStyle = FluxdoRenderStyle.of(theme);
-    final avatarBuilder = quoteAvatarBuilder ?? defaultQuoteAvatarBuilder;
-    final usernameStyle = theme.textTheme.labelLarge?.copyWith(
+    final baseBody =
+        baseTextStyle ?? theme.textTheme.bodyMedium ?? const TextStyle();
+    final quoteBodyStyle = baseBody.copyWith(
       color: scheme.onSurfaceVariant,
-      fontWeight: FontWeight.w500,
+      fontSize: baseBody.fontSize != null ? baseBody.fontSize! * 0.93 : null,
+      height: 1.48,
     );
-    final titleStyle = theme.textTheme.labelMedium?.copyWith(
-      height: 1.2,
-      color: scheme.primary,
-    );
-    return Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: ClipRSuperellipse(borderRadius: BorderRadius.only(
-          topRight: context.renderShapes.radius(4),
-          bottomRight: context.renderShapes.radius(4),
-        ),child: Container(decoration: BoxDecoration(color: renderStyle.quoteBackground ? scheme.surfaceContainerHighest.withValues(alpha: 0.3) : null,border: Border(left: BorderSide(color: scheme.outline, width: renderStyle.quoteBarWidth))),child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 顶部:头像 + username + 可选标题
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Row(
-              children: [
-                if (node.aiGenerated) const Padding(
-                  padding: EdgeInsetsDirectional.only(end: 6), child: AiContentBadge()),
-                avatarBuilder(context, node.username, node.avatarUrl, 24),
-                const SizedBox(width: 8),
-                // 话题引用(cooked 无 data-username)不显示 "用户名:";
-                // 仅用户引用(有 username)才显示,对齐网页。
-                if (node.username.isNotEmpty)
-                  Text('${node.username}:', style: usernameStyle),
-                if (node.titleInlines.isNotEmpty) ...[
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: InlineSpanText(
-                      inlines: node.titleInlines,
-                      baseStyle: titleStyle ?? const TextStyle(),
-                      documentOrder: docOrderOf(node),
-                      chunkIndex: chunkIndex,
-                      flattener: _inlineFlattener,
-                      linkHandler: linkHandler,
-                      onDownloadAttachment: onDownloadAttachment,
-                      emojiImageBuilder: emojiImageBuilder,
-                      mentionTapHandler: mentionTapHandler,
-                      imageContentBuilder: imageContentBuilder,
-                      footnoteTapHandler: footnoteTapHandler,
-                      localDateBuilder: localDateBuilder,
-                      mathInlineBuilder: mathInlineBuilder,
-                      totalImagesInPost: totalImagesInPost,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ] else if (node.titleText != null) ...[
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: _QuoteTitle(
-                      text: node.titleText!,
-                      href: node.titleHref,
-                      style: titleStyle,
-                      onTap: _linkTap(context, node.titleHref),
-                    ),
-                  ),
-                ],
-                if (node.categoryName != null) ...[
-                  const SizedBox(width: 4),
-                  _QuoteCategoryBadge(
-                    name: node.categoryName!,
-                    color: _hexColor(node.categoryColor),
-                    onTap: _linkTap(context, node.categoryHref),
-                  ),
-                ],
+    Widget layout({
+      Widget? trailing,
+      Widget? body,
+      Widget? footer,
+      VoidCallback? onOpen,
+      Color? categoryColor,
+      String? floorLabel,
+      bool disableSource = false,
+      bool isCrossTopic = false,
+    }) {
+      final disabled = disableSource || node.sourceMissing || screenshotMode;
+      final open = disabled ? null : onOpen ?? _linkTap(context, node.titleHref);
+      final titleStyle = baseBody.copyWith(
+        color: scheme.onSurface,
+        fontSize: baseBody.fontSize != null ? baseBody.fontSize! * 0.96 : 14,
+        height: 1.35,
+        fontWeight: FontWeight.w600,
+      );
+      final titleInlines = node.titleInlines;
+      final titleLink = titleInlines.length == 1 ? titleInlines.first : null;
+      Widget? title;
+      if (titleInlines.isNotEmpty) {
+        title = InlineSpanText(
+          inlines: titleLink is LinkRun ? titleLink.children : titleInlines,
+          baseStyle: titleStyle,
+          documentOrder: docOrderOf(node),
+          chunkIndex: chunkIndex,
+          flattener: _inlineFlattener,
+          emojiImageBuilder: emojiImageBuilder,
+          imageContentBuilder: imageContentBuilder,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        );
+      } else if (node.titleText != null) {
+        title = Text(
+          node.titleText!,
+          style: titleStyle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        );
+      }
+      if (body == null && node.children.isNotEmpty) {
+        final factory = _compactCopy(baseTextStyle: quoteBodyStyle);
+        body = DefaultTextStyle.merge(
+          style: quoteBodyStyle,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < node.children.length; i++) ...[
+                if (i > 0) const SizedBox(height: 5),
+                factory.build(context, node.children[i]),
               ],
-            ),
+            ],
           ),
-          // 内容
-          if (node.children.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              child: DefaultTextStyle.merge(
-                style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // quote_card 内子节点走 compact factory
-                    for (final child in node.children)
-                      _compactCopy().build(context, child),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ))));
+        );
+      }
+      return RenderQuoteCard(
+        quote: node,
+        title: title,
+        body: body,
+        footer: footer,
+        trailing: trailing,
+        floorLabel: floorLabel,
+        onOpen: open,
+        isCrossTopic: isCrossTopic,
+        avatarBuilder: quoteAvatarBuilder ?? defaultQuoteAvatarBuilder,
+        onCategory: disabled ? null : _linkTap(context, node.categoryHref),
+        categoryColor: categoryColor ?? _hexColor(node.categoryColor),
+      );
+    }
+    final custom = quoteCardBuilder;
+    return custom == null || screenshotMode
+        ? layout()
+        : custom(context, node, layout, quoteBodyStyle);
   }
 
   /// 块级 spoiler 渲染 — `<div class="spoiler">`。
@@ -2110,35 +2096,6 @@ class _SpoilerBlockWidgetState extends State<_SpoilerBlockWidget>
   }
 }
 
-/// 引用卡标题文本(只是一行 InkWell-y 可点 Text;主色 + 省略)。
-class _QuoteTitle extends StatelessWidget {
-  const _QuoteTitle({
-    required this.text,
-    required this.href,
-    required this.style,
-    required this.onTap,
-  });
-
-  final String text;
-  final String? href;
-  final TextStyle? style;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final textWidget = Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: style,
-    );
-    return ContentTapTarget(onTap: onTap, child: textWidget);
-  }
-}
-
-/// 把 CSS hex 颜色串(`#RGB`/`#RRGGBB`/`#RRGGBBAA`)解析成 [Color]。
-/// 用于引用卡分类徽章的 `--category-badge-color` / `--category-badge-text-color`。
-/// 解析失败返回 null(渲染回退主题色)。
 Color? _hexColor(String? hex) {
   if (hex == null) return null;
   var h = hex.trim();
@@ -2150,51 +2107,6 @@ Color? _hexColor(String? hex) {
   if (h.length != 8) return null;
   final v = int.tryParse(h, radix: 16);
   return v == null ? null : Color(v);
-}
-
-/// 引用卡标题旁的分类徽章(彩色圆角标签,对齐 legacy `.badge-category`)。
-/// 底色/文字色来自 Discourse 的 `--category-badge-color` 变量;点击跳分类页。
-/// (图标 svg 暂略,先对齐彩色 + 名称这两个主视觉。)
-class _QuoteCategoryBadge extends StatelessWidget {
-  const _QuoteCategoryBadge({required this.name, this.color, this.onTap});
-
-  final String name;
-
-  /// 分类色(`--category-badge-color`)—— 用作圆点 + 名称的颜色。
-  /// 对齐 Discourse `--style-icon`:彩色图标 + 彩色名称、**无背景块**。
-  final Color? color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final c = color ?? scheme.onSurfaceVariant;
-    // --style-icon:分类色「圆点(代图标)+ 名称」,无背景块(对齐网页 #4)。
-    // 精确 category 图标是 svg(code/droplet 等),子包不渲染 svg,先用圆点近似。
-    final row = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.2,
-            color: c,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-    return ContentTapTarget(onTap: onTap, child: row);
-  }
 }
 
 /// 代码块右上角的"复制"按钮,带 1.5s "已复制" 反馈。
